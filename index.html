@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07111d" />
+    <meta name="description" content="00AI Harness — 행정망 Local-First 공공AI 오케스트레이터" />
+    <title>00AI Harness · Command Center</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-state="ready">
+    <div class="aurora aurora-a" aria-hidden="true"></div>
+    <div class="aurora aurora-b" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="주요 메뉴">
+        <div class="brand-lockup">
+          <div class="brand-mark">00</div>
+          <div>
+            <strong>00AI HARNESS</strong>
+            <span>PUBLIC AI COMMAND CENTER</span>
+          </div>
+        </div>
+        <nav class="primary-nav">
+          <button class="nav-item is-selected" data-nav-state="ready"><span class="nav-glyph">⌂</span>HOME</button>
+          <div class="nav-label">WORKSPACE</div>
+          <button class="nav-item" data-nav-state="active"><span class="nav-glyph">▶</span>RUN</button>
+          <button class="nav-item"><span class="nav-glyph">▤</span>DOCUMENTS</button>
+          <button class="nav-item"><span class="nav-glyph">◌</span>MCP HUB</button>
+          <button class="nav-item" data-nav-state="verified"><span class="nav-glyph">◇</span>SECURITY</button>
+          <button class="nav-item"><span class="nav-glyph">≡</span>AUDIT</button>
+        </nav>
+        <div class="sidebar-footer"><span class="live-dot"></span><div><strong>LOCAL EXECUTION</strong><small>ON · 127.0.0.1</small></div></div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div class="breadcrumb" id="breadcrumb">00AI HARNESS&nbsp; / &nbsp;COMMAND CENTER</div>
+          <div class="topbar-actions"><span class="policy-pill"><span class="live-dot"></span>EGRESS POLICY · ENFORCED</span><button class="network-pill" type="button" id="commandButton">⌘K&nbsp; COMMANDS</button></div>
+        </header>
+
+        <main class="content" id="mainContent">
+          <section class="state-view ready-view" data-view="ready" aria-labelledby="readyTitle">
+            <div class="hero-grid">
+              <div class="hero-copy"><div class="eyebrow">LOCAL-FIRST GOVERNMENT AI</div><h1 id="readyTitle">내 업무를 연결합니다.</h1><p>폴더·문서·도구는 내부에서 실행하고, 외부 AI는 추상화된 계획만 제안합니다.<br />모든 결과는 근거와 함께 파일로 생성됩니다.</p></div>
+              <div class="trust-spine panel-glass"><div class="panel-heading"><span>TRUST SPINE · EXECUTION BOUNDARY</span><span class="status-chip mint live"><i></i>LIVE</span></div><div class="spine-nodes"><div class="spine-node internal"><span>01 · INTERNAL</span><strong>LOCAL EXECUTOR</strong><small>자료 접근 · 도구 실행</small></div><div class="spine-node external"><span>02 · EXTERNAL</span><strong>AI PLANNER</strong><small>계획 JSON만 반환</small></div></div><div class="zero-egress"><span>INTERNAL DATA SENT</span><strong>0 B · VERIFIED</strong></div></div>
+            </div>
+            <div class="metric-grid"><article class="metric-card"><span>LOCAL AI</span><strong>READY</strong><small>EXTRACTIVE · OFFLINE</small></article><article class="metric-card"><span>MCP TOOLS</span><strong>23</strong><small>허용된 로컬 도구</small></article><article class="metric-card accent"><span>INTERNAL DATA SENT</span><strong>0 B</strong><small>VERIFIED · LIVE</small></article></div>
+            <div class="ready-grid">
+              <section class="run-panel panel-glass"><div class="panel-heading"><span class="eyebrow">NEW HARNESS RUN</span><kbd>CTRL + ENTER</kbd></div><button class="prompt-box" id="promptBox" type="button"><span class="prompt-caret">›_</span><span>최근 3년 사업계획과 결과보고를 비교해서<br />올해 의회 예상질문과 답변 초안을 만들어줘.</span></button><div class="tag-row"><span>WORKSPACE · 청년정책과</span><span>OUTPUT · HWPX</span><span>EVIDENCE · STRICT</span></div><div class="example-row"><button type="button" data-example="의회 예상질문">의회 예상질문</button><button type="button" data-example="협조 요청">협조 요청</button><button type="button" data-example="현황 제출">현황 제출</button></div><button class="primary-action" id="runButton" type="button">RUN HARNESS <span>→</span></button></section>
+              <section class="security-panel panel-glass"><div class="panel-heading"><span>SECURITY STATUS</span><span class="status-chip safe live"><i></i>LIVE</span></div><dl class="security-list"><div><dt>EGRESS POLICY</dt><dd>ENFORCED</dd></div><div><dt>INTERNAL DATA SENT</dt><dd>0 B</dd></div><div><dt>PERSONAL DATA SENT</dt><dd>0 B</dd></div><div><dt>SOURCE POLICY</dt><dd>READ ONLY</dd></div><div><dt>OUTPUT POLICY</dt><dd>CREATE ONLY</dd></div></dl><div class="secure-seal"><b>✓</b><span><strong>DATA BOUNDARY SECURE</strong><small>추상 작업 스키마만 경계를 통과합니다.</small></span></div></section>
+            </div>
+          </section>
+
+          <section class="state-view active-view" data-view="active" aria-labelledby="activeTitle" hidden>
+            <div class="state-header"><div><div class="eyebrow">HARNESS RUN · TASK-042</div><h1 id="activeTitle">하네스가 내부에서 실행 중입니다.</h1><p>계획은 검증됐고, 내부 도구가 허가된 경로로 근거를 수집하고 있습니다.</p></div><span class="status-chip mint live"><i></i>RUNNING</span></div>
+            <div class="active-grid">
+              <section class="trace-panel panel-glass"><div class="panel-heading"><span class="eyebrow">LOCAL EXECUTION TRACE</span><span class="muted">TASK-042 · 00:18</span></div><div class="request-preview"><span>REQUEST</span><strong id="requestText">최근 3년 사업계획과 결과보고 비교 → 의회 예상질문·답변</strong></div><div class="step-list" id="stepList"></div></section>
+              <aside class="active-side"><section class="plan-panel panel-glass"><div class="panel-heading"><span class="eyebrow">VERIFIED PLAN</span><span class="muted">JSON 1.0</span></div><pre>{
+  "task":   "legislative_qa",
+  "scope":  "workspace:youth-policy",
+  "tools":  "search · extract · validate",
+  "egress": "schema_only · 0 B",
+  "output": "hwpx · create_only"
+}</pre><div class="policy-check">✓ &nbsp; POLICY CHECK PASSED</div></section><section class="evidence-panel panel-glass"><div class="panel-heading"><span class="eyebrow">EVIDENCE STREAM</span><span class="status-chip mint live"><i></i>COLLECTING</span></div><div class="evidence-row"><span>FACT<small>원문 문장·표</small></span><strong>42</strong></div><div class="evidence-row"><span>CALCULATED<small>예산·비율·기간</small></span><strong>7</strong></div><div class="evidence-row"><span>INFERRED<small>비교·관계</small></span><strong>12</strong></div><div class="evidence-row proposed"><span>PROPOSED<small>답변 초안</small></span><strong>8</strong></div><button class="evidence-complete" id="verifyButton" type="button">✓ 69 EVIDENCE LINKED <b>100%</b></button></section></aside>
+            </div>
+          </section>
+
+          <section class="state-view verified-view" data-view="verified" aria-labelledby="verifiedTitle" hidden>
+            <div class="state-header"><div><div class="eyebrow">SECURITY EVIDENCE · RUN 2026-08-20—001</div><h1 id="verifiedTitle">결과가 생성되고 경계가 증명됐습니다.</h1></div><span class="status-chip safe live"><i></i>VERIFIED</span></div>
+            <div class="metric-grid four"><article class="metric-card accent"><span>INTERNAL DATA</span><strong>0 B</strong><small>외부 전송량</small></article><article class="metric-card"><span>BLOCKED EGRESS</span><strong>0</strong><small>차단 이벤트</small></article><article class="metric-card"><span>SOURCE POLICY</span><strong>READ ONLY</strong><small>원본 불변</small></article><article class="metric-card"><span>EVIDENCE</span><strong>69</strong><small>추적 가능한 항목</small></article></div>
+            <div class="verified-grid"><section class="boundary-panel panel-glass"><div class="panel-heading"><div><strong>Security Boundary</strong><small>데이터는 로컬을 떠나지 않았습니다.</small></div><span class="status-chip safe"><i></i>ZERO EGRESS</span></div><div class="boundary-diagram"><div class="boundary-node"><span>EXTERNAL PLANNER</span><strong>Plan only</strong></div><span class="path-arrow">→</span><div class="boundary-orb"><span>0 B</span><small>INTERNAL DATA</small></div><span class="path-arrow safe-arrow">→</span><div class="boundary-node"><span>LOCAL EXECUTOR</span><strong>Read · Act · Write</strong></div><b class="sealed">✓ BOUNDARY SEALED</b></div></section><section class="result-panel panel-glass"><div class="panel-heading"><strong>결과물</strong><span class="result-ready">READY</span></div><div class="file-card"><b>↗</b><strong>2026-08-20_AI-검토결과.md</strong><small>84 KB · SHA-256 검증 완료</small></div><ul class="result-checks"><li>✓ 원본 소스 변경 없음</li><li>✓ 외부 전송량 0 B</li><li>✓ 모든 주장에 증거 연결</li></ul><button class="secondary-action" type="button" id="openResult">결과 파일 열기</button></section></div>
+            <section class="ledger-panel panel-glass"><div class="panel-heading"><div><strong>Evidence Ledger</strong><small>주장마다 근거 유형과 출처 경로를 즉시 확인합니다.</small></div><span class="eyebrow">69 ITEMS</span></div><div class="ledger-row"><b>FACT</b><strong>42</strong><span>소스 원문과 직접 일치</span><small>Source-linked</small></div><div class="ledger-row"><b>CALCULATED</b><strong>7</strong><span>로컬 실행기로 산출</span><small>Formula-visible</small></div><div class="ledger-row"><b>INFERRED</b><strong>12</strong><span>추론 근거와 신뢰도 포함</span><small>Reviewable</small></div><div class="ledger-row"><b>PROPOSED</b><strong>8</strong><span>사용자 승인 전 미적용</span><small>Approval-gated</small></div></section>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="command-palette" id="commandPalette" hidden><div class="palette-card" role="dialog" aria-modal="true" aria-labelledby="paletteTitle"><div class="palette-head"><strong id="paletteTitle">COMMAND PALETTE</strong><button id="closePalette" type="button">ESC</button></div><button data-command="ready" type="button">⌂ &nbsp; Command Center · Ready</button><button data-command="active" type="button">▶ &nbsp; Harness Run · Active</button><button data-command="verified" type="button">◇ &nbsp; Security Evidence · Verified</button></div></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
+
