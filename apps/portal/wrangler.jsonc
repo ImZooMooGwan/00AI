@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "00ai-portal",
+  "name": "00ai",
   "main": "dist/server/index.js",
   "assets": {
     "directory": "dist/client",
