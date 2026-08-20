@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Cloudflare CI: run nested scripts through bash so file mode never blocks builds.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
