@@ -1,0 +1,8 @@
+name = "00ai-policy"
+main = "worker.js"
+compatibility_date = "2026-08-20"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+not_found_handling = "404-page"
