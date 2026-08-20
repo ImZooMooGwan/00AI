@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `active_deployment_id` text;

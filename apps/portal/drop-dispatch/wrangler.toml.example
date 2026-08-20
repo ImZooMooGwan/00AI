@@ -1,0 +1,13 @@
+name = "00ai-drop-dispatch"
+main = "src/index.ts"
+compatibility_date = "2026-08-20"
+workers_dev = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "00ai-drop"
+database_id = "REPLACE_WITH_D1_ID"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "00ai-drop"
