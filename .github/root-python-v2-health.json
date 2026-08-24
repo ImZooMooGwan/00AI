@@ -1,0 +1,42 @@
+{
+  "checked_at": "2026-08-24T13:24:07Z",
+  "deployed": true,
+  "healthy": true,
+  "rolled_back": false,
+  "steps": [
+    "token_ok",
+    "zone_ok",
+    "preview_ok",
+    "old_bindings_removed",
+    "new_domain_attached",
+    "production_verified"
+  ],
+  "preview": {
+    "root": 200,
+    "api": 200,
+    "site_projects": 16
+  },
+  "before": {
+    "domain_service": "00ai-portal",
+    "route_script": "00ai-portal"
+  },
+  "delete_domain_http": 200,
+  "delete_route_http": 200,
+  "attach_http": 200,
+  "attach_response_success": true,
+  "last_attempt": {
+    "n": 1,
+    "root": 200,
+    "api": 200,
+    "marker": "v2",
+    "good": true
+  },
+  "service": "00ai-root-router-debug-v2",
+  "site_projects": 16,
+  "github_projects": 0,
+  "policy_redirect": "https://policy.00ai.kr/",
+  "harness_redirect": "https://harness.00ai.kr/",
+  "policy_api": 200,
+  "yhub": 200,
+  "harness": 200
+}
