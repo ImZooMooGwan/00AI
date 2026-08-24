@@ -35,6 +35,23 @@ jobs:
           test -n "$ACCOUNT_ID"
           echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
 
+      - name: Patch legacy internal links to live 00AI domains
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('apps/portal/app/page.tsx')
+          s=p.read_text()
+          s=s.replace('href: "/policy"', 'href: "https://policy.00ai.kr"')
+          s=s.replace('href: "/harness"', 'href: "https://harness.00ai.kr/"')
+          s=s.replace('href="/harness"', 'href="https://harness.00ai.kr/"')
+          s=s.replace('D1 · R2 연결됨', 'Supabase Storage 연결됨')
+          s=s.replace('D1/R2 연결 필요', '배포 저장소 연결 필요')
+          p.write_text(s)
+          PY
+          grep -q 'https://policy.00ai.kr' apps/portal/app/page.tsx
+          grep -q 'https://harness.00ai.kr/' apps/portal/app/page.tsx
+
       - name: Build latest portal
         working-directory: apps/portal
         env:
@@ -70,6 +87,8 @@ jobs:
           test "$(curl -ksS --max-time 30 -o /tmp/origin-api.json -w '%{http_code}' "$URL/api/projects")" = 200
           grep -q 'policy.00ai.kr' /tmp/origin-api.json
           grep -q 'yhub.00ai.kr' /tmp/origin-api.json
+          grep -q 'https://policy.00ai.kr' /tmp/origin-root.html
+          grep -q 'https://harness.00ai.kr/' /tmp/origin-root.html
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/origin-api.json'))
@@ -94,9 +113,10 @@ jobs:
             'has_yhub_project':'청년정책데이터허브' in html,
             'has_policy_project':'정책상황실' in html,
             'custom_hrefs':[x for x in hrefs if '.00ai.kr' in x],
+            'chatgpt_hrefs':[x for x in hrefs if 'chatgpt.site' in x],
             'runtime_errors':[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:20],
           }
-          out['healthy']=out['dom_bytes']>10000 and out['has_yhub_project'] and out['has_policy_project'] and len(out['custom_hrefs'])>=10 and not out['runtime_errors']
+          out['healthy']=out['dom_bytes']>10000 and out['has_yhub_project'] and out['has_policy_project'] and len(out['custom_hrefs'])>=10 and not out['chatgpt_hrefs'] and not out['runtime_errors']
           pathlib.Path('../../.github/portal-origin-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
           print(json.dumps(out,ensure_ascii=False,indent=2))
           if not out['healthy']: raise SystemExit(1)
