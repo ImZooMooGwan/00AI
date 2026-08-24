@@ -1,0 +1,210 @@
+{
+  "checked_at": "2026-08-24T12:41:10.661535Z",
+  "sites": {
+    "policy.00ai.kr": {
+      "bundle_count": 5,
+      "bundles": [
+        {
+          "ref": "/assets/layout-segment-context-BLl6MnSH.js",
+          "bytes": 288,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/rolldown-runtime-S-ySWqyJ.js",
+          "bytes": 694,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/index-BdtQS5FV.js",
+          "bytes": 80735,
+          "network_snippets": [
+            "fetch(e)",
+            "fetch(o,{headers:a,credentials:`include`,priority:`low`})",
+            "fetch(await Xe(window.location.pathname+window.location.search,t)",
+            "fetch(await Xe(window.location.pathname+window.location.search,a)",
+            "fetch(g,{headers:h,credentials:`include`})",
+            "http://vinext.local",
+            "https://nextjs.org/docs/app/api-reference/functions/use-search-params#updating-searchparams",
+            "http://localhost",
+            "https://nextjs.org/docs/messages/failed-to-find-server-action",
+            "location.origin):new URL(e);if(t.origin===window.location.origin)return t.pathname+t.search+t.hash}catch{}return null}function $e(e,t){let n=Qe(e);if(n==null||!t)return n;try{let e=new URL(n,`http://vinext.local`);r",
+            "location.origin:`http://localhost`,r=new URL(e,n);return{pathname:U(r.pathname,``),searchParams:new at(r.search),params:t}}var Bt=`{}`;function Vt(e){let t=G();if(!t){let t=JSON.stringify(e);t!==Bt&&(Bt=t);return}le",
+            "location.origin).href;Li(i);let o=cr(n===`replace`?window.history.state:null,a);n===`replace`&&window.location.href!==e?q(o,``,t):n===`push`&&window.location.href!==e&&Zt(o,``,t),ji=null,K(r)}}async function Hi(e,t,",
+            "location.origin).origin!==window.location.origin){window.location.href=s;return}}catch{}Bi(),(o.headers.get(`x-action-redirect-type`)??`replace`)===`push`?window.location.assign(s):window.location.replace(s);return}",
+            "location.origin),t=qi(n,f),r=t.interceptionContext,i=t.previousNextUrl;Ut(e.pathname,l);let a=Mi().elements,m=je(a),h=Je({interceptionContext:r,renderMode:n===`refresh`?T:void 0});m&&h.set(c,m);let g=await Xe(e.path",
+            "location.origin);Ke(n);let r=new URL(u,window.location.origin),i=qe(n.pathname);r.pathname.length>1&&r.pathname.endsWith(`/`)&&!i.endsWith(`/`)&&(i+=`/`),t=i+n.search,r.hash&&(t+=r.hash)}window.location.href=t;retur",
+            "location.origin);Ke(x);let S=new URL(g,window.location.origin);if(x.pathname!==S.pathname){let e=qe(x.pathname)+x.search;q(cr(null,i),``,e),u=e,d=void 0,f=i,p+=1;continue}let C=Oi(v.headers.get(`X-Vinext-Params`))??"
+          ]
+        },
+        {
+          "ref": "/assets/framework-CXnKph_e.js",
+          "bytes": 189805,
+          "network_snippets": [
+            "https://react.dev/errors/",
+            "http://www.w3.org/2000/svg",
+            "http://www.w3.org/1998/Math/MathML",
+            "http://www.w3.org/1999/xlink",
+            "http://www.w3.org/XML/1998/namespace"
+          ]
+        },
+        {
+          "ref": "/assets/PolicyWorkbench-nwUpXTZm.js",
+          "bytes": 14475,
+          "network_snippets": [
+            "fetch(`/api/hasa/health`,{cache:`no-store`})",
+            "fetch(`/api/analyze`,{method:`POST`,headers:{\"Content-Type\":`application/json`},body:JSON.stringify({question:e,mode:n})",
+            "/api/hasa/health",
+            "/api/analyze"
+          ]
+        }
+      ]
+    },
+    "yhub.00ai.kr": {
+      "bundle_count": 8,
+      "bundles": [
+        {
+          "ref": "/assets/layout-segment-context-DIuZ_xwz.js",
+          "bytes": 288,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/rolldown-runtime-S-ySWqyJ.js",
+          "bytes": 694,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/index-SQ4-gtyt.js",
+          "bytes": 82924,
+          "network_snippets": [
+            "fetch(e)",
+            "fetch(o,{headers:a,credentials:`include`,priority:`low`})",
+            "fetch(await Ze(window.location.pathname+window.location.search,t)",
+            "fetch(await Ze(window.location.pathname+window.location.search,a)",
+            "fetch(g,{headers:h,credentials:`include`})",
+            "http://vinext.local",
+            "https://nextjs.org/docs/app/api-reference/functions/use-search-params#updating-searchparams",
+            "http://localhost",
+            "https://nextjs.org/docs/messages/failed-to-find-server-action",
+            "location.origin):new URL(e);if(t.origin===window.location.origin)return t.pathname+t.search+t.hash}catch{}return null}function et(e,t){let n=$e(e);if(n==null||!t)return n;try{let e=new URL(n,`http://vinext.local`);r",
+            "location.origin:`http://localhost`,r=new URL(e,n);return{pathname:H(r.pathname,``),searchParams:new ot(r.search),params:t}}var Vt=`{}`;function Ht(e){let t=W();if(!t){let t=JSON.stringify(e);t!==Vt&&(Vt=t);return}le",
+            "location.origin).href;Li(i);let o=lr(n===`replace`?window.history.state:null,a);n===`replace`&&window.location.href!==e?K(o,``,t):n===`push`&&window.location.href!==e&&Qt(o,``,t),ji=null,G(r)}}async function Hi(e,t,",
+            "location.origin).origin!==window.location.origin){window.location.href=s;return}}catch{}Bi(),(o.headers.get(`x-action-redirect-type`)??`replace`)===`push`?window.location.assign(s):window.location.replace(s);return}",
+            "location.origin),t=qi(n,f),r=t.interceptionContext,i=t.previousNextUrl;Wt(e.pathname,l);let a=Mi().elements,m=Me(a),h=Ye({interceptionContext:r,renderMode:n===`refresh`?T:void 0});m&&h.set(c,m);let g=await Ze(e.path",
+            "location.origin);qe(n);let r=new URL(u,window.location.origin),i=Je(n.pathname);r.pathname.length>1&&r.pathname.endsWith(`/`)&&!i.endsWith(`/`)&&(i+=`/`),t=i+n.search,r.hash&&(t+=r.hash)}window.location.href=t;retur",
+            "location.origin);qe(x);let S=new URL(g,window.location.origin);if(x.pathname!==S.pathname){let e=Je(x.pathname)+x.search;K(lr(null,i),``,e),u=e,d=void 0,f=i,p+=1;continue}let C=Oi(v.headers.get(`X-Vinext-Params`))??"
+          ]
+        },
+        {
+          "ref": "/assets/framework-CXnKph_e.js",
+          "bytes": 189805,
+          "network_snippets": [
+            "https://react.dev/errors/",
+            "http://www.w3.org/2000/svg",
+            "http://www.w3.org/1998/Math/MathML",
+            "http://www.w3.org/1999/xlink",
+            "http://www.w3.org/XML/1998/namespace"
+          ]
+        },
+        {
+          "ref": "/assets/link-DzPr_xCf.js",
+          "bytes": 9615,
+          "network_snippets": [
+            "fetch(m,{headers:f,credentials:`include`,priority:n,purpose:`prefetch`})",
+            "location.origin?`${f(t.pathname,q)}${t.search}`:null}function Y(e){if(typeof window>`u`)return!1;let t=window.__VINEXT_LINK_PREFETCH_ROUTES__;if(!t)return!1;let n=ce(e);if(n===null)return!1;let r=M(n,t,oe);return r?",
+            "location.origin});if(o==null)return;let s=v(o,window.location.href,q);(window.requestIdleCallback??(e=>setTimeout(e,100)))(()=>{(async()=>{if(typeof window.__VINEXT_RSC_NAVIGATE__==`function`){if(t===`auto`&&!Y(o))r",
+            "location.origin});if(t==null)return;let n=le();if(n)return Q.set(e,()=>X(t,O,`low`)),n.observe(e),()=>{n.unobserve(e),Q.delete(e)}},[k,O,S]);let j=(0,W.useCallback)(()=>{k&&X(S,O,`high`)},[k,O,S]),M=(0,W.useCallback",
+            "location.origin),t=!1,n={url:e,preventDefault(){t=!0},get defaultPrevented(){return t}};if(f(n),n.defaultPrevented)return}catch{}if(typeof window.__VINEXT_RSC_NAVIGATE__==`function`){T(!0),W.startTransition(()=>{m(t"
+          ]
+        },
+        {
+          "ref": "/assets/YouthPolicyAtlas-wv6p_-j9.js",
+          "bytes": 23239,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/data-CqmZA2eH.js",
+          "bytes": 22386,
+          "network_snippets": [
+            "https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch",
+            "https://www.youthcenter.go.kr/cmnFooter/openapiIntro/oaiDoc",
+            "https://kosis.kr/openapi/",
+            "https://open.law.go.kr/LSO/openApi/guideList.do",
+            "https://www.daejeonyouthportal.kr/",
+            "https://www.daejeonyouthportal.kr/content/CT_000000000059/cntPage.do?commonMenuNo=79_80&dpmSectionFst=2&dpmSectionScd=9",
+            "https://www.daejeonyouthportal.kr/content/CT_000000000067/cntPage.do?commonMenuNo=36_281",
+            "https://www.daejeonyouthportal.kr/content/CT_000000000163/cntPage.do?commonMenuNo=36_49_50",
+            "https://www.daejeonyouthportal.kr/content/CT_000000000050/cntPage.do?commonMenuNo=36_63&dpmSectionFst=1&dpmSectionScd=6"
+          ]
+        },
+        {
+          "ref": "/assets/McpConnectionCard-BAQD7MGb.js",
+          "bytes": 2557,
+          "network_snippets": [
+            "fetch(`/api/v1/mcp/status`,{headers:{Accept:`application/json`},cache:`no-store`,signal:e.signal})",
+            "/api/v1/mcp/status",
+            "https://github.com/ImZooMooGwan/00AI/tree/main/apps/youth-policy-mcp"
+          ]
+        }
+      ]
+    },
+    "oneul-daejeon.00ai.kr": {
+      "bundle_count": 5,
+      "bundles": [
+        {
+          "ref": "/assets/layout-segment-context-DQR_gqLk.js",
+          "bytes": 288,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/rolldown-runtime-S-ySWqyJ.js",
+          "bytes": 694,
+          "network_snippets": []
+        },
+        {
+          "ref": "/assets/index-CgUxZqP0.js",
+          "bytes": 82220,
+          "network_snippets": [
+            "fetch(e)",
+            "fetch(o,{headers:a,credentials:`include`,priority:`low`})",
+            "fetch(await Ze(window.location.pathname+window.location.search,t)",
+            "fetch(await Ze(window.location.pathname+window.location.search,a)",
+            "fetch(g,{headers:h,credentials:`include`})",
+            "http://vinext.local",
+            "https://nextjs.org/docs/app/api-reference/functions/use-search-params#updating-searchparams",
+            "http://localhost",
+            "https://nextjs.org/docs/messages/failed-to-find-server-action",
+            "location.origin):new URL(e);if(t.origin===window.location.origin)return t.pathname+t.search+t.hash}catch{}return null}function et(e,t){let n=$e(e);if(n==null||!t)return n;try{let e=new URL(n,`http://vinext.local`);r",
+            "location.origin:`http://localhost`,r=new URL(e,n);return{pathname:H(r.pathname,``),searchParams:new ot(r.search),params:t}}var Vt=`{}`;function Ht(e){let t=W();if(!t){let t=JSON.stringify(e);t!==Vt&&(Vt=t);return}le",
+            "location.origin).href;Li(i);let o=lr(n===`replace`?window.history.state:null,a);n===`replace`&&window.location.href!==e?K(o,``,t):n===`push`&&window.location.href!==e&&Qt(o,``,t),ji=null,G(r)}}async function Hi(e,t,",
+            "location.origin).origin!==window.location.origin){window.location.href=s;return}}catch{}Bi(),(o.headers.get(`x-action-redirect-type`)??`replace`)===`push`?window.location.assign(s):window.location.replace(s);return}",
+            "location.origin),t=qi(n,f),r=t.interceptionContext,i=t.previousNextUrl;Wt(e.pathname,l);let a=Mi().elements,m=Me(a),h=Ye({interceptionContext:r,renderMode:n===`refresh`?T:void 0});m&&h.set(c,m);let g=await Ze(e.path",
+            "location.origin);qe(n);let r=new URL(u,window.location.origin),i=Je(n.pathname);r.pathname.length>1&&r.pathname.endsWith(`/`)&&!i.endsWith(`/`)&&(i+=`/`),t=i+n.search,r.hash&&(t+=r.hash)}window.location.href=t;retur",
+            "location.origin);qe(x);let S=new URL(g,window.location.origin);if(x.pathname!==S.pathname){let e=Je(x.pathname)+x.search;K(lr(null,i),``,e),u=e,d=void 0,f=i,p+=1;continue}let C=Oi(v.headers.get(`X-Vinext-Params`))??"
+          ]
+        },
+        {
+          "ref": "/assets/framework-CXnKph_e.js",
+          "bytes": 189805,
+          "network_snippets": [
+            "https://react.dev/errors/",
+            "http://www.w3.org/2000/svg",
+            "http://www.w3.org/1998/Math/MathML",
+            "http://www.w3.org/1999/xlink",
+            "http://www.w3.org/XML/1998/namespace"
+          ]
+        },
+        {
+          "ref": "/assets/link-CxpzDBzG.js",
+          "bytes": 9615,
+          "network_snippets": [
+            "fetch(m,{headers:f,credentials:`include`,priority:n,purpose:`prefetch`})",
+            "location.origin?`${f(t.pathname,q)}${t.search}`:null}function Y(e){if(typeof window>`u`)return!1;let t=window.__VINEXT_LINK_PREFETCH_ROUTES__;if(!t)return!1;let n=ce(e);if(n===null)return!1;let r=M(n,t,oe);return r?",
+            "location.origin});if(o==null)return;let s=v(o,window.location.href,q);(window.requestIdleCallback??(e=>setTimeout(e,100)))(()=>{(async()=>{if(typeof window.__VINEXT_RSC_NAVIGATE__==`function`){if(t===`auto`&&!Y(o))r",
+            "location.origin});if(t==null)return;let n=le();if(n)return Q.set(e,()=>X(t,O,`low`)),n.observe(e),()=>{n.unobserve(e),Q.delete(e)}},[k,O,S]);let j=(0,W.useCallback)(()=>{k&&X(S,O,`high`)},[k,O,S]),M=(0,W.useCallback",
+            "location.origin),t=!1,n={url:e,preventDefault(){t=!0},get defaultPrevented(){return t}};if(f(n),n.defaultPrevented)return}catch{}if(typeof window.__VINEXT_RSC_NAVIGATE__==`function`){T(!0),W.startTransition(()=>{m(t"
+          ]
+        }
+      ]
+    }
+  }
+}
