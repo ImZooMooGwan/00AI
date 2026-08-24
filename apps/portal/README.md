@@ -1,6 +1,6 @@
 # 00AI 공공AI 플랫폼
 
-공공 AI 서비스 포털과 정적 웹 서비스 배포 기반을 위한 00AI v0.1입니다.
+공공 AI 서비스 포털과 정적 웹 서비스 배포 기반을 위한 00AI입니다.
 
 ## 현재 구현
 
@@ -8,16 +8,40 @@
 - GitHub 공개 저장소 프로젝트 자동 등록
 - 00AI Harness 소개 화면
 - 00AI DROP 정적 파일 업로드 API
-- D1 프로젝트·배포 이력 저장 구조
-- R2 정적 파일 저장 구조
-- 파일 수·용량·확장자·파일명·`index.html` 검증
-- 프로젝트별 배포 이력과 활성 버전 포인터
-- 인증된 운영자용 이전 버전 되돌리기 API
+- Supabase Storage 기반 정적 웹 배포
+- Supabase Edge Function 기반 업로드·검증·프로젝트 레지스트리
+- 업로더 소속·성명·제목·설명 등록
+- 단일 HTML 자동 `index.html` 처리
+- ZIP 공통 최상위 폴더 자동 정리
+- 파일 수·용량·확장자·파일명 검증
 - 중앙부처 요구자료 자동작성을 위한 Local-First 업무계획 API
+
+## 00AI DROP
+
+00AI DROP은 포털의 `/api/deploy`가 Supabase Edge Function `zeroai-drop`으로 업로드를 전달하고, Edge Function이 전용 공개 Storage 버킷 `zeroai-drop`에 정적 파일을 저장하는 구조입니다.
+
+```text
+00ai.kr
+  → /api/deploy
+  → Supabase Edge Function (zeroai-drop)
+  → Storage bucket (zeroai-drop/sites/<slug>/...)
+  → 공개 정적 서비스 URL
+```
+
+프로젝트의 소속·성명·제목·내용은 `registry/<slug>.json`으로 별도 저장되며 프로젝트 갤러리에 다시 노출됩니다. 데이터베이스가 일시적으로 사용할 수 없는 경우에도 DROP 자체는 Storage 레지스트리만으로 동작합니다.
+
+지원 규칙:
+
+- 단일 `.html`/`.htm` 파일은 파일명이 무엇이든 자동으로 `index.html`로 배포
+- ZIP 내부가 `project/index.html`처럼 한 단계 폴더로 감싸져 있으면 자동으로 루트 정리
+- `Index.html` 등 대소문자 차이 자동 보정
+- `.DS_Store`, `__MACOSX` 자동 제외
+- 단일 파일 최대 20MB, 프로젝트 전체 최대 50MB, 최대 1,000개 파일
+- 서버 실행 파일과 위험 확장자 차단
 
 ## GitHub 프로젝트 자동 동기화
 
-`ImZooMooGwan` 계정에 새 공개 저장소를 만들면 포털 프로젝트 갤러리에 최대 약 5분 안에 자동으로 나타납니다. 포털을 다시 빌드하거나 프로젝트 카드를 직접 수정할 필요가 없습니다.
+`ImZooMooGwan` 계정에 새 공개 저장소를 만들면 포털 프로젝트 갤러리에 자동으로 나타납니다.
 
 - 저장소 이름 → 프로젝트명
 - 저장소 Description → 프로젝트 설명
@@ -27,24 +51,6 @@
 - 포크, 보관·비활성 저장소, `00AI`, `.github`는 자동 제외
 
 공개 저장소 조회에는 토큰이 필요하지 않습니다. 호출량이 늘면 `GITHUB_TOKEN`을 런타임 비밀 환경변수로만 설정합니다. 특정 Topic이 있는 저장소만 공개하려면 `GITHUB_PROJECT_TOPIC`, 추가 제외 대상은 `GITHUB_EXCLUDE_REPOS`에 지정합니다.
-
-## 현재 제한
-
-- ZIP 자동 압축해제와 배포 이력은 구현되어 있습니다. GitHub 저장소의 소스 자체를 DROP으로 가져오는 기능과 사용자 로그인은 다음 단계입니다.
-- 파일은 R2에 저장되지만, `*.00ai.kr` 공개 URL은 Cloudflare 와일드카드 DNS와 별도 배포 Worker를 연결한 뒤 활성화됩니다.
-- 사용자 파일은 00AI 포털과 다른 Origin에서 제공해야 합니다. 포털 쿠키를 `.00ai.kr` 전체에 공유하면 안 됩니다.
-
-## 실제 공개 URL 연결
-
-`drop-dispatch/`에는 사용자 프로젝트를 `프로젝트명.00ai.kr`에서 제공할 독립 Worker가 포함되어 있습니다. DNS와 Cloudflare 계정 설정이 필요한 외부 작업이므로, Worker를 배포한 다음 `*.00ai.kr/*` 경로를 연결하면 업로드된 프로젝트의 공개 주소가 활성화됩니다.
-
-## 구성
-
-```text
-Portal → D1 (프로젝트·배포 정보)
-       → R2 (업로드 파일)
-       → 별도 배포 Origin (*.00ai.kr)
-```
 
 ## 로컬 실행
 
@@ -58,25 +64,20 @@ npm run dev
 npm run build
 ```
 
-운영자가 이전 정적 배포 버전으로 되돌릴 때에는 `DROP_ADMIN_TOKEN`을 서버 환경에만 설정한 뒤 아래 API를 호출합니다. 이 API는 저장된 배포 버전만 활성화할 수 있으며, 토큰이 없으면 항상 거부됩니다.
-
-```text
-POST /api/deployments/rollback
-Authorization: Bearer <DROP_ADMIN_TOKEN>
-{"projectId":"...","deploymentId":"..."}
-```
-
-Sites 환경에서는 `.openai/hosting.json`의 `DB`, `BUCKET` 논리 바인딩이 D1/R2에 연결됩니다. 스키마 변경 시 아래 명령으로 migration을 생성합니다.
-
-```bash
-npm run db:generate
-```
-
 ## 보안 원칙
 
+- 사용자 업로드 정적 웹앱은 00AI 포털과 다른 Origin인 Supabase Storage에서 제공합니다.
 - 서버 실행 코드와 실행 파일은 업로드하지 않습니다.
+- ZIP 경로 이탈을 차단하고 루트 밖 경로를 허용하지 않습니다.
 - 단일 파일 20MB, 프로젝트 50MB, 최대 1,000개 파일로 제한합니다.
-- API 키와 비밀값은 파일·클라이언트 코드·Git 저장소에 넣지 않습니다.
-- 버전 되돌리기 API는 서버 환경의 `DROP_ADMIN_TOKEN` 없이는 작동하지 않습니다.
+- Supabase service-role 키는 Edge Function 런타임에서만 사용합니다.
+- 포털에는 공개 호출용 anon 키만 사용하며 service-role 키는 저장소에 넣지 않습니다.
 - Harness 계획 API는 내부 원문을 받거나 외부 AI로 전송하지 않습니다. 실제 검색·통계 조회·양식 렌더링·승인은 행정망 내부 MCP 도구에서 실행해야 합니다.
-- 실제 공개 전 ZIP Slip 차단, 파일 MIME 재검증, 속도 제한, CAPTCHA, 신고·차단 기능을 추가합니다.
+
+## 다음 보강 항목
+
+- 공개 업로드 속도 제한
+- Turnstile/CAPTCHA
+- 신고·차단 및 관리자 삭제
+- 커스텀 배포 도메인 연결
+- 프로젝트별 버전 관리와 롤백
