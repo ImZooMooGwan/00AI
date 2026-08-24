@@ -1,0 +1,78 @@
+name: 00AI API endpoint diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/site-api-endpoint-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare proxied APIs with Sites origins
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json,subprocess,datetime,pathlib
+          tests=[
+            {
+              'name':'policy-health',
+              'custom':'https://policy.00ai.kr/api/hasa/health',
+              'origin':'https://public-ai-gov.hayahoyeho.chatgpt.site/api/hasa/health',
+              'method':'GET',
+            },
+            {
+              'name':'policy-analyze',
+              'custom':'https://policy.00ai.kr/api/analyze',
+              'origin':'https://public-ai-gov.hayahoyeho.chatgpt.site/api/analyze',
+              'method':'POST',
+              'body':'{"question":"test","mode":"quick"}',
+            },
+            {
+              'name':'yhub-mcp-status',
+              'custom':'https://yhub.00ai.kr/api/v1/mcp/status',
+              'origin':'https://youth-policy-data-hub.hayahoyeho.chatgpt.site/api/v1/mcp/status',
+              'method':'GET',
+            }
+          ]
+          report={'checked_at':datetime.datetime.utcnow().isoformat()+'Z','tests':{}}
+          def call(url,method,body=None,origin_header=None):
+              args=['curl','-ksS','--max-time','30','-D','-','-X',method,url]
+              if body is not None:
+                  args += ['-H','Content-Type: application/json','--data',body]
+              if origin_header:
+                  args += ['-H',f'Origin: {origin_header}','-H',f'Referer: {origin_header}/']
+              p=subprocess.run(args,capture_output=True,text=True)
+              raw=p.stdout
+              sep='\r\n\r\n' if '\r\n\r\n' in raw else '\n\n'
+              chunks=raw.split(sep)
+              return {'exit':p.returncode,'headers':'\n\n'.join(chunks[:-1])[-4000:],'body':chunks[-1][:8000] if chunks else ''}
+          for t in tests:
+              report['tests'][t['name']]={
+                'custom_default':call(t['custom'],t['method'],t.get('body')),
+                'custom_browser_origin':call(t['custom'],t['method'],t.get('body'),t['custom'].split('/api/')[0]),
+                'origin_default':call(t['origin'],t['method'],t.get('body')),
+              }
+          p=pathlib.Path('.github/site-api-endpoint-diagnostic.json')
+          p.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          print(p.read_text())
+          PY
+      - name: Persist API diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/site-api-endpoint-diagnostic.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update site API endpoint diagnostic [skip ci]"
+            git push || true
+          fi
