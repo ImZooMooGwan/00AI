@@ -1,6 +1,25 @@
-.project-input { display:grid; gap:7px; margin:2px 0 16px; font-size:12px; font-weight:700; color:#525965; }
-.project-input input { border:1px solid #dfe2e6; border-radius:3px; padding:12px; font:inherit; font-size:15px; color:#111318; background:#fff; }
+.publisher-form { display:grid; grid-template-columns:1fr 1fr; gap:13px 14px; margin:2px 0 16px; }
+.project-input { display:grid; gap:7px; font-size:12px; font-weight:700; color:#525965; }
+.project-input.full { grid-column:1 / -1; }
+.project-input input,
+.project-input textarea { width:100%; border:1px solid #dfe2e6; border-radius:3px; padding:12px; font:inherit; font-size:14px; line-height:1.5; color:#111318; background:#fff; transition:border-color .15s, box-shadow .15s; }
+.project-input textarea { min-height:92px; resize:vertical; }
+.project-input input:focus,
+.project-input textarea:focus { outline:none; border-color:#8ea8ff; box-shadow:0 0 0 3px rgba(47,92,255,.10); }
+.project-input small { font-weight:400; color:#89909b; }
+.publisher-note { grid-column:1 / -1; margin-top:-2px; padding:10px 12px; border:1px solid #e6e8ec; background:#f8f9fb; font-size:11px; line-height:1.55; color:#6b727d; }
+.storage-status { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; padding:10px 12px; border:1px solid #e2e5ea; background:#fafbfc; font-size:12px; color:#636b77; }
+.storage-status b { color:#161a20; }
+.storage-status.ready { border-color:#cfe8d9; background:#f2fbf6; color:#26754b; }
+.storage-status.blocked { border-color:#f1d6d6; background:#fff6f6; color:#9b3a3a; }
+.storage-status .dot { width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block; margin-right:7px; }
 .deploy-message { margin:12px 0 0; padding:12px 14px; font-size:13px; line-height:1.5; border-radius:3px; }
 .deploy-message.uploading { background:#eef1ff; color:#2448cf; }
 .deploy-message.done { background:#eaf8f0; color:#147343; }
 .deploy-message.error { background:#fff0f0; color:#a12b2b; }
+@media (max-width:720px) {
+  .publisher-form { grid-template-columns:1fr; }
+  .project-input.full,
+  .publisher-note { grid-column:auto; }
+  .storage-status { align-items:flex-start; flex-direction:column; }
+}
