@@ -1,0 +1,167 @@
+[
+  {
+    "id": "youth-policy-data-hub",
+    "name": "청년정책데이터허브 Y-HUB",
+    "description": "청년정책과 공공데이터를 한곳에서 탐색하고 분석하는 데이터 허브",
+    "public_url": "https://youth-policy-data-hub.hayahoyeho.chatgpt.site",
+    "category": "청년정책",
+    "maker": "00AI",
+    "stack": "정책 · 공공데이터 · 분석",
+    "status": "LIVE",
+    "updated_at": "2026-08-24T07:39:40.082532Z"
+  },
+  {
+    "id": "oneul-daejeon",
+    "name": "오늘대전",
+    "description": "대전의 오늘을 한눈에 살펴보는 지역 정보 서비스",
+    "public_url": "https://oneul-daejeon.hayahoyeho.chatgpt.site",
+    "category": "지역정보",
+    "maker": "00AI",
+    "stack": "대전 · 생활정보",
+    "status": "LIVE",
+    "updated_at": "2026-08-19T17:31:20.257348Z"
+  },
+  {
+    "id": "public-ai-gov",
+    "name": "00AI GOV — AI 정책상황실",
+    "description": "공공데이터와 AI로 정책 검토와 행정 의사결정을 지원하는 상황실",
+    "public_url": "https://public-ai-gov.hayahoyeho.chatgpt.site",
+    "category": "정책·행정",
+    "maker": "00AI",
+    "stack": "AI · 정책 · 데이터",
+    "status": "LIVE",
+    "updated_at": "2026-08-19T14:45:57.142053Z"
+  },
+  {
+    "id": "great-succession-era",
+    "name": "대계승시대",
+    "description": "이능 격투와 클랜 흡수·후계자 경영을 결합한 브라우저 게임 MVP",
+    "public_url": "https://great-succession-era.hayahoyeho.chatgpt.site",
+    "category": "게임",
+    "maker": "00AI Lab",
+    "stack": "브라우저 게임 · 시뮬레이션",
+    "status": "LIVE",
+    "updated_at": "2026-07-30T09:00:02.181132Z"
+  },
+  {
+    "id": "clan-family-registry",
+    "name": "클랜은 가족입니다: 종말의 계승자들",
+    "description": "이능 각인을 약탈해 후계자를 조립하는 턴제 판정형 대전 시뮬레이션",
+    "public_url": "https://clan-family-registry.hayahoyeho.chatgpt.site",
+    "category": "게임",
+    "maker": "00AI Lab",
+    "stack": "턴제 · 대전 · 시뮬레이션",
+    "status": "LIVE",
+    "updated_at": "2026-07-30T07:47:57.189632Z"
+  },
+  {
+    "id": "coliving-fit-lab",
+    "name": "코리빙핏 연구용 MVP",
+    "description": "총월비용·생활성능·근거 기반 Fit Score로 코리빙 후보를 비교하는 연구 도구",
+    "public_url": "https://coliving-fit-lab.hayahoyeho.chatgpt.site",
+    "category": "주거",
+    "maker": "00AI Lab",
+    "stack": "비교 · 분석 · Fit Score",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:00.973671Z"
+  },
+  {
+    "id": "telegrim-messenger-0728",
+    "name": "Telegrim",
+    "description": "작은 팀과 커뮤니티를 위한 가볍고 선명한 실시간 메신저 MVP",
+    "public_url": "https://telegrim-messenger-0728.hayahoyeho.chatgpt.site",
+    "category": "커뮤니케이션",
+    "maker": "00AI Lab",
+    "stack": "실시간 · 메신저",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:03.581588Z"
+  },
+  {
+    "id": "panel-review-lab",
+    "name": "PANEL",
+    "description": "다중 전문가 페르소나 기반 사업계획서·IR 문서 평가 MVP",
+    "public_url": "https://panel-review-lab.hayahoyeho.chatgpt.site",
+    "category": "문서평가",
+    "maker": "00AI Lab",
+    "stack": "AI · 평가 · IR",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:05.968221Z"
+  },
+  {
+    "id": "careplan-family-action",
+    "name": "CarePlan",
+    "description": "부모 돌봄에서 놓친 준비를 발견하고 가족 할 일로 전환하는 협업 서비스",
+    "public_url": "https://careplan-family-action.hayahoyeho.chatgpt.site",
+    "category": "돌봄",
+    "maker": "00AI Lab",
+    "stack": "가족 · 돌봄 · 협업",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:08.609386Z"
+  },
+  {
+    "id": "fanline-fandom-network",
+    "name": "FANLINE — 실시간 팬덤 사건 네트워크",
+    "description": "팬덤 사건을 발견·검증·참여하고 개인의 팬덤 역사로 남기는 실시간 데모",
+    "public_url": "https://fanline-fandom-network.hayahoyeho.chatgpt.site",
+    "category": "팬덤",
+    "maker": "00AI Lab",
+    "stack": "실시간 · 커뮤니티 · 기록",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:10.979070Z"
+  },
+  {
+    "id": "dukjil-workstation",
+    "name": "덕질 워크스테이션",
+    "description": "흩어진 공지를 일정과 준비 작업으로 바꾸는 로컬 우선 개인 워크스테이션",
+    "public_url": "https://dukjil-workstation.hayahoyeho.chatgpt.site",
+    "category": "생산성",
+    "maker": "00AI Lab",
+    "stack": "일정 · 작업 · 로컬 우선",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:13.389539Z"
+  },
+  {
+    "id": "deok-calendar",
+    "name": "덕캘린더",
+    "description": "흩어진 공연 일정과 공식 예매처를 한곳에 모아 주는 팬덤 캘린더",
+    "public_url": "https://deok-calendar.hayahoyeho.chatgpt.site",
+    "category": "팬덤",
+    "maker": "00AI Lab",
+    "stack": "공연 · 일정 · 예매",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:15.592939Z"
+  },
+  {
+    "id": "ilgito-duel-20260720",
+    "name": "RUMBLE WAVE",
+    "description": "AI API 없이 작동하는 규칙 기반 가상 일기토 예측 게임",
+    "public_url": "https://ilgito-duel-20260720.hayahoyeho.chatgpt.site",
+    "category": "게임",
+    "maker": "00AI Lab",
+    "stack": "규칙 기반 · 예측 · 대전",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:18.042528Z"
+  },
+  {
+    "id": "daejeon-after-hours-2d",
+    "name": "대전 애프터 아워즈",
+    "description": "궁동과 충남대를 걸으며 관계와 기억을 경험하는 2D 시뮬레이션",
+    "public_url": "https://daejeon-after-hours-2d.hayahoyeho.chatgpt.site",
+    "category": "게임",
+    "maker": "00AI Lab",
+    "stack": "2D · 관계 · 시뮬레이션",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:20.615136Z"
+  },
+  {
+    "id": "after-hours-dialogue",
+    "name": "After Hours",
+    "description": "선택지 없는 하드보일드 AI 대화 시뮬레이터",
+    "public_url": "https://after-hours-dialogue.hayahoyeho.chatgpt.site",
+    "category": "AI 대화",
+    "maker": "00AI Lab",
+    "stack": "AI · 대화 · 시뮬레이션",
+    "status": "LIVE",
+    "updated_at": "2026-07-29T09:17:23.212544Z"
+  }
+]
