@@ -19,6 +19,7 @@ jobs:
       - name: Run real Chrome against 00AI domains
         shell: bash
         run: |
+          set +e
           set -u
           CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
           mkdir -p .github/chrome-diagnostic
@@ -46,16 +47,17 @@ jobs:
             timeout 25s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
               --disable-background-networking --disable-component-update --disable-sync \
               --virtual-time-budget=8000 --enable-logging=stderr --v=0 \
-              --dump-dom "https://${host}${path}" > "$dom" 2> "$log" || true
+              --dump-dom "https://${host}${path}" > "$dom" 2> "$log"
+            chrome_exit=$?
             touch "$dom" "$log"
             bytes="$(wc -c < "$dom" | tr -d ' ')"
             text="$(sed -E 's/<[^>]+>/ /g' "$dom" | tr -s '[:space:]' ' ' | head -c 400 | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
-            errs="$(grep -Ei 'error|failed|refused|cors|uncaught|exception|blocked|net::' "$log" | tail -n 40 | head -c 6000 | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
-            scripts="$(grep -oE '<script[^>]+src="[^"]+"' "$dom" | wc -l | tr -d ' ')"
-            canvas="$(grep -o '<canvas' "$dom" | wc -l | tr -d ' ')"
+            errs="$( (grep -Ei 'error|failed|refused|cors|uncaught|exception|blocked|net::' "$log" || true) | tail -n 40 | head -c 6000 | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+            scripts="$( (grep -oE '<script[^>]+src="[^"]+"' "$dom" || true) | wc -l | tr -d ' ')"
+            canvas="$( (grep -o '<canvas' "$dom" || true) | wc -l | tr -d ' ')"
             [[ $first -eq 1 ]] || echo ',' >> "$report"
             first=0
-            printf '"%s":{"dom_bytes":%s,"script_tags":%s,"canvas_tags":%s,"text":%s,"runtime_log":%s}' "$key" "$bytes" "$scripts" "$canvas" "$text" "$errs" >> "$report"
+            printf '"%s":{"chrome_exit":%s,"dom_bytes":%s,"script_tags":%s,"canvas_tags":%s,"text":%s,"runtime_log":%s}' "$key" "$chrome_exit" "$bytes" "$scripts" "$canvas" "$text" "$errs" >> "$report"
           done
           echo '}}' >> "$report"
           cat "$report"
