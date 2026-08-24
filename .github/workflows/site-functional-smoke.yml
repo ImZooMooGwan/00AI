@@ -1,0 +1,123 @@
+name: 00AI site functional smoke test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/site-functional-smoke.yml"
+      - "apps/subdomain-router/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  browser-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Playwright Chromium
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Check real browser rendering
+        shell: bash
+        run: |
+          cat > /tmp/check-sites.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+
+          const sites = [
+            'https://policy.00ai.kr/',
+            'https://yhub.00ai.kr/',
+            'https://oneul-daejeon.00ai.kr/',
+            'https://public-ai-gov.00ai.kr/'
+          ];
+
+          const browser = await chromium.launch({ headless: true });
+          const results = {};
+
+          for (const url of sites) {
+            const page = await browser.newPage();
+            const consoleErrors = [];
+            const pageErrors = [];
+            const failedRequests = [];
+            const badResponses = [];
+
+            page.on('console', msg => {
+              if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 1000));
+            });
+            page.on('pageerror', err => pageErrors.push(String(err).slice(0, 1000)));
+            page.on('requestfailed', req => failedRequests.push({
+              url: req.url(),
+              failure: req.failure()?.errorText || 'unknown'
+            }));
+            page.on('response', res => {
+              if (res.status() >= 400) badResponses.push({ url: res.url(), status: res.status() });
+            });
+
+            let navigationStatus = 0;
+            let title = '';
+            let textLength = 0;
+            let bodySnippet = '';
+            let htmlLength = 0;
+            let interactive = false;
+            let error = null;
+
+            try {
+              const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+              navigationStatus = response?.status() || 0;
+              await page.waitForTimeout(3000);
+              title = await page.title();
+              const bodyText = await page.locator('body').innerText().catch(() => '');
+              textLength = bodyText.length;
+              bodySnippet = bodyText.slice(0, 500);
+              htmlLength = (await page.content()).length;
+              interactive = await page.locator('button, a[href], input, [role="button"]').count() > 0;
+            } catch (e) {
+              error = String(e).slice(0, 2000);
+            }
+
+            results[new URL(url).hostname] = {
+              navigationStatus,
+              title,
+              textLength,
+              htmlLength,
+              interactive,
+              bodySnippet,
+              consoleErrors: consoleErrors.slice(0, 20),
+              pageErrors: pageErrors.slice(0, 20),
+              failedRequests: failedRequests.slice(0, 30),
+              badResponses: badResponses.slice(0, 30),
+              error,
+              healthy: navigationStatus >= 200 && navigationStatus < 400 && textLength > 30 && pageErrors.length === 0 && failedRequests.length === 0
+            };
+
+            await page.close();
+          }
+
+          await browser.close();
+          const healthy = Object.values(results).every(x => x.healthy);
+          const report = { checked_at: new Date().toISOString(), healthy, sites: results };
+          fs.mkdirSync('.github', { recursive: true });
+          fs.writeFileSync('.github/site-functional-health.json', JSON.stringify(report, null, 2) + '\n');
+          console.log(JSON.stringify(report, null, 2));
+          EOF
+          node /tmp/check-sites.mjs
+
+      - name: Persist browser health report
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/site-functional-health.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update site functional health [skip ci]"
+            git push || true
+          fi
