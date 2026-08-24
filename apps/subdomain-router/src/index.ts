@@ -13,7 +13,20 @@ type PublicSite = {
   status?: string;
 };
 
+type GitHubProject = {
+  name: string;
+  homepage?: string | null;
+  public_url?: string | null;
+};
+
+type ProjectRegistry = {
+  githubProjects?: GitHubProject[];
+  siteProjects?: PublicSite[];
+};
+
 const DOMAIN_SUFFIX = ".00ai.kr";
+const PROJECT_REGISTRY_URL =
+  "https://zeroai-platform.hayahoyeho.chatgpt.site/api/projects";
 const VALID_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const ALLOWED_UPSTREAM_SUFFIXES = [
   "chatgpt.site",
@@ -79,16 +92,7 @@ function isAllowedUpstream(target: URL) {
   );
 }
 
-function resolveRoute(hostname: string): Route | null {
-  if (hostname === `drop${DOMAIN_SUFFIX}`) return { target: "drop", mode: "drop" };
-  if (!hostname.endsWith(DOMAIN_SUFFIX)) return null;
-
-  const slug = hostname.slice(0, -DOMAIN_SUFFIX.length);
-  if (!VALID_SLUG.test(slug)) return null;
-
-  const site = SITE_BY_SLUG.get(slug);
-  if (!site) return null;
-
+function routeFromSite(site: PublicSite): Route | null {
   try {
     const target = new URL(site.origin_url || site.public_url);
     if (!isAllowedUpstream(target)) return null;
@@ -96,6 +100,61 @@ function resolveRoute(hostname: string): Route | null {
   } catch {
     return null;
   }
+}
+
+async function resolveRemoteRoute(slug: string): Promise<Route | null> {
+  try {
+    const requestInit: RequestInit & {
+      cf?: { cacheEverything: boolean; cacheTtl: number };
+    } = {
+      headers: { Accept: "application/json" },
+      cf: { cacheEverything: true, cacheTtl: 300 },
+    };
+    const response = await fetch(PROJECT_REGISTRY_URL, requestInit);
+    if (!response.ok) return null;
+
+    const contentLength = Number(response.headers.get("Content-Length") || 0);
+    if (contentLength > 1_000_000) return null;
+    const registry = (await response.json()) as ProjectRegistry;
+
+    const site = (registry.siteProjects ?? []).find((candidate) => {
+      if (candidate.id.toLowerCase() === slug) return true;
+      return (candidate.aliases ?? []).some(
+        (alias) => alias.toLowerCase() === slug,
+      );
+    });
+    if (site) return routeFromSite(site);
+
+    const repository = (registry.githubProjects ?? []).find(
+      (candidate) => candidate.name.toLowerCase() === slug,
+    );
+    if (!repository?.homepage) return null;
+    return routeFromSite({
+      id: slug,
+      public_url: repository.homepage || repository.public_url || "",
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "project_registry_fetch_failed",
+        slug,
+        error: error instanceof Error ? error.message : "unknown",
+      }),
+    );
+    return null;
+  }
+}
+
+async function resolveRoute(hostname: string): Promise<Route | null> {
+  if (hostname === `drop${DOMAIN_SUFFIX}`) return { target: "drop", mode: "drop" };
+  if (!hostname.endsWith(DOMAIN_SUFFIX)) return null;
+
+  const slug = hostname.slice(0, -DOMAIN_SUFFIX.length);
+  if (!VALID_SLUG.test(slug)) return null;
+
+  const site = SITE_BY_SLUG.get(slug);
+  if (site) return routeFromSite(site);
+  return resolveRemoteRoute(slug);
 }
 
 async function proxyExternal(request: Request, route: Route, incoming: URL) {
@@ -195,7 +254,7 @@ async function serveDrop(request: Request, incoming: URL) {
 export default {
   async fetch(request: Request): Promise<Response> {
     const incoming = new URL(request.url);
-    const route = resolveRoute(incoming.hostname.toLowerCase());
+    const route = await resolveRoute(incoming.hostname.toLowerCase());
 
     if (!route) {
       return withSecurity(
