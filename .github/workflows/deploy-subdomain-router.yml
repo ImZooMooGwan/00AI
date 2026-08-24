@@ -1,0 +1,243 @@
+name: Deploy 00AI subdomain router
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/subdomain-router/**"
+      - ".github/workflows/deploy-subdomain-router.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+  CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+  CF_TOKEN: ${{ secrets.CF_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve Cloudflare credentials and zone
+        id: cf
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${CLOUDFLARE_API_TOKEN:-}"
+          [[ -n "$TOKEN" ]] || TOKEN="${CF_API_TOKEN:-}"
+          [[ -n "$TOKEN" ]] || TOKEN="${CLOUDFLARE_TOKEN:-}"
+          [[ -n "$TOKEN" ]] || TOKEN="${CF_TOKEN:-}"
+
+          mkdir -p .github
+          if [[ -z "$TOKEN" ]]; then
+            cat > .github/cloudflare-domain-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "authenticated": false,
+            "deployed": false,
+            "reason": "No CLOUDFLARE_API_TOKEN/CF_API_TOKEN secret is available to GitHub Actions"
+          }
+          EOF
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VERIFY="$(curl -fsS -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify || true)"
+          if [[ "$(jq -r '.success // false' <<<"$VERIFY")" != "true" ]]; then
+            cat > .github/cloudflare-domain-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "authenticated": false,
+            "deployed": false,
+            "reason": "Cloudflare API token verification failed"
+          }
+          EOF
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ZONES="$(curl -fsS -G \
+            -H "Authorization: Bearer $TOKEN" \
+            --data-urlencode "name=00ai.kr" \
+            --data-urlencode "status=active" \
+            https://api.cloudflare.com/client/v4/zones)"
+          ZONE_ID="$(jq -r '.result[0].id // empty' <<<"$ZONES")"
+          ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          if [[ -z "$ZONE_ID" || -z "$ACCOUNT_ID" ]]; then
+            cat > .github/cloudflare-domain-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "authenticated": true,
+            "deployed": false,
+            "reason": "Token cannot access the active 00ai.kr zone"
+          }
+          EOF
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "zone_id=$ZONE_ID" >> "$GITHUB_OUTPUT"
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          echo "CF_RESOLVED_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
+
+      - name: Remove stale DNS records that block Worker Custom Domains
+        if: steps.cf.outputs.available == 'true'
+        shell: bash
+        env:
+          ZONE_ID: ${{ steps.cf.outputs.zone_id }}
+        run: |
+          set -euo pipefail
+          hosts=(
+            policy.00ai.kr
+            public-ai-gov.00ai.kr
+            yhub.00ai.kr
+            youth-policy-data-hub.00ai.kr
+            oneul-daejeon.00ai.kr
+            great-succession-era.00ai.kr
+            clan-family-registry.00ai.kr
+            coliving-fit-lab.00ai.kr
+            telegrim-messenger-0728.00ai.kr
+            panel-review-lab.00ai.kr
+            careplan-family-action.00ai.kr
+            fanline-fandom-network.00ai.kr
+            dukjil-workstation.00ai.kr
+            deok-calendar.00ai.kr
+            ilgito-duel-20260720.00ai.kr
+            daejeon-after-hours-2d.00ai.kr
+            after-hours-dialogue.00ai.kr
+            drop.00ai.kr
+          )
+
+          for host in "${hosts[@]}"; do
+            marker="$(curl -ksSI --max-time 8 "https://${host}/" 2>/dev/null | tr -d '\r' | grep -i '^x-00ai-router:' || true)"
+            if [[ -n "$marker" ]]; then
+              echo "$host already belongs to the 00AI router; keeping its Worker DNS record."
+              continue
+            fi
+
+            records="$(curl -fsS -G \
+              -H "Authorization: Bearer $CF_RESOLVED_TOKEN" \
+              --data-urlencode "name=$host" \
+              https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records)"
+            while IFS= read -r id; do
+              [[ -n "$id" ]] || continue
+              type="$(jq -r --arg id "$id" '.result[] | select(.id==$id) | .type' <<<"$records")"
+              content="$(jq -r --arg id "$id" '.result[] | select(.id==$id) | .content' <<<"$records")"
+              echo "Deleting stale $host DNS record: $type $content"
+              curl -fsS -X DELETE \
+                -H "Authorization: Bearer $CF_RESOLVED_TOKEN" \
+                https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$id >/dev/null
+            done < <(jq -r '.result[]?.id' <<<"$records")
+          done
+
+      - name: Deploy dedicated router and provision exact Custom Domains
+        id: deploy
+        if: steps.cf.outputs.available == 'true'
+        shell: bash
+        run: |
+          set +e
+          npx --yes wrangler@4 deploy --config apps/subdomain-router/wrangler.jsonc 2>&1 | tee /tmp/wrangler-deploy.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Verify DNS, TLS and Worker routing
+        id: verify
+        if: steps.cf.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -u
+          sleep 60
+          hosts=(
+            policy.00ai.kr
+            public-ai-gov.00ai.kr
+            yhub.00ai.kr
+            youth-policy-data-hub.00ai.kr
+            oneul-daejeon.00ai.kr
+            great-succession-era.00ai.kr
+            clan-family-registry.00ai.kr
+            coliving-fit-lab.00ai.kr
+            telegrim-messenger-0728.00ai.kr
+            panel-review-lab.00ai.kr
+            careplan-family-action.00ai.kr
+            fanline-fandom-network.00ai.kr
+            dukjil-workstation.00ai.kr
+            deok-calendar.00ai.kr
+            ilgito-duel-20260720.00ai.kr
+            daejeon-after-hours-2d.00ai.kr
+            after-hours-dialogue.00ai.kr
+            drop.00ai.kr
+          )
+
+          tmp="$(mktemp)"
+          all_ok=true
+          printf '{\n  "checked_at": "%s",\n  "authenticated": true,\n  "deploy_exit_code": "%s",\n  "domains": {\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${{ steps.deploy.outputs.status }}" > "$tmp"
+
+          first=true
+          for host in "${hosts[@]}"; do
+            resolved=false
+            getent ahosts "$host" >/dev/null 2>&1 && resolved=true
+
+            headers="$(mktemp)"
+            code="000"
+            if [[ "$resolved" == "true" ]]; then
+              code="$(curl -ksS --max-time 25 -o /dev/null -D "$headers" -w '%{http_code}' "https://${host}/" || true)"
+            fi
+            routed=false
+            grep -qi '^x-00ai-router:' "$headers" 2>/dev/null && routed=true
+
+            healthy=false
+            if [[ "$resolved" == "true" && "$routed" == "true" && "$code" =~ ^[0-9]{3}$ && "$code" -ge 200 && "$code" -lt 500 ]]; then
+              healthy=true
+            else
+              all_ok=false
+            fi
+            echo "$host resolved=$resolved http=$code routed=$routed healthy=$healthy"
+
+            if [[ "$first" != "true" ]]; then printf ',\n' >> "$tmp"; fi
+            first=false
+            printf '    "%s": {"resolved": %s, "http": "%s", "routed": %s, "healthy": %s}' \
+              "$host" "$resolved" "$code" "$routed" "$healthy" >> "$tmp"
+            rm -f "$headers"
+          done
+
+          printf '\n  },\n  "healthy": %s\n}\n' "$all_ok" >> "$tmp"
+          mv "$tmp" .github/cloudflare-domain-health.json
+          echo "healthy=$all_ok" >> "$GITHUB_OUTPUT"
+          cat .github/cloudflare-domain-health.json
+
+      - name: Persist Cloudflare deployment state
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -f .github/cloudflare-domain-health.json ]]; then
+            cat > .github/cloudflare-domain-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "authenticated": false,
+            "deployed": false,
+            "reason": "Cloudflare deployment did not reach verification"
+          }
+          EOF
+          fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/cloudflare-domain-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update Cloudflare domain health [skip ci]"
+            git push || true
+          fi
+
+      - name: Fail when Cloudflare authentication or routing is unavailable
+        if: steps.cf.outputs.available != 'true' || steps.verify.outputs.healthy != 'true'
+        run: exit 1
