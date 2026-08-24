@@ -14,7 +14,10 @@ Y-HUB는 중앙정부와 지방정부의 청년정책을 정책 패밀리, 프�
 - 신청 스윔레인, 17개 시도 정책지도, 정책 관계망
 - 최대 3개 정책 비교, Research Lab, Newsroom, 공개 검증대장
 - CSV·JSON 다운로드, RSS 피드, Open API v1
+- Cloudflare D1 영속 저장, 수집 실행이력, 원문 해시와 변경 후보 보존
+- 온통청년·KOSIS·국가법령정보 서버 수집기와 운영 상태 화면
 - 데이터·출처·그래프·기준일 검증 스크립트
+- 인메모리 SQLite로 D1 마이그레이션·삽입·무변경·변경감지 검증
 - 모바일, 키보드 탐색, 고대비·동작 줄이기 대응
 
 현재 데이터셋 `2026.08.24-mvp.1`은 개발 스냅샷입니다. 정책의 존재와 공식 출처 연결을 우선 확인했으며, 변동 가능한 신청기간·소득·자격은 반드시 공식 원문에서 최종 확인해야 합니다.
@@ -54,7 +57,7 @@ npm test
 | `/verification` | 공개 검증대장 |
 | `/downloads` | 버전 데이터 릴리스 |
 | `/api` | Open API v1 문서 |
-| `/admin` | 읽기 전용 검토화면 데모 |
+| `/admin` | 공식 API 수집·D1·변경감지 운영실 |
 
 ## Open API
 
@@ -72,6 +75,8 @@ GET /api/v1/sources
 GET /api/v1/verification-issues
 GET /api/v1/graph
 GET /api/v1/datasets
+GET /api/v1/live-policies
+GET /api/v1/collection-status
 GET /api/openapi
 ```
 
@@ -79,13 +84,13 @@ GET /api/openapi
 
 ## 공식 데이터 연동
 
-현재 MVP는 API 키가 없을 때 검증된 스냅샷과 원천 메타데이터를 사용합니다.
+검증 스냅샷은 안정적인 공개 기준선으로 유지하고, 공식 API 응답은 D1에 별도 영속 저장합니다. 같은 원천 레코드의 해시가 달라지면 자동으로 변경 후보가 생성됩니다.
 
 ```bash
 cp .env.example .env.local
 ```
 
-온통청년, KOSIS, 국가법령정보 공동활용 API는 각각 별도 신청·승인이 필요합니다. 키는 서버 환경변수로만 관리하고 브라우저에 노출하지 않습니다.
+온통청년, KOSIS, 국가법령정보 공동활용 API는 각각 별도 신청·승인이 필요합니다. 키는 서버 환경변수로만 관리하고 브라우저에 노출하지 않습니다. 키가 연결된 원천은 `/admin`에서 즉시 동기화할 수 있고 Worker 예약 이벤트에서도 같은 수집기를 실행합니다.
 
 ## 문서
 
@@ -96,10 +101,10 @@ cp .env.example .env.local
 - [검증 원칙](docs/VERIFICATION.md)
 - [방법론](docs/METHODOLOGY.md)
 - [배포](docs/DEPLOYMENT.md)
+- [실시간 수집](docs/INGESTION.md)
 - [결정 기록](docs/DECISIONS.md)
 - [미완료 과제](docs/OPEN_ISSUES.md)
 
 ## 라이선스와 주의사항
 
 소스코드는 MIT License를 따릅니다. 공공데이터는 각 원천기관의 이용조건과 공공누리 유형을 우선 적용합니다. 이 저장소는 공식 정부 서비스가 아니며, Y-HUB의 AI 설명은 공식 원문을 대체하지 않습니다.
-

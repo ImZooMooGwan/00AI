@@ -19,7 +19,8 @@
     "validate:sources": "node --import tsx scripts/validate-sources.ts",
     "validate:graph": "node --import tsx scripts/validate-graph.ts",
     "check:freshness": "node --import tsx scripts/check-freshness.ts",
-    "validate:all": "npm run validate:data && npm run validate:sources && npm run validate:graph && npm run check:freshness",
+    "validate:ingestion": "node --import tsx scripts/validate-ingestion-store.ts",
+    "validate:all": "npm run validate:data && npm run validate:sources && npm run validate:graph && npm run check:freshness && npm run validate:ingestion",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {

@@ -12,5 +12,12 @@
 
 `PolicyRecord`, `ChangeEvent`, `IndicatorRecord`, `SourceRecord`를 현재 MVP 계약으로 사용한다. 모든 공개 정책은 `id`, `slug`, `programId`, `roundId`, `sourceId`, `verificationStatus`, `lastObservedAt`을 가진다.
 
-자격조건은 연령, 지역, 소득, 고용, 학력, 창업, 혼인, 중복수혜 제한 등 필드로 확장할 수 있게 배열로 분리한다. 자연어 설명만으로 신청 가능 여부를 확정하지 않는다.
+## 영속 수집 엔터티
 
+- `source_connectors`: 원천별 인증·최근 실행·오류·수집 건수
+- `collection_runs`: 매 실행의 시작·종료·신규·변경·무변경 건수
+- `external_records`: 원천 ID와 원문 JSON, SHA-256 해시, 최초·최종 관측시각
+- `change_candidates`: 이전·현재 해시와 검토 상태
+- `indicator_observations`: KOSIS 수치 관측값 확장용 테이블
+
+자격조건은 연령, 지역, 소득, 고용, 학력, 창업, 혼인, 중복수혜 제한 등 필드로 확장할 수 있게 배열로 분리한다. 자연어 설명만으로 신청 가능 여부를 확정하지 않는다.

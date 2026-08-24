@@ -14,6 +14,8 @@ const endpoints = [
   ["GET", "/api/v1/regions", "지역 코드와 정책 수"],
   ["GET", "/api/v1/sources", "공식 원천 레지스트리"],
   ["GET", "/api/v1/graph", "정책 관계 그래프"],
+  ["GET", "/api/v1/live-policies", "온통청년 실시간 수집 레코드"],
+  ["GET", "/api/v1/collection-status", "원천별 수집·DB 상태"],
   ["GET", "/api/v1/datasets", "공개 릴리스"],
 ] as const;
 

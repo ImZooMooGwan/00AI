@@ -35,3 +35,18 @@ test("serves a standards-compatible RSS change feed", async () => {
   assert.match(body, /<rss version="2.0">/);
   assert.match(body, /Y-HUB 정책 변경 피드/);
 });
+
+test("reports connector readiness without exposing credentials", async () => {
+  const response = await worker.fetch(new Request("http://localhost/api/v1/collection-status"), env, ctx);
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.storage, "unavailable");
+  assert.equal(payload.connectors.length, 3);
+  assert.ok(payload.connectors.every((connector) => connector.keyConfigured === false));
+  assert.doesNotMatch(JSON.stringify(payload), /SYNC_SECRET/);
+});
+
+test("rejects unauthenticated manual synchronization", async () => {
+  const response = await worker.fetch(new Request("http://localhost/api/system/sync", { method: "POST" }), env, ctx);
+  assert.equal(response.status, 401);
+});
