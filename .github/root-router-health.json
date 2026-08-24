@@ -1,0 +1,6 @@
+{
+  "checked_at": "2026-08-24T13:01:46Z",
+  "deployed": false,
+  "healthy": false,
+  "reason": "Root router deployment stopped safely before successful verification"
+}
