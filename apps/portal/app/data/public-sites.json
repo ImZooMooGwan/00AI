@@ -8,7 +8,7 @@
     "maker": "00AI",
     "stack": "정책 · 공공데이터 · 분석",
     "status": "LIVE",
-    "updated_at": "2026-08-24T07:39:40.082532Z"
+    "updated_at": "2026-08-24T11:03:24.922Z"
   },
   {
     "id": "oneul-daejeon",
@@ -20,6 +20,17 @@
     "stack": "대전 · 생활정보",
     "status": "LIVE",
     "updated_at": "2026-08-19T17:31:20.257348Z"
+  },
+  {
+    "id": "zeroai-platform",
+    "name": "00AI 공공AI 플랫폼",
+    "description": "공공 AI 서비스와 프로젝트를 공개·연결하고 자동 등록하는 00AI 플랫폼",
+    "public_url": "https://zeroai-platform.hayahoyeho.chatgpt.site",
+    "category": "공공AI 플랫폼",
+    "maker": "00AI",
+    "stack": "Next.js · Sites · GitHub",
+    "status": "LIVE",
+    "updated_at": "2026-08-24T10:56:45.430Z"
   },
   {
     "id": "public-ai-gov",
