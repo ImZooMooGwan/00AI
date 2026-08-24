@@ -3,25 +3,13 @@
   "name": "00ai-subdomain-router",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "routes": [
-    { "pattern": "policy.00ai.kr", "custom_domain": true },
-    { "pattern": "public-ai-gov.00ai.kr", "custom_domain": true },
-    { "pattern": "yhub.00ai.kr", "custom_domain": true },
-    { "pattern": "youth-policy-data-hub.00ai.kr", "custom_domain": true },
-    { "pattern": "oneul-daejeon.00ai.kr", "custom_domain": true },
-    { "pattern": "great-succession-era.00ai.kr", "custom_domain": true },
-    { "pattern": "clan-family-registry.00ai.kr", "custom_domain": true },
-    { "pattern": "coliving-fit-lab.00ai.kr", "custom_domain": true },
-    { "pattern": "telegrim-messenger-0728.00ai.kr", "custom_domain": true },
-    { "pattern": "panel-review-lab.00ai.kr", "custom_domain": true },
-    { "pattern": "careplan-family-action.00ai.kr", "custom_domain": true },
-    { "pattern": "fanline-fandom-network.00ai.kr", "custom_domain": true },
-    { "pattern": "dukjil-workstation.00ai.kr", "custom_domain": true },
-    { "pattern": "deok-calendar.00ai.kr", "custom_domain": true },
-    { "pattern": "ilgito-duel-20260720.00ai.kr", "custom_domain": true },
-    { "pattern": "daejeon-after-hours-2d.00ai.kr", "custom_domain": true },
-    { "pattern": "after-hours-dialogue.00ai.kr", "custom_domain": true },
-    { "pattern": "drop.00ai.kr", "custom_domain": true }
-  ]
+    { "pattern": "*.00ai.kr/*", "zone_name": "00ai.kr" }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  }
 }

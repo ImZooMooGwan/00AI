@@ -73,7 +73,7 @@ const services: Array<{
     status: "LIVE",
     category: "정책·행정",
     tags: ["정책", "데이터", "법령", "보고서"],
-    href: "https://policy.00ai.kr",
+    href: "/policy",
   },
   {
     name: "00AI Harness",
@@ -82,7 +82,7 @@ const services: Array<{
     status: "LAB",
     category: "개발",
     tags: ["공공AI", "오케스트레이션", "행정망"],
-    href: "https://harness.00ai.kr/",
+    href: "/harness",
   },
   {
     name: "00AI DROP",
@@ -104,7 +104,7 @@ const coreProjects: GalleryProject[] = [
     maker: "00AI",
     stack: "AI · 데이터 · 법령",
     status: "LIVE",
-    href: "https://policy.00ai.kr",
+    href: "/policy",
     source: "core",
   },
   {
@@ -115,7 +115,7 @@ const coreProjects: GalleryProject[] = [
     maker: "00AI Lab",
     stack: "Local AI · Orchestration",
     status: "LAB",
-    href: "https://harness.00ai.kr/",
+    href: "/harness",
     source: "core",
   },
 ];
@@ -203,14 +203,22 @@ export default function Home() {
   const [githubOwner, setGithubOwner] = useState("ImZooMooGwan");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const prioritizedServices = useMemo(
+    () =>
+      [...services].sort(
+        (a, b) => Number(b.status === "BETA") - Number(a.status === "BETA"),
+      ),
+    [],
+  );
+
   const filteredServices = useMemo(
     () =>
-      services.filter((service) =>
+      prioritizedServices.filter((service) =>
         `${service.name} ${service.description} ${service.tags.join(" ")}`
           .toLowerCase()
           .includes(query.toLowerCase()),
       ),
-    [query],
+    [prioritizedServices, query],
   );
 
   const galleryProjects = useMemo(() => {
@@ -234,12 +242,17 @@ export default function Home() {
       ...coreProjects,
     ];
     const seen = new Set<string>();
-    return candidates.filter((project) => {
-      const key = project.name.trim().toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const bluePriority = (project: GalleryProject) =>
+      project.source === "core" || project.source === "drop" ? 0 : 1;
+
+    return candidates
+      .filter((project) => {
+        const key = project.name.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => bluePriority(a) - bluePriority(b));
   }, [githubProjects, publishedProjects, siteProjects]);
 
   const filteredProjects = useMemo(() => {
@@ -377,7 +390,7 @@ export default function Home() {
             <a href="#projects">프로젝트</a>
             <a href="#deploy">배포</a>
             <a
-              href="https://harness.00ai.kr/"
+              href="/harness"
               target="_blank"
               rel="noreferrer"
             >
@@ -458,7 +471,7 @@ export default function Home() {
           </a>
         </div>
         <div className="service-grid">
-          {services.map((service, index) => (
+          {prioritizedServices.map((service, index) => (
             <article className="service-card" key={service.name}>
               <div className="card-top">
                 <Badge status={service.status} />
@@ -847,3 +860,4 @@ export default function Home() {
     </main>
   );
 }
+
