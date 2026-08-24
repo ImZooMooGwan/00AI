@@ -1,0 +1,97 @@
+name: Rebuild and verify 00AI portal preview v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-preview-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+      - name: Build, deploy preview, and verify bundled registry
+        shell: bash
+        run: |
+          set +e
+          cd apps/portal
+          npm ci --no-audit --no-fund > /tmp/install-v2.log 2>&1
+          install=$?
+          build=999
+          deploy=999
+          api_ok=false
+          root_ok=false
+          preview=""
+          api=""
+          if [[ $install -eq 0 ]]; then
+            SITES_BUILD_TIMEOUT=6m npm run build > /tmp/build-v2.log 2>&1
+            build=$?
+          fi
+          if [[ $build -eq 0 ]]; then
+            cat > wrangler.preview-v2.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "00ai-portal-preview-v2",
+            "main": "dist/server/index.js",
+            "assets": { "directory": "dist/client", "binding": "ASSETS" },
+            "compatibility_date": "2026-08-20",
+            "compatibility_flags": ["nodejs_compat"],
+            "workers_dev": true
+          }
+          EOF
+            npx wrangler deploy --config wrangler.preview-v2.jsonc > /tmp/deploy-v2.log 2>&1
+            deploy=$?
+            preview="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/deploy-v2.log | tail -n 1)"
+          fi
+          if [[ $deploy -eq 0 && -n "$preview" ]]; then
+            root="$(curl -ksSL --max-time 30 "$preview/")"
+            api="$(curl -ksSL --max-time 30 "$preview/api/projects")"
+            [[ "$root" == *"00AI"* ]] && root_ok=true
+            [[ "$api" == *"policy.00ai.kr"* && "$api" == *"youth-policy-data-hub.00ai.kr"* ]] && api_ok=true
+          fi
+          cd ../..
+          python3 - <<PY
+          import json,pathlib
+          def tail(p,n=5000):
+              try:return pathlib.Path(p).read_text(errors='replace')[-n:]
+              except:return ''
+          out={
+            'install_status':$install,
+            'build_status':$build,
+            'deploy_status':$deploy,
+            'preview_url':'''$preview''',
+            'root_ok':'''$root_ok'''=='true',
+            'api_ok':'''$api_ok'''=='true',
+            'api_has_policy_domain':'policy.00ai.kr' in '''${api//"/\\"}''',
+            'api_has_yhub_domain':'youth-policy-data-hub.00ai.kr' in '''${api//"/\\"}''',
+            'api_has_chatgpt_site':'chatgpt.site' in '''${api//"/\\"}''',
+            'install_log':tail('/tmp/install-v2.log'),
+            'build_log':tail('/tmp/build-v2.log'),
+            'deploy_log':tail('/tmp/deploy-v2.log'),
+          }
+          pathlib.Path('.github/portal-preview-v2.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist v2 result
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-preview-v2.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal preview v2 [skip ci]"
+            git push || true
+          fi
