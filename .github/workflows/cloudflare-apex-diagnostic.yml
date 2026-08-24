@@ -1,0 +1,72 @@
+name: Inspect 00ai.kr Cloudflare apex bindings
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cloudflare-apex-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query DNS, Worker custom domains and scripts
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github /tmp/apex
+          ZONES="$(curl -sS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode "name=00ai.kr" https://api.cloudflare.com/client/v4/zones)"
+          ZONE_ID="$(jq -r '.result[0].id // empty' <<<"$ZONES")"
+          ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          curl -sS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode "name=00ai.kr" "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" > /tmp/apex/dns.json
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/domains" > /tmp/apex/domains.json
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts" > /tmp/apex/scripts.json
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes" > /tmp/apex/routes.json
+          python3 - <<'PY'
+          import json,pathlib
+          def load(p):
+            try:return json.loads(pathlib.Path(p).read_text())
+            except Exception as e:return {'parse_error':str(e),'raw':pathlib.Path(p).read_text(errors='replace')[:5000] if pathlib.Path(p).exists() else ''}
+          dns=load('/tmp/apex/dns.json')
+          domains=load('/tmp/apex/domains.json')
+          scripts=load('/tmp/apex/scripts.json')
+          routes=load('/tmp/apex/routes.json')
+          apex_domains=[]
+          for x in domains.get('result') or []:
+            if str(x.get('hostname','')).lower()=='00ai.kr': apex_domains.append(x)
+          out={
+            'zone_id_present':bool(dns),
+            'dns_success':dns.get('success'),
+            'dns_records':dns.get('result',[]),
+            'domains_success':domains.get('success'),
+            'apex_worker_domains':apex_domains,
+            'all_worker_domains_count':len(domains.get('result') or []),
+            'scripts_success':scripts.get('success'),
+            'script_names':[x.get('id') for x in (scripts.get('result') or [])],
+            'routes_success':routes.get('success'),
+            'routes':routes.get('result',[]),
+            'domain_errors':domains.get('errors'),
+          }
+          pathlib.Path('.github/cloudflare-apex-diagnostic.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/cloudflare-apex-diagnostic.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update Cloudflare apex diagnostic [skip ci]"
+            git push || true
+          fi
