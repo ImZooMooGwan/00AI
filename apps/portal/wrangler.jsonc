@@ -10,8 +10,5 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "workers_dev": false,
-  "routes": [
-    { "pattern": "00ai.kr", "custom_domain": true }
-  ]
+  "workers_dev": true
 }
