@@ -1,0 +1,70 @@
+{
+  "zone_id_present": true,
+  "dns_success": true,
+  "dns_records": [
+    {
+      "id": "9ea7e1518157a54c60299dc8f075dff5",
+      "name": "00ai.kr",
+      "type": "AAAA",
+      "content": "100::",
+      "proxiable": true,
+      "proxied": true,
+      "ttl": 1,
+      "settings": {},
+      "meta": {
+        "origin_worker_id": "db663fda48f1e45fb213a4a13be21e54388438c3",
+        "read_only": true
+      },
+      "comment": null,
+      "tags": [],
+      "created_on": "2026-08-24T13:03:33.339198Z",
+      "modified_on": "2026-08-24T13:03:33.339198Z"
+    }
+  ],
+  "domains_success": true,
+  "apex_worker_domains": [
+    {
+      "id": "db663fda48f1e45fb213a4a13be21e54388438c3",
+      "zone_id": "2acfea2aa48ec8d8af658858800e1c26",
+      "zone_name": "00ai.kr",
+      "hostname": "00ai.kr",
+      "service": "00ai-portal",
+      "environment": "production",
+      "cert_id": "4baed76e-4bd9-4065-b03d-b5004f215b01",
+      "previews_enabled": false,
+      "enabled": true
+    }
+  ],
+  "all_worker_domains_count": 2,
+  "scripts_success": true,
+  "script_names": [
+    "00ai-policy",
+    "00ai-portal",
+    "00ai-portal-debug-v3",
+    "00ai-portal-preview",
+    "00ai-portal-preview-v2",
+    "00ai-root-router",
+    "00ai-root-router-debug",
+    "00ai-root-router-debug-v2",
+    "00ai-root-router-preview-v2",
+    "00ai-root-router-preview-v3",
+    "00ai-subdomain-router",
+    "00ai-youth-policy-mcp"
+  ],
+  "routes_success": true,
+  "routes": [
+    {
+      "id": "34f50fc3ea774a4498e9715748150c53",
+      "pattern": "00ai.kr/*",
+      "script": "00ai-portal",
+      "request_limit_fail_open": false
+    },
+    {
+      "id": "5b7b485136b5492999d661c593f8f135",
+      "pattern": "*.00ai.kr/*",
+      "script": "00ai-subdomain-router",
+      "request_limit_fail_open": false
+    }
+  ],
+  "domain_errors": null
+}
