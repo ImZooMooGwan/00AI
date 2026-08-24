@@ -1,0 +1,18 @@
+{
+  "token_ok": true,
+  "deploy_exit": 0,
+  "preview_url": "https://00ai-root-router-debug.able001.workers.dev",
+  "root_code": "200",
+  "api_code": "200",
+  "policy_code": "302",
+  "harness_code": "302",
+  "policy_location": "https://policy.00ai.kr/",
+  "harness_location": "https://harness.00ai.kr/",
+  "root_has_00ai": true,
+  "api_has_policy": false,
+  "api_has_yhub": false,
+  "deploy_log": "\n ⛅️ wrangler 4.125.0\n────────────────────\nTotal Upload: 4.67 KiB / gzip: 1.69 KiB\nWorker Startup Time: 3 ms\nUploaded 00ai-root-router-debug (1.32 sec)\nDeployed 00ai-root-router-debug triggers (1.08 sec)\n  https://00ai-root-router-debug.able001.workers.dev\nCurrent Version ID: 580375e8-f013-4734-b627-a945af1f6fd5\n\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n",
+  "root_headers": "HTTP/2 200 \ndate: Mon, 24 Aug 2026 13:05:48 GMT\ncontent-type: text/html; charset=utf-8\ncf-ray: a302920d1d189d42-ORD\nserver: cloudflare\nvary: RSC, Accept, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Next-Url, X-Vinext-Interception-Context, X-Vinext-Mounted-Slots, X-Vinext-Rsc-Render-Mode\nreferrer-policy: strict-origin-when-cross-origin\nx-00ai-root-router: v1\nx-content-type-options: nosniff\nreport-to: {\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=HyaJmHDePbsRew1YRXb9GMiI1uDlgQc5EZNc%2B7cLJuJ6HwCxm%2Bo%2Fgj3sLtUlyCY8nbvK%2FSi8midjR8NGSUnDl2M52BPt%2FDV9WMeeU%2FApj6LyyJIovcYVOk9vjPb3uAAyGRYIsdko1isy8JjSDE8cLSZvMt6BF%2FqLD6o7RzM%3D\"}]}\nnel: {\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}\nalt-svc: h3=\":443\"; ma=86400\n\n",
+  "api_headers": "HTTP/2 200 \ndate: Mon, 24 Aug 2026 13:05:49 GMT\ncontent-type: application/json\ncontent-length: 260\ncache-control: no-store\nreferrer-policy: strict-origin-when-cross-origin\nx-00ai-root-router: v1\nx-content-type-options: nosniff\nreport-to: {\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=xQjj7JiX8bX0ixPLmW%2FA85GSEjrMJr2DZ1yYI61j9ybjM87%2B%2FWHcjfRCBYp6w%2B3%2BlzAojqPXhUGVqWtIFf2mwPW3SNuXOXyjFNxYQwnDdGsT6Z1RFi63yZ60o2iVpygTI8zFIIJ1j7p8wTW%2B%2FiNTNAcH0GPRjYEccERtIpA%3D\"}]}\nnel: {\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}\nserver: cloudflare\ncf-ray: a3029214d84fa2a1-ORD\nalt-svc: h3=\":443\"; ma=86400\n\n",
+  "api_body_prefix": "{\"projects\":[],\"githubProjects\":[],\"siteProjects\":[],\"sources\":{\"drop\":{\"available\":true,\"count\":0},\"github\":{\"available\":false,\"owner\":\"ImZooMooGwan\",\"count\":0},\"sites\":{\"available\":false,\"count\":0}},\"refreshedAt\":\"2026-08-24T13:05:48.993Z\",\"rootRouter\":true}"
+}
