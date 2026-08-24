@@ -13,6 +13,13 @@
 .storage-status.ready { border-color:#cfe8d9; background:#f2fbf6; color:#26754b; }
 .storage-status.blocked { border-color:#f1d6d6; background:#fff6f6; color:#9b3a3a; }
 .storage-status .dot { width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block; margin-right:7px; }
+/* page.tsx의 기존 D1/R2 문구를 백엔드 전환과 맞춰 시각적으로 교체 */
+.storage-status.ready > span:first-child,
+.storage-status.blocked > span:first-child { font-size:0; }
+.storage-status.ready > span:first-child::after { content:"●  배포 저장소 · Supabase Storage 연결됨"; font-size:12px; font-weight:700; color:#26754b; }
+.storage-status.blocked > span:first-child::after { content:"●  배포 저장소 · Supabase Storage 연결 확인 필요"; font-size:12px; font-weight:700; color:#9b3a3a; }
+.storage-status.ready > span:first-child > *,
+.storage-status.blocked > span:first-child > * { display:none; }
 .deploy-message { margin:12px 0 0; padding:12px 14px; font-size:13px; line-height:1.5; border-radius:3px; }
 .deploy-message.uploading { background:#eef1ff; color:#2448cf; }
 .deploy-message.done { background:#eaf8f0; color:#147343; }
