@@ -27,7 +27,10 @@ export async function GET() {
         storage: "supabase",
         count: result?.count ?? 0,
       },
-      { status: response.ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
+      {
+        status: response.ok ? 200 : 503,
+        headers: { "Cache-Control": "no-store" },
+      },
     );
   } catch {
     return NextResponse.json(
@@ -65,15 +68,19 @@ export async function POST(request: Request) {
     });
 
     const text = await response.text();
-    let payload: unknown;
+    let payload: Record<string, unknown>;
     try {
-      payload = JSON.parse(text);
+      payload = JSON.parse(text) as Record<string, unknown>;
     } catch {
       payload = {
         error: response.ok
           ? "배포 응답을 읽지 못했습니다."
           : `배포 저장소 오류 (${response.status})`,
       };
+    }
+
+    if (response.ok && typeof payload.slug === "string") {
+      payload.publicUrl = `https://drop.00ai.kr/${encodeURIComponent(payload.slug)}/`;
     }
 
     return NextResponse.json(payload, { status: response.status });
