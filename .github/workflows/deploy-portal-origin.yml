@@ -1,0 +1,113 @@
+name: Deploy stable 00AI portal origin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-portal-origin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+          cache-dependency-path: apps/portal/package-lock.json
+
+      - name: Resolve Cloudflare account
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZONES="$(curl -fsS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode name=00ai.kr --data-urlencode status=active https://api.cloudflare.com/client/v4/zones)"
+          ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          test -n "$ACCOUNT_ID"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
+
+      - name: Build latest portal
+        working-directory: apps/portal
+        env:
+          SITES_BUILD_TIMEOUT: 7m
+        run: |
+          npm ci --no-audit --no-fund
+          rm -rf dist .vite .next
+          npm run build
+
+      - name: Deploy as workers.dev-only origin
+        id: deploy
+        working-directory: apps/portal
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > wrangler.origin.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "00ai-portal-origin",
+            "main": "dist/server/index.js",
+            "assets": { "directory": "dist/client", "binding": "ASSETS" },
+            "compatibility_date": "2026-08-20",
+            "compatibility_flags": ["nodejs_compat"],
+            "workers_dev": true
+          }
+          EOF
+          npx wrangler deploy --config wrangler.origin.jsonc 2>&1 | tee /tmp/portal-origin.log
+          URL="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/portal-origin.log | tail -n1)"
+          test -n "$URL"
+          echo "origin_url=$URL" >> "$GITHUB_OUTPUT"
+          sleep 5
+          test "$(curl -ksS --max-time 30 -o /tmp/origin-root.html -w '%{http_code}' "$URL/")" = 200
+          test "$(curl -ksS --max-time 30 -o /tmp/origin-api.json -w '%{http_code}' "$URL/api/projects")" = 200
+          grep -q 'policy.00ai.kr' /tmp/origin-api.json
+          grep -q 'youth-policy-data-hub.00ai.kr' /tmp/origin-api.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/origin-api.json'))
+          assert len(d.get('siteProjects',[])) >= 10
+          assert all('.00ai.kr' in x.get('public_url','') for x in d.get('siteProjects',[]))
+          PY
+
+      - name: Verify real Chrome hydration on origin
+        shell: bash
+        run: |
+          set +e
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          URL="${{ steps.deploy.outputs.origin_url }}"
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=12000 --dump-dom "$URL/" > /tmp/origin-dom.html 2>/tmp/origin-chrome.log || true
+          python3 - <<'PY'
+          import json,pathlib,re,datetime
+          html=pathlib.Path('/tmp/origin-dom.html').read_text(errors='replace')
+          log=pathlib.Path('/tmp/origin-chrome.log').read_text(errors='replace')
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I)
+          out={
+            'dom_bytes':len(html),
+            'has_yhub_project':'청년정책데이터허브' in html,
+            'has_policy_project':'정책상황실' in html,
+            'custom_hrefs':[x for x in hrefs if '.00ai.kr' in x],
+            'runtime_errors':[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:20],
+          }
+          out['healthy']=out['dom_bytes']>10000 and out['has_yhub_project'] and out['has_policy_project'] and len(out['custom_hrefs'])>=10 and not out['runtime_errors']
+          pathlib.Path('../../.github/portal-origin-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          if not out['healthy']: raise SystemExit(1)
+          PY
+
+      - name: Persist portal origin result
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -f .github/portal-origin-health.json ]]; then mkdir -p .github; printf '{"healthy":false,"reason":"portal origin deployment or hydration failed"}\n' > .github/portal-origin-health.json; fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-origin-health.json
+          if ! git diff --cached --quiet; then git commit -m "ci: update portal origin health [skip ci]"; git push || true; fi
