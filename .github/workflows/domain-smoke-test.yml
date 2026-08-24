@@ -1,0 +1,46 @@
+name: 00AI domain smoke test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/portal/**"
+      - ".github/workflows/domain-smoke-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-domains:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for deployment and DNS
+        run: sleep 90
+
+      - name: Verify 00AI domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          domains=(
+            "00ai.kr"
+            "harness.00ai.kr"
+            "policy.00ai.kr"
+            "public-ai-gov.00ai.kr"
+            "yhub.00ai.kr"
+            "youth-policy-data-hub.00ai.kr"
+            "drop.00ai.kr"
+          )
+
+          for domain in "${domains[@]}"; do
+            echo "=== ${domain} ==="
+            getent ahosts "$domain" | head -n 3
+            code="$(curl --location --silent --show-error --output /dev/null \
+              --write-out '%{http_code}' --max-time 25 "https://${domain}/")"
+            echo "HTTP ${code}"
+            if [[ "$code" -lt 200 || "$code" -ge 500 ]]; then
+              echo "${domain} failed with HTTP ${code}" >&2
+              exit 1
+            fi
+          done
