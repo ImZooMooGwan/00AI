@@ -1,0 +1,98 @@
+.project-section-meta {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.project-section-meta .section-description {
+  margin: 0;
+}
+
+.project-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #5d6470;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.project-sync i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #98a0ab;
+}
+
+.project-sync.loading i {
+  background: var(--blue);
+  animation: sync-pulse 1.2s ease-in-out infinite;
+}
+
+.project-sync.synced {
+  color: #147343;
+}
+
+.project-sync.synced i {
+  background: #16a565;
+}
+
+.project-sync.degraded {
+  color: #9a6421;
+}
+
+.project-sync.degraded i {
+  background: #e09a2b;
+}
+
+.github-import .text-link {
+  display: inline-block;
+}
+
+.project-list article {
+  grid-template-columns: 66px minmax(0, 1.2fr) minmax(180px, 1fr) 104px;
+}
+
+.project-list article.project-source-github {
+  background: linear-gradient(90deg, #fff 0, #fff 72%, #f8f9ff 100%);
+}
+
+.project-source-github .project-mark {
+  background: #24292f;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.project-list dl,
+.project-list dl > div {
+  min-width: 0;
+}
+
+.project-list dd {
+  overflow-wrap: anywhere;
+}
+
+@keyframes sync-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+}
+
+@media (max-width: 760px) {
+  .project-section-meta {
+    justify-items: start;
+  }
+
+  .project-list article {
+    grid-template-columns: 48px 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-sync.loading i {
+    animation: none;
+  }
+}
