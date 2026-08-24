@@ -1,6 +1,6 @@
 import publicSites from "../../portal/app/data/public-sites.json";
 
-const ORIGIN = "https://zeroai-platform.hayahoyeho.chatgpt.site";
+const ORIGIN = "https://00ai-portal-origin.able001.workers.dev";
 const DOMAIN_SUFFIX = ".00ai.kr";
 const GITHUB_OWNER = "ImZooMooGwan";
 
@@ -47,7 +47,7 @@ function finish(response: Response) {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     if (!headers.has(key)) headers.set(key, value);
   }
-  headers.set("X-00AI-Root-Router", "v2");
+  headers.set("X-00AI-Root-Router", "v3");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
