@@ -1,0 +1,38 @@
+{
+  "checked_at": "2026-08-24T13:52:13Z",
+  "healthy": true,
+  "deployed": true,
+  "rolled_back": false,
+  "steps": [
+    "token_ok",
+    "zone_ok",
+    "portal_origin_ok",
+    "portal_custom_domain_attached",
+    "legacy_path_routes_attached",
+    "http_and_control_plane_ok"
+  ],
+  "portal_origin_precheck": {
+    "api": 200,
+    "site_projects": 16
+  },
+  "before": {
+    "domain_service": "00ai-root-router-debug-v2",
+    "routes": []
+  },
+  "attach_http": 200,
+  "control_plane_service": "00ai-portal-origin",
+  "root": 200,
+  "api": 200,
+  "site_projects": 16,
+  "policy_route": "00ai-root-router-debug-v2",
+  "harness_route": "00ai-root-router-debug-v2",
+  "browser_dom_bytes": 16582,
+  "browser_yhub": true,
+  "browser_policy": true,
+  "browser_custom_hrefs": 21,
+  "browser_chatgpt_hrefs": 0,
+  "browser_runtime_errors": [],
+  "policy_redirect": "https://policy.00ai.kr/",
+  "harness_redirect": "https://harness.00ai.kr/",
+  "services_verified": true
+}
