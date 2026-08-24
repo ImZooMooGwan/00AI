@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 type ProjectEnv = {
   DB?: D1Database;
+  BUCKET?: R2Bucket;
   GITHUB_OWNER?: string;
   GITHUB_TOKEN?: string;
   GITHUB_EXCLUDE_REPOS?: string;
@@ -14,6 +15,9 @@ type DropProject = {
   public_url: string;
   status: string;
   created_at: number;
+  organization?: string | null;
+  uploader_name?: string | null;
+  description?: string | null;
 };
 
 type GitHubRepository = {
@@ -47,18 +51,55 @@ async function readRuntimeEnv(): Promise<ProjectEnv> {
   }
 }
 
+async function ensureProfileTable(db: D1Database) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS project_profiles (
+        project_id TEXT PRIMARY KEY,
+        organization TEXT NOT NULL,
+        uploader_name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )`,
+    )
+    .run();
+}
+
 async function loadDropProjects(runtime: ProjectEnv): Promise<DropProject[]> {
   if (!runtime.DB) return [];
 
   try {
+    await ensureProfileTable(runtime.DB);
     const result = await runtime.DB.prepare(
-      "SELECT slug, name, public_url, status, created_at FROM projects WHERE visibility = ? ORDER BY created_at DESC LIMIT 30",
+      `SELECT
+        p.slug,
+        p.name,
+        p.public_url,
+        p.status,
+        p.created_at,
+        pp.organization,
+        pp.uploader_name,
+        pp.description
+      FROM projects p
+      LEFT JOIN project_profiles pp ON pp.project_id = p.id
+      WHERE p.visibility = ?
+      ORDER BY p.created_at DESC
+      LIMIT 30`,
     )
       .bind("public")
       .all<DropProject>();
     return result.results ?? [];
   } catch {
-    return [];
+    try {
+      const fallback = await runtime.DB.prepare(
+        "SELECT slug, name, public_url, status, created_at FROM projects WHERE visibility = ? ORDER BY created_at DESC LIMIT 30",
+      )
+        .bind("public")
+        .all<DropProject>();
+      return fallback.results ?? [];
+    } catch {
+      return [];
+    }
   }
 }
 
@@ -165,7 +206,12 @@ export async function GET() {
       projects,
       githubProjects: github.projects,
       sources: {
-        drop: { available: Boolean(runtime.DB), count: projects.length },
+        drop: {
+          available: Boolean(runtime.DB && runtime.BUCKET),
+          d1: Boolean(runtime.DB),
+          r2: Boolean(runtime.BUCKET),
+          count: projects.length,
+        },
         github: {
           available: github.available,
           owner: github.owner,
