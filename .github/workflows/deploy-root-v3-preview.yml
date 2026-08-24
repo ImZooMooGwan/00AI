@@ -1,0 +1,80 @@
+name: Deploy and verify root router v3 preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-root-v3-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve Cloudflare account
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZONES="$(curl -fsS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode name=00ai.kr --data-urlencode status=active https://api.cloudflare.com/client/v4/zones)"
+          ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          test -n "$ACCOUNT_ID"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
+      - name: Deploy v3 preview Worker
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          d=json.load(open('apps/root-router/wrangler.jsonc'))
+          d['name']='00ai-root-router-v3'
+          d['workers_dev']=True
+          d.pop('routes',None)
+          open('apps/root-router/wrangler.v3.jsonc','w').write(json.dumps(d,indent=2)+'\n')
+          PY
+          npx --yes wrangler@4 deploy --config apps/root-router/wrangler.v3.jsonc 2>&1 | tee /tmp/root-v3.log
+          URL="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/root-v3.log | tail -n1)"
+          test -n "$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          sleep 5
+          test "$(curl -ksS --max-time 30 -o /tmp/v3-api -w '%{http_code}' "$URL/api/projects")" = 200
+          grep -q 'policy.00ai.kr' /tmp/v3-api
+          grep -q 'yhub.00ai.kr' /tmp/v3-api
+          python3 -c 'import json; d=json.load(open("/tmp/v3-api")); assert len(d.get("siteProjects",[]))>=10'
+      - name: Browser verify v3 UI hydration
+        shell: bash
+        run: |
+          set +e
+          URL="${{ steps.deploy.outputs.url }}"
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=12000 --dump-dom "$URL/" > /tmp/v3-dom 2>/tmp/v3-chrome || true
+          python3 - <<'PY'
+          import json,re,pathlib
+          html=pathlib.Path('/tmp/v3-dom').read_text(errors='replace')
+          log=pathlib.Path('/tmp/v3-chrome').read_text(errors='replace')
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I)
+          custom=[x for x in hrefs if '.00ai.kr' in x]
+          errors=[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:20]
+          out={'dom_bytes':len(html),'has_yhub':'청년정책데이터허브' in html,'has_policy':'정책상황실' in html,'custom_hrefs':custom,'runtime_errors':errors}
+          out['healthy']=out['dom_bytes']>10000 and out['has_yhub'] and out['has_policy'] and len(custom)>=10 and not errors
+          pathlib.Path('.github/root-v3-preview-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          if not out['healthy']: raise SystemExit(1)
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          if [[ ! -f .github/root-v3-preview-health.json ]]; then mkdir -p .github; printf '{"healthy":false,"reason":"v3 preview deployment or browser verification failed"}\n' > .github/root-v3-preview-health.json; fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/root-v3-preview-health.json
+          if ! git diff --cached --quiet; then git commit -m "ci: update root v3 preview health [skip ci]"; git push || true; fi
