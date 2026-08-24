@@ -12,6 +12,9 @@ type PublishedProject = {
   name: string;
   public_url: string;
   status: string;
+  organization?: string | null;
+  uploader_name?: string | null;
+  description?: string | null;
 };
 
 type GitHubProject = {
@@ -154,7 +157,11 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [dragging, setDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [organization, setOrganization] = useState("");
+  const [uploaderName, setUploaderName] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [description, setDescription] = useState("");
+  const [dropReady, setDropReady] = useState<boolean | null>(null);
   const [deployState, setDeployState] = useState<
     "idle" | "uploading" | "done" | "error"
   >("idle");
@@ -183,9 +190,12 @@ export default function Home() {
       ...publishedProjects.map((project) => ({
         id: `drop-${project.slug}`,
         name: project.name,
-        problem: "00AI DROP 공개 프로젝트",
-        field: "공개",
-        maker: "00AI 참여자",
+        problem: project.description || "00AI DROP 공개 프로젝트",
+        field: "00AI DROP",
+        maker:
+          [project.organization, project.uploader_name]
+            .filter(Boolean)
+            .join(" · ") || "00AI 참여자",
         stack: project.slug,
         status: project.status,
         href: project.public_url,
@@ -222,14 +232,17 @@ export default function Home() {
       .then((result) => {
         if (!active) return;
         setPublishedProjects(result.projects || []);
-        setGitHubProjects(result.githubProjects || []);
+        setGithubProjects(result.githubProjects || []);
         setGithubOwner(result.sources?.github?.owner || "ImZooMooGwan");
+        setDropReady(Boolean(result.sources?.drop?.available));
         setSyncState(
           result.sources?.github?.available ? "synced" : "degraded",
         );
       })
       .catch(() => {
-        if (active) setSyncState("degraded");
+        if (!active) return;
+        setSyncState("degraded");
+        setDropReady(false);
       });
     return () => {
       active = false;
@@ -240,9 +253,24 @@ export default function Home() {
     setFiles(selected ? Array.from(selected) : []);
 
   const deploy = async () => {
+    if (!organization.trim()) {
+      setDeployState("error");
+      setMessage("소속을 입력해 주세요.");
+      return;
+    }
+    if (!uploaderName.trim()) {
+      setDeployState("error");
+      setMessage("성명을 입력해 주세요.");
+      return;
+    }
     if (!projectName.trim()) {
       setDeployState("error");
-      setMessage("프로젝트 이름을 입력해 주세요.");
+      setMessage("제목을 입력해 주세요.");
+      return;
+    }
+    if (description.trim().length < 5) {
+      setDeployState("error");
+      setMessage("내용을 5자 이상 입력해 주세요.");
       return;
     }
     if (!files.length) {
@@ -254,7 +282,10 @@ export default function Home() {
     setDeployState("uploading");
     setMessage("파일 검사와 저장을 진행하고 있습니다.");
     const data = new FormData();
+    data.append("organization", organization.trim());
+    data.append("uploaderName", uploaderName.trim());
     data.append("name", projectName.trim());
+    data.append("description", description.trim());
     data.append("visibility", "public");
     files.forEach((file) => data.append("files", file));
 
@@ -268,17 +299,21 @@ export default function Home() {
         throw new Error(result.error || "배포를 완료하지 못했습니다.");
       }
       setDeployState("done");
+      setDropReady(true);
       setPublishedProjects((items) => [
         {
           slug: result.slug,
           name: result.name,
           public_url: result.publicUrl,
           status: result.status,
+          organization: result.organization,
+          uploader_name: result.uploaderName,
+          description: result.description,
         },
         ...items,
       ]);
       setMessage(
-        `${result.name} 파일이 안전하게 저장되었습니다. 00ai.kr 도메인 연결 후 ${result.publicUrl}에서 공개됩니다.`,
+        `${result.name} 등록과 파일 저장을 완료했습니다. ${result.publicUrl}에서 공개될 준비가 됐습니다.`,
       );
     } catch (error) {
       setDeployState("error");
@@ -472,15 +507,71 @@ export default function Home() {
           </p>
         </div>
         <div className="drop-panel">
-          <label className="project-input">
-            프로젝트 이름
-            <input
-              value={projectName}
-              onChange={(event) => setProjectName(event.target.value)}
-              maxLength={80}
-              placeholder="예: 대전 청년정책 AI"
-            />
-          </label>
+          <div
+            className={`storage-status ${
+              dropReady === null ? "" : dropReady ? "ready" : "blocked"
+            }`}
+            role="status"
+          >
+            <span>
+              <span className="dot" />
+              <b>배포 저장소</b> · {dropReady === null && "연결 확인 중"}
+              {dropReady === true && "D1 · R2 연결됨"}
+              {dropReady === false && "D1/R2 연결 필요"}
+            </span>
+            <span>
+              {dropReady === true
+                ? "등록 정보와 파일을 함께 저장합니다."
+                : "저장소 연결 전에는 공개 배포가 완료되지 않습니다."}
+            </span>
+          </div>
+
+          <div className="publisher-form">
+            <label className="project-input">
+              소속
+              <input
+                value={organization}
+                onChange={(event) => setOrganization(event.target.value)}
+                maxLength={80}
+                placeholder="예: 대전광역시 청년정책과 / 개인"
+                autoComplete="organization"
+              />
+            </label>
+            <label className="project-input">
+              성명
+              <input
+                value={uploaderName}
+                onChange={(event) => setUploaderName(event.target.value)}
+                maxLength={40}
+                placeholder="예: 홍길동"
+                autoComplete="name"
+              />
+            </label>
+            <label className="project-input full">
+              제목
+              <input
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                maxLength={80}
+                placeholder="예: 공공문서 개인정보 자동 마스킹"
+              />
+            </label>
+            <label className="project-input full">
+              내용
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                maxLength={600}
+                placeholder="서비스가 해결하려는 문제와 주요 기능을 간단히 적어주세요."
+              />
+              <small>{description.length} / 600자</small>
+            </label>
+            <p className="publisher-note">
+              소속·성명·제목·내용은 프로젝트 공개 정보로 활용될 수 있습니다.
+              연락처, 주민등록번호 등 민감한 개인정보는 입력하지 마세요.
+            </p>
+          </div>
+
           <div
             className={`drop-zone ${dragging ? "dragging" : ""}`}
             onDrop={(event) => {
@@ -504,7 +595,7 @@ export default function Home() {
           >
             <div className="drop-icon">↓</div>
             <h3>웹 서비스 파일을 놓으세요</h3>
-            <p>ZIP · index.html · CSS · JS · 이미지 · 폰트</p>
+            <p>ZIP · HTML · CSS · JS · 이미지 · 폰트</p>
             <button
               type="button"
               className="button ghost"
@@ -538,12 +629,19 @@ export default function Home() {
               <button
                 className="button primary"
                 type="button"
-                disabled={deployState === "uploading"}
+                disabled={deployState === "uploading" || dropReady === false}
                 onClick={deploy}
+                title={
+                  dropReady === false
+                    ? "배포 저장소 연결 후 사용할 수 있습니다."
+                    : undefined
+                }
               >
                 {deployState === "uploading"
                   ? "저장 중…"
-                  : "파일 저장하기 →"}
+                  : dropReady === false
+                    ? "저장소 연결 필요"
+                    : "등록하고 배포하기 →"}
               </button>
             </div>
           )}
@@ -554,7 +652,7 @@ export default function Home() {
           )}
           <div className="deploy-notes">
             <span>최대 50MB · 파일 1,000개</span>
-            <span>ZIP 경로 이탈·실행 파일은 차단합니다</span>
+            <span>단일 HTML은 자동으로 시작 파일로 인식합니다</span>
           </div>
           <div className="github-import">
             <b>GitHub 자동 등록</b>
