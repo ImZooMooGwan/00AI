@@ -1,0 +1,63 @@
+name: Diagnose 00AI portal origin Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-origin-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect HTTP and Chrome behavior
+        shell: bash
+        run: |
+          set +e
+          URL="https://00ai-portal-origin.able001.workers.dev"
+          mkdir -p .github /tmp/porigin
+          root_code="$(curl -ksS --max-time 30 -D /tmp/porigin/root.h -o /tmp/porigin/root.b -w '%{http_code}' "$URL/" || true)"
+          api_code="$(curl -ksS --max-time 30 -D /tmp/porigin/api.h -o /tmp/porigin/api.b -w '%{http_code}' "$URL/api/projects" || true)"
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --enable-logging=stderr --virtual-time-budget=12000 --dump-dom "$URL/" > /tmp/porigin/dom.html 2>/tmp/porigin/chrome.log || true
+          python3 - <<PY
+          import json,re,pathlib,datetime
+          def t(p):
+            try:return pathlib.Path(p).read_text(errors='replace')
+            except:return ''
+          root=t('/tmp/porigin/root.b'); api_raw=t('/tmp/porigin/api.b'); dom=t('/tmp/porigin/dom.html'); log=t('/tmp/porigin/chrome.log')
+          try: api=json.loads(api_raw)
+          except Exception as e: api={'parse_error':str(e),'raw':api_raw[:3000]}
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',dom,re.I)
+          out={
+            'checked_at':datetime.datetime.utcnow().isoformat()+'Z',
+            'root_http':'$root_code','api_http':'$api_code',
+            'root_bytes':len(root),'api_bytes':len(api_raw),'dom_bytes':len(dom),
+            'api_site_count':len(api.get('siteProjects',[])) if isinstance(api,dict) else 0,
+            'api_first_urls':[x.get('public_url') for x in api.get('siteProjects',[])[:5]] if isinstance(api,dict) else [],
+            'api_has_policy':'policy.00ai.kr' in api_raw,
+            'api_has_yhub':'youth-policy-data-hub.00ai.kr' in api_raw or 'yhub.00ai.kr' in api_raw,
+            'dom_has_yhub':'청년정책데이터허브' in dom,
+            'dom_has_policy':'정책상황실' in dom,
+            'dom_custom_hrefs':[x for x in hrefs if '.00ai.kr' in x],
+            'chrome_runtime_errors':[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors|error',x,re.I)][-30:],
+            'root_headers':t('/tmp/porigin/root.h')[-4000:],
+            'api_headers':t('/tmp/porigin/api.h')[-4000:],
+          }
+          pathlib.Path('.github/portal-origin-debug.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-origin-debug.json || true
+          if ! git diff --cached --quiet; then git commit -m "ci: update portal origin debug [skip ci]"; git push || true; fi
