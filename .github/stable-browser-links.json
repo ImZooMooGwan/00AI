@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-08-24T13:34:13.511481Z",
+  "dom_bytes": 10024,
+  "api_root_router": true,
+  "api_site_projects": 16,
+  "api_custom_urls": 16,
+  "dom_custom_domain_hrefs": [],
+  "dom_has_yhub_project": false,
+  "dom_has_policy_project": true,
+  "runtime_errors": [],
+  "healthy": false
+}
