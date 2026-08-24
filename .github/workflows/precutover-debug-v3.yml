@@ -1,0 +1,123 @@
+name: Precutover debug v3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/precutover-debug-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+      - name: Build and inspect without production cutover
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github /tmp/precutover
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('apps/portal/app/page.tsx')
+          s=p.read_text()
+          s=s.replace('href: "/policy"','href: "https://policy.00ai.kr"')
+          s=s.replace('href: "/harness"','href: "https://harness.00ai.kr/"')
+          s=s.replace('href="/harness"','href="https://harness.00ai.kr/"')
+          p.write_text(s)
+          PY
+          cp apps/portal/app/data/public-sites.json /tmp/precutover/manifest.json
+          grep -n 'localSiteManifest\|loadSiteProjects' apps/portal/app/api/projects/route.ts > /tmp/precutover/route-grep.txt || true
+          grep -n 'policy.00ai.kr\|harness.00ai.kr' apps/portal/app/page.tsx > /tmp/precutover/page-grep.txt || true
+
+          cd apps/portal
+          npm ci --no-audit --no-fund > /tmp/precutover/install.log 2>&1
+          install=$?
+          build=999
+          deploy=999
+          preview=''
+          if [[ $install -eq 0 ]]; then
+            rm -rf dist .vite .next
+            SITES_BUILD_TIMEOUT=6m npm run build > /tmp/precutover/build.log 2>&1
+            build=$?
+          fi
+          if [[ $build -eq 0 ]]; then
+            cat > wrangler.debug-v3.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "00ai-portal-debug-v3",
+            "main": "dist/server/index.js",
+            "assets": { "directory": "dist/client", "binding": "ASSETS" },
+            "compatibility_date": "2026-08-20",
+            "compatibility_flags": ["nodejs_compat"],
+            "workers_dev": true
+          }
+          EOF
+            npx wrangler deploy --config wrangler.debug-v3.jsonc > /tmp/precutover/deploy.log 2>&1
+            deploy=$?
+            preview="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/precutover/deploy.log | tail -n1)"
+          fi
+          cd ../..
+          root_code=000
+          api_code=000
+          if [[ $deploy -eq 0 && -n "$preview" ]]; then
+            root_code="$(curl -ksS --max-time 30 -o /tmp/precutover/root.html -w '%{http_code}' "$preview/")"
+            api_code="$(curl -ksS --max-time 30 -o /tmp/precutover/api.json -w '%{http_code}' "$preview/api/projects")"
+          else
+            : > /tmp/precutover/root.html
+            : > /tmp/precutover/api.json
+          fi
+
+          python3 - <<PY
+          import json,pathlib
+          def txt(p):
+              try:return pathlib.Path(p).read_text(errors='replace')
+              except:return ''
+          api_raw=txt('/tmp/precutover/api.json')
+          try: api=json.loads(api_raw)
+          except Exception as e: api={'parse_error':str(e),'raw':api_raw[:2000]}
+          root=txt('/tmp/precutover/root.html')
+          manifest=json.loads(txt('/tmp/precutover/manifest.json'))
+          sites=api.get('siteProjects',[]) if isinstance(api,dict) else []
+          report={
+            'install_status':$install,
+            'build_status':$build,
+            'deploy_status':$deploy,
+            'preview_url':'''$preview''',
+            'root_http':'$root_code',
+            'api_http':'$api_code',
+            'root_policy_link':'https://policy.00ai.kr' in root,
+            'root_harness_link':'https://harness.00ai.kr/' in root,
+            'manifest_first_urls':[x.get('public_url') for x in manifest[:4]],
+            'api_first_urls':[x.get('public_url') for x in sites[:4]],
+            'api_site_count':len(sites),
+            'api_all_custom':bool(sites) and all('.00ai.kr' in str(x.get('public_url','')) for x in sites),
+            'route_grep':txt('/tmp/precutover/route-grep.txt'),
+            'page_grep':txt('/tmp/precutover/page-grep.txt'),
+            'build_tail':txt('/tmp/precutover/build.log')[-5000:],
+            'deploy_tail':txt('/tmp/precutover/deploy.log')[-5000:],
+          }
+          pathlib.Path('.github/precutover-debug-v3.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist debug report
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/precutover-debug-v3.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update precutover debug v3 [skip ci]"
+            git push || true
+          fi
