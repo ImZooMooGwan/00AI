@@ -1,0 +1,70 @@
+name: 00AI site HTTP diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/site-http-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Diagnose proxied app HTML and assets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, re, subprocess, datetime, pathlib
+          sites = [
+            'policy.00ai.kr',
+            'yhub.00ai.kr',
+            'oneul-daejeon.00ai.kr',
+            'public-ai-gov.00ai.kr',
+          ]
+          out = {'checked_at': datetime.datetime.utcnow().isoformat()+'Z', 'sites': {}}
+          for host in sites:
+            url = f'https://{host}/'
+            p = subprocess.run(['curl','-ksSL','--max-time','25','-D','-','-o','-',url], capture_output=True, text=True)
+            raw = p.stdout
+            parts = raw.split('\r\n\r\n') if '\r\n\r\n' in raw else raw.split('\n\n')
+            body = parts[-1] if parts else ''
+            headers = '\n\n'.join(parts[:-1])
+            refs = re.findall(r'''(?:src|href)=["']([^"']+)["']''', body, flags=re.I)
+            assets=[]
+            for ref in refs:
+              if ref.startswith('data:') or ref.startswith('#') or ref.startswith('mailto:'): continue
+              if ref.startswith('//'): asset='https:'+ref
+              elif ref.startswith('http://') or ref.startswith('https://'): asset=ref
+              elif ref.startswith('/'): asset=f'https://{host}{ref}'
+              else: asset=f'https://{host}/{ref}'
+              q = subprocess.run(['curl','-ksS','--max-time','20','-o','/dev/null','-w','%{http_code}|%{content_type}',asset], capture_output=True, text=True)
+              assets.append({'ref':ref,'url':asset,'result':q.stdout.strip()})
+              if len(assets)>=12: break
+            out['sites'][host]={
+              'curl_exit':p.returncode,
+              'headers':headers[-4000:],
+              'body_prefix':body[:5000],
+              'body_length':len(body),
+              'asset_checks':assets,
+            }
+          path=pathlib.Path('.github/site-http-diagnostic.json')
+          path.write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(path.read_text())
+          PY
+      - name: Persist diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/site-http-diagnostic.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update site HTTP diagnostic [skip ci]"
+            git push || true
+          fi
