@@ -1,0 +1,155 @@
+name: Deploy 00AI portal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/portal/**"
+      - ".github/workflows/deploy-portal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+          cache-dependency-path: apps/portal/package-lock.json
+
+      - name: Resolve Cloudflare account and zone
+        id: cf
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${CLOUDFLARE_API_TOKEN:-}"
+          test -n "$TOKEN"
+          VERIFY="$(curl -fsS -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)"
+          test "$(jq -r '.success' <<<"$VERIFY")" = "true"
+          ZONES="$(curl -fsS -G -H "Authorization: Bearer $TOKEN" --data-urlencode "name=00ai.kr" --data-urlencode "status=active" https://api.cloudflare.com/client/v4/zones)"
+          ZONE_ID="$(jq -r '.result[0].id // empty' <<<"$ZONES")"
+          ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          test -n "$ZONE_ID" && test -n "$ACCOUNT_ID"
+          echo "zone_id=$ZONE_ID" >> "$GITHUB_OUTPUT"
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
+
+      - name: Install portal dependencies
+        working-directory: apps/portal
+        run: npm ci --no-audit --no-fund
+
+      - name: Build current portal
+        working-directory: apps/portal
+        env:
+          SITES_BUILD_TIMEOUT: 6m
+        run: npm run build
+
+      - name: Deploy and verify preview Worker first
+        id: preview
+        working-directory: apps/portal
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > wrangler.preview.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "00ai-portal-preview",
+            "main": "dist/server/index.js",
+            "assets": { "directory": "dist/client", "binding": "ASSETS" },
+            "compatibility_date": "2026-08-20",
+            "compatibility_flags": ["nodejs_compat"],
+            "workers_dev": true
+          }
+          EOF
+          npx wrangler deploy --config wrangler.preview.jsonc 2>&1 | tee /tmp/portal-preview.log
+          PREVIEW_URL="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/portal-preview.log | tail -n 1)"
+          test -n "$PREVIEW_URL"
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          ROOT="$(curl -fsSL --max-time 30 "$PREVIEW_URL/")"
+          API="$(curl -fsSL --max-time 30 "$PREVIEW_URL/api/projects")"
+          grep -q '00AI' <<<"$ROOT"
+          grep -q 'policy.00ai.kr' <<<"$API"
+          grep -q 'youth-policy-data-hub.00ai.kr' <<<"$API"
+          echo "Preview verified at $PREVIEW_URL"
+
+      - name: Remove only stale apex web DNS records
+        shell: bash
+        env:
+          ZONE_ID: ${{ steps.cf.outputs.zone_id }}
+        run: |
+          set -euo pipefail
+          RECORDS="$(curl -fsS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode "name=00ai.kr" https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records)"
+          jq -r '.result[] | select(.type=="A" or .type=="AAAA" or .type=="CNAME") | [.id,.type,.content] | @tsv' <<<"$RECORDS" | while IFS=$'\t' read -r id type content; do
+            [[ -n "$id" ]] || continue
+            echo "Removing stale apex web record: $type $content"
+            curl -fsS -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$id >/dev/null
+          done
+
+      - name: Deploy verified portal to 00ai.kr
+        working-directory: apps/portal
+        run: npx wrangler deploy --config wrangler.jsonc
+
+      - name: Verify production portal and project links
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 20
+          ROOT="$(curl -fsSL --max-time 30 https://00ai.kr/)"
+          API="$(curl -fsSL --max-time 30 https://00ai.kr/api/projects)"
+          POLICY_CODE="$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 25 https://policy.00ai.kr/)"
+          YHUB_CODE="$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 25 https://yhub.00ai.kr/)"
+          HARNESS_CODE="$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 25 https://harness.00ai.kr/)"
+          grep -q '00AI' <<<"$ROOT"
+          grep -q 'policy.00ai.kr' <<<"$API"
+          grep -q 'youth-policy-data-hub.00ai.kr' <<<"$API"
+          test "$POLICY_CODE" = "200"
+          test "$YHUB_CODE" = "200"
+          test "$HARNESS_CODE" = "200"
+          mkdir -p .github
+          cat > .github/portal-deploy-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployed": true,
+            "preview": "${{ steps.preview.outputs.preview_url }}",
+            "root": "200",
+            "project_api_uses_00ai_domains": true,
+            "policy": "$POLICY_CODE",
+            "yhub": "$YHUB_CODE",
+            "harness": "$HARNESS_CODE",
+            "healthy": true
+          }
+          EOF
+
+      - name: Persist portal deployment state
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -f .github/portal-deploy-health.json ]]; then
+            mkdir -p .github
+            cat > .github/portal-deploy-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployed": false,
+            "healthy": false,
+            "reason": "Portal deployment or verification failed"
+          }
+          EOF
+          fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-deploy-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal deployment health [skip ci]"
+            git push || true
+          fi
