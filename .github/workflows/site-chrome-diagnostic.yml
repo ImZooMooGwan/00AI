@@ -1,0 +1,70 @@
+name: 00AI Chrome runtime diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/site-chrome-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real Chrome against 00AI domains
+        shell: bash
+        run: |
+          set -u
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          mkdir -p .github/chrome-diagnostic
+          if [[ -z "$CHROME" ]]; then
+            printf '{"error":"Chrome executable not found"}\n' > .github/site-chrome-diagnostic.json
+            exit 0
+          fi
+          sites=(
+            "policy.00ai.kr|/"
+            "yhub.00ai.kr|/"
+            "yhub.00ai.kr|/policies"
+            "yhub.00ai.kr|/graph"
+            "oneul-daejeon.00ai.kr|/"
+          )
+          report=".github/site-chrome-diagnostic.json"
+          echo '{"checked_at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","chrome":"'"$CHROME"'","sites":{' > "$report"
+          first=1
+          for item in "${sites[@]}"; do
+            host="${item%%|*}"
+            path="${item#*|}"
+            key="${host}${path}"
+            safe="$(echo "$key" | tr '/.' '__')"
+            dom=".github/chrome-diagnostic/${safe}.html"
+            log=".github/chrome-diagnostic/${safe}.log"
+            "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --virtual-time-budget=10000 --enable-logging=stderr --v=0 \
+              --dump-dom "https://${host}${path}" > "$dom" 2> "$log" || true
+            bytes="$(wc -c < "$dom" | tr -d ' ')"
+            text="$(sed -E 's/<[^>]+>/ /g' "$dom" | tr -s '[:space:]' ' ' | head -c 400 | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+            errs="$(grep -Ei 'error|failed|refused|cors|uncaught|exception|blocked' "$log" | tail -n 30 | head -c 5000 | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+            scripts="$(grep -oE '<script[^>]+src="[^"]+"' "$dom" | wc -l | tr -d ' ')"
+            canvas="$(grep -o '<canvas' "$dom" | wc -l | tr -d ' ')"
+            [[ $first -eq 1 ]] || echo ',' >> "$report"
+            first=0
+            printf '"%s":{"dom_bytes":%s,"script_tags":%s,"canvas_tags":%s,"text":%s,"runtime_log":%s}' "$key" "$bytes" "$scripts" "$canvas" "$text" "$errs" >> "$report"
+          done
+          echo '}}' >> "$report"
+          cat "$report"
+      - name: Persist Chrome diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/site-chrome-diagnostic.json .github/chrome-diagnostic || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update Chrome runtime diagnostic [skip ci]"
+            git push || true
+          fi
