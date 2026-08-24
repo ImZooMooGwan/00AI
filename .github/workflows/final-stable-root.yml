@@ -1,0 +1,178 @@
+name: Establish stable 00ai.kr root router
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/final-stable-root.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable root ownership with rollback
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, ssl, time, urllib.parse, urllib.request, urllib.error
+
+          TOKEN=os.environ['CLOUDFLARE_API_TOKEN']
+          API='https://api.cloudflare.com/client/v4'
+          HOST='00ai.kr'
+          SERVICE='00ai-root-router-debug-v2'
+          FALLBACK='00ai-portal'
+          PREVIEW='https://00ai-root-router-debug-v2.able001.workers.dev'
+          OUT=pathlib.Path('.github/final-stable-root-health.json')
+          OUT.parent.mkdir(parents=True,exist_ok=True)
+          ctx=ssl.create_default_context()
+          report={'checked_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'healthy':False,'deployed':False,'rolled_back':False,'steps':[]}
+
+          def save(): OUT.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          def cf(method,path,body=None):
+              headers={'Authorization':f'Bearer {TOKEN}','Accept':'application/json'}; data=None
+              if body is not None:
+                  headers['Content-Type']='application/json'; data=json.dumps(body).encode()
+              req=urllib.request.Request(API+path,data=data,headers=headers,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=30,context=ctx) as r:
+                      raw=r.read().decode('utf-8','replace')
+                      try: obj=json.loads(raw) if raw else {}
+                      except: obj={'raw':raw[:4000]}
+                      return r.status,obj
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf-8','replace')
+                  try: obj=json.loads(raw) if raw else {}
+                  except: obj={'raw':raw[:4000]}
+                  return e.code,obj
+          def get(url):
+              req=urllib.request.Request(url,headers={'User-Agent':'00AI-stable-root-check'})
+              try:
+                  with urllib.request.urlopen(req,timeout=30,context=ctx) as r:
+                      return r.status,r.read().decode('utf-8','replace'),dict(r.headers.items()),r.geturl()
+              except urllib.error.HTTPError as e:
+                  return e.code,e.read().decode('utf-8','replace'),dict(e.headers.items()),url
+              except Exception as e:
+                  return 0,str(e),{},url
+
+          account_id=zone_id=None
+          mutated=False
+          old_service=FALLBACK
+          old_route_script=None
+
+          try:
+              code,v=cf('GET','/user/tokens/verify'); assert code==200 and v.get('success') is True
+              q=urllib.parse.urlencode({'name':HOST,'status':'active'}); code,z=cf('GET','/zones?'+q)
+              assert code==200 and z.get('result')
+              zone=z['result'][0]; zone_id=zone['id']; account_id=zone['account']['id']
+              report['steps']+=['token_ok','zone_ok']
+
+              # Verified replacement Worker must be healthy before touching production.
+              rc,_,_,_=get(PREVIEW+'/'); ac,ab,_,_=get(PREVIEW+'/api/projects')
+              reg=json.loads(ab) if ac==200 else {}
+              assert rc==200 and ac==200 and len(reg.get('siteProjects',[]))>=10
+              assert 'policy.00ai.kr' in ab and 'yhub.00ai.kr' in ab
+              report['preview']={'root':rc,'api':ac,'site_projects':len(reg.get('siteProjects',[]))}
+              report['steps'].append('replacement_verified')
+
+              # Capture current exact bindings.
+              code,d=cf('GET',f'/accounts/{account_id}/workers/domains'); assert code==200 and d.get('success') is True
+              cur_domain=next((x for x in d.get('result',[]) if x.get('hostname')==HOST),None)
+              if cur_domain and cur_domain.get('service'): old_service=cur_domain['service']
+              code,r=cf('GET',f'/zones/{zone_id}/workers/routes'); assert code==200 and r.get('success') is True
+              cur_route=next((x for x in r.get('result',[]) if x.get('pattern')==HOST+'/*'),None)
+              if cur_route: old_route_script=cur_route.get('script')
+              report['before']={'domain_service':cur_domain.get('service') if cur_domain else None,'route_script':old_route_script}
+              save()
+
+              # If already stable, only verify and finish.
+              if cur_domain and cur_domain.get('service')==SERVICE and not cur_route:
+                  report['steps'].append('already_owned')
+              else:
+                  if cur_domain:
+                      code,_=cf('DELETE',f'/accounts/{account_id}/workers/domains/{cur_domain["id"]}')
+                      assert 200<=code<300, ('delete_domain',code)
+                      mutated=True
+                  if cur_route:
+                      code,_=cf('DELETE',f'/zones/{zone_id}/workers/routes/{cur_route["id"]}')
+                      assert 200<=code<300, ('delete_route',code)
+                      mutated=True
+                  report['steps'].append('legacy_bindings_removed'); save()
+
+                  code,obj=cf('PUT',f'/accounts/{account_id}/workers/domains',{'hostname':HOST,'service':SERVICE,'zone_id':zone_id,'zone_name':HOST})
+                  report['attach_http']=code
+                  if not (200<=code<300 and obj.get('success') is True):
+                      report['attach_error']=obj; save(); raise RuntimeError(('attach',code,obj))
+                  mutated=True; report['steps'].append('stable_domain_attached'); save()
+
+              # Verify live endpoint, API registry, redirects, and representative services.
+              live=None
+              for n in range(1,13):
+                  time.sleep(7)
+                  rc,rb,rh,_=get('https://00ai.kr/'); ac,ab,ah,_=get('https://00ai.kr/api/projects')
+                  marker=next((v for k,v in rh.items() if k.lower()=='x-00ai-root-router'),'')
+                  if rc==200 and ac==200 and 'v2' in marker and 'policy.00ai.kr' in ab and 'yhub.00ai.kr' in ab:
+                      live=(rc,ac,ab,marker); break
+                  report['last_wait']={'n':n,'root':rc,'api':ac,'marker':marker}; save()
+              assert live is not None, ('live_timeout',report.get('last_wait'))
+
+              # Final Cloudflare control-plane ownership check.
+              code,d=cf('GET',f'/accounts/{account_id}/workers/domains'); assert code==200
+              apex=next((x for x in d.get('result',[]) if x.get('hostname')==HOST),None)
+              code,r=cf('GET',f'/zones/{zone_id}/workers/routes'); assert code==200
+              exact_routes=[x for x in r.get('result',[]) if x.get('pattern')==HOST+'/*']
+              assert apex and apex.get('service')==SERVICE, apex
+              assert not exact_routes, exact_routes
+
+              class NR(urllib.request.HTTPRedirectHandler):
+                  def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+              opener=urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx),NR())
+              def location(url):
+                  try: opener.open(urllib.request.Request(url,headers={'User-Agent':'00AI-stable-root-check'}),timeout=20); return None
+                  except urllib.error.HTTPError as e: return e.headers.get('Location')
+              ploc=location('https://00ai.kr/policy'); hloc=location('https://00ai.kr/harness')
+              pc,_,_,_=get('https://policy.00ai.kr/api/hasa/health'); yc,_,_,_=get('https://yhub.00ai.kr/policies'); hc,_,_,_=get('https://harness.00ai.kr/')
+              assert ploc and ploc.startswith('https://policy.00ai.kr')
+              assert hloc and hloc.startswith('https://harness.00ai.kr')
+              assert (pc,yc,hc)==(200,200,200),(pc,yc,hc)
+
+              registry=json.loads(live[2])
+              report.update({'deployed':True,'healthy':True,'service':SERVICE,'control_plane_service':apex.get('service'),'exact_apex_routes':len(exact_routes),'site_projects':len(registry.get('siteProjects',[])),'github_projects':len(registry.get('githubProjects',[])),'policy_redirect':ploc,'harness_redirect':hloc,'policy_api':pc,'yhub':yc,'harness':hc})
+              report['steps'].append('production_and_control_plane_verified'); save()
+
+          except Exception as e:
+              report['error']=repr(e)[:6000]
+              if mutated and account_id and zone_id:
+                  try:
+                      code,d=cf('GET',f'/accounts/{account_id}/workers/domains')
+                      cur=next((x for x in (d.get('result') or []) if x.get('hostname')==HOST),None) if isinstance(d,dict) else None
+                      if cur: cf('DELETE',f'/accounts/{account_id}/workers/domains/{cur["id"]}')
+                      cf('PUT',f'/accounts/{account_id}/workers/domains',{'hostname':HOST,'service':FALLBACK,'zone_id':zone_id,'zone_name':HOST})
+                      code,r=cf('GET',f'/zones/{zone_id}/workers/routes')
+                      has=any(x.get('pattern')==HOST+'/*' for x in (r.get('result') or [])) if isinstance(r,dict) else False
+                      if not has: cf('POST',f'/zones/{zone_id}/workers/routes',{'pattern':HOST+'/*','script':FALLBACK})
+                      report['rolled_back']=True
+                  except Exception as re:
+                      report['rollback_error']=repr(re)[:4000]
+              report['deployed']=False; report['healthy']=False; save(); raise
+          finally: save()
+          PY
+
+      - name: Persist stable health
+        if: always()
+        run: |
+          if [[ ! -f .github/final-stable-root-health.json ]]; then mkdir -p .github; printf '{"healthy":false,"deployed":false,"reason":"transaction did not start"}\n' > .github/final-stable-root-health.json; fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/final-stable-root-health.json
+          if ! git diff --cached --quiet; then git commit -m "ci: update stable root ownership health [skip ci]"; git push || true; fi
