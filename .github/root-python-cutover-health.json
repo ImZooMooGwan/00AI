@@ -1,0 +1,30 @@
+{
+  "checked_at": "2026-08-24T13:22:00Z",
+  "deployed": false,
+  "healthy": false,
+  "mutated": false,
+  "rolled_back": false,
+  "steps": [
+    {
+      "token_verify": true
+    },
+    {
+      "zone_lookup": true
+    },
+    {
+      "preview_verified": true
+    },
+    {
+      "old_bindings_captured": true
+    }
+  ],
+  "zone_id": "2acfea2aa48ec8d8af658858800e1c26",
+  "preview": {
+    "root": 200,
+    "api": 200,
+    "site_projects": 16
+  },
+  "old_service": "00ai-portal",
+  "old_route_script": "00ai-portal",
+  "error": "AssertionError(('detach_domain', 200, {}))"
+}
