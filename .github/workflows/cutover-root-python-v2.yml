@@ -1,0 +1,165 @@
+name: Python atomic 00ai.kr cutover v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cutover-root-python-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cut over with rollback
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, ssl, time, urllib.parse, urllib.request, urllib.error
+
+          TOKEN=os.environ['CLOUDFLARE_API_TOKEN']
+          API='https://api.cloudflare.com/client/v4'
+          HOST='00ai.kr'
+          NEW='00ai-root-router-debug-v2'
+          FALLBACK='00ai-portal'
+          PREVIEW='https://00ai-root-router-debug-v2.able001.workers.dev'
+          OUT=pathlib.Path('.github/root-python-v2-health.json')
+          OUT.parent.mkdir(parents=True,exist_ok=True)
+          ctx=ssl.create_default_context()
+          state={'checked_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'deployed':False,'healthy':False,'rolled_back':False,'steps':[]}
+
+          def save(): OUT.write_text(json.dumps(state,ensure_ascii=False,indent=2)+'\n')
+          def cf(method,path,body=None,timeout=30):
+              headers={'Authorization':f'Bearer {TOKEN}','Accept':'application/json'}; data=None
+              if body is not None:
+                  headers['Content-Type']='application/json'; data=json.dumps(body).encode()
+              req=urllib.request.Request(API+path,data=data,headers=headers,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout,context=ctx) as r:
+                      raw=r.read().decode('utf-8','replace')
+                      try: obj=json.loads(raw) if raw else {}
+                      except: obj={'raw':raw[:4000]}
+                      return r.status,obj
+              except urllib.error.HTTPError as e:
+                  raw=e.read().decode('utf-8','replace')
+                  try: obj=json.loads(raw) if raw else {}
+                  except: obj={'raw':raw[:4000]}
+                  return e.code,obj
+          def get(url,timeout=30):
+              req=urllib.request.Request(url,headers={'User-Agent':'00AI-cutover-v2'})
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout,context=ctx) as r:
+                      return r.status,r.read().decode('utf-8','replace'),dict(r.headers.items()),r.geturl()
+              except urllib.error.HTTPError as e:
+                  return e.code,e.read().decode('utf-8','replace'),dict(e.headers.items()),url
+              except Exception as e:
+                  return 0,str(e),{},url
+
+          account_id=zone_id=None
+          old_service=FALLBACK
+          old_route_script=FALLBACK
+          mutation_started=False
+          try:
+              code,v=cf('GET','/user/tokens/verify'); assert code==200 and v.get('success') is True
+              q=urllib.parse.urlencode({'name':HOST,'status':'active'}); code,z=cf('GET','/zones?'+q)
+              assert code==200 and z.get('result')
+              zone=z['result'][0]; zone_id=zone['id']; account_id=zone['account']['id']
+              state['steps'] += ['token_ok','zone_ok']
+
+              rc,rb,_,_=get(PREVIEW+'/'); ac,ab,_,_=get(PREVIEW+'/api/projects')
+              assert rc==200 and ac==200 and 'policy.00ai.kr' in ab and 'yhub.00ai.kr' in ab
+              reg=json.loads(ab); assert len(reg.get('siteProjects',[]))>=10
+              state['preview']={'root':rc,'api':ac,'site_projects':len(reg.get('siteProjects',[]))}; state['steps'].append('preview_ok')
+
+              code,d=cf('GET',f'/accounts/{account_id}/workers/domains'); assert code==200 and d.get('success') is True
+              current_domain=next((x for x in d.get('result',[]) if x.get('hostname')==HOST),None)
+              if current_domain and current_domain.get('service'): old_service=current_domain['service']
+              code,r=cf('GET',f'/zones/{zone_id}/workers/routes'); assert code==200 and r.get('success') is True
+              current_route=next((x for x in r.get('result',[]) if x.get('pattern')==HOST+'/*'),None)
+              if current_route and current_route.get('script'): old_route_script=current_route['script']
+              state['before']={'domain_service':current_domain.get('service') if current_domain else None,'route_script':current_route.get('script') if current_route else None}
+              save()
+
+              # Delete any remaining exact apex bindings. A 2xx with empty JSON is success.
+              if current_domain:
+                  code,obj=cf('DELETE',f'/accounts/{account_id}/workers/domains/{current_domain["id"]}')
+                  state['delete_domain_http']=code
+                  assert 200<=code<300, ('delete_domain',code,obj)
+                  mutation_started=True
+              if current_route:
+                  code,obj=cf('DELETE',f'/zones/{zone_id}/workers/routes/{current_route["id"]}')
+                  state['delete_route_http']=code
+                  assert 200<=code<300, ('delete_route',code,obj)
+                  mutation_started=True
+              state['steps'].append('old_bindings_removed'); save()
+
+              body={'hostname':HOST,'service':NEW,'zone_id':zone_id,'zone_name':HOST}
+              code,obj=cf('PUT',f'/accounts/{account_id}/workers/domains',body)
+              state['attach_http']=code; state['attach_response_success']=obj.get('success')
+              if not (200<=code<300 and obj.get('success') is True):
+                  state['attach_error']=obj; save(); raise RuntimeError(('attach',code,obj))
+              mutation_started=True; state['steps'].append('new_domain_attached'); save()
+
+              live=None
+              for i in range(1,13):
+                  time.sleep(7)
+                  rc,rb,rh,_=get('https://00ai.kr/'); ac,ab,ah,_=get('https://00ai.kr/api/projects')
+                  marker=next((vv for kk,vv in rh.items() if kk.lower()=='x-00ai-root-router'),'')
+                  good=rc==200 and ac==200 and 'v2' in marker and 'policy.00ai.kr' in ab and 'yhub.00ai.kr' in ab
+                  state['last_attempt']={'n':i,'root':rc,'api':ac,'marker':marker,'good':good}; save()
+                  if good: live=(rc,ac,ab); break
+              assert live is not None, ('live_verify',state.get('last_attempt'))
+
+              # Verify redirects by disabling automatic redirect following.
+              class NR(urllib.request.HTTPRedirectHandler):
+                  def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+              opener=urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx),NR())
+              def loc(url):
+                  try: opener.open(urllib.request.Request(url,headers={'User-Agent':'00AI-cutover-v2'}),timeout=20); return None
+                  except urllib.error.HTTPError as e: return e.headers.get('Location')
+              ploc=loc('https://00ai.kr/policy'); hloc=loc('https://00ai.kr/harness')
+              pc,_,_,_=get('https://policy.00ai.kr/api/hasa/health'); yc,_,_,_=get('https://yhub.00ai.kr/policies'); hc,_,_,_=get('https://harness.00ai.kr/')
+              assert ploc and ploc.startswith('https://policy.00ai.kr')
+              assert hloc and hloc.startswith('https://harness.00ai.kr')
+              assert (pc,yc,hc)==(200,200,200),(pc,yc,hc)
+              reg=json.loads(live[2])
+              state.update({'deployed':True,'healthy':True,'service':NEW,'site_projects':len(reg.get('siteProjects',[])),'github_projects':len(reg.get('githubProjects',[])),'policy_redirect':ploc,'harness_redirect':hloc,'policy_api':pc,'yhub':yc,'harness':hc})
+              state['steps'].append('production_verified'); save()
+
+          except Exception as e:
+              state['error']=repr(e)[:6000]
+              if mutation_started and account_id and zone_id:
+                  try:
+                      code,d=cf('GET',f'/accounts/{account_id}/workers/domains')
+                      cur=next((x for x in (d.get('result') or []) if x.get('hostname')==HOST),None) if isinstance(d,dict) else None
+                      if cur: cf('DELETE',f'/accounts/{account_id}/workers/domains/{cur["id"]}')
+                      # Always restore the known working portal, not an uncertain partial state.
+                      cf('PUT',f'/accounts/{account_id}/workers/domains',{'hostname':HOST,'service':FALLBACK,'zone_id':zone_id,'zone_name':HOST})
+                      code,r=cf('GET',f'/zones/{zone_id}/workers/routes')
+                      exists=any(x.get('pattern')==HOST+'/*' for x in (r.get('result') or [])) if isinstance(r,dict) else False
+                      if not exists: cf('POST',f'/zones/{zone_id}/workers/routes',{'pattern':HOST+'/*','script':FALLBACK})
+                      state['rolled_back']=True
+                  except Exception as re:
+                      state['rollback_error']=repr(re)[:4000]
+              state['deployed']=False; state['healthy']=False; save(); raise
+          finally: save()
+          PY
+
+      - name: Persist report
+        if: always()
+        run: |
+          if [[ ! -f .github/root-python-v2-health.json ]]; then mkdir -p .github; printf '{"deployed":false,"healthy":false,"reason":"transaction did not start"}\n' > .github/root-python-v2-health.json; fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/root-python-v2-health.json
+          if ! git diff --cached --quiet; then git commit -m "ci: update Python root cutover v2 [skip ci]"; git push || true; fi
