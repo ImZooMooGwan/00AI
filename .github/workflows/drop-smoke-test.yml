@@ -1,0 +1,34 @@
+name: 00AI DROP smoke test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/portal/**"
+      - ".github/workflows/drop-smoke-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-roundtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Supabase DROP storage write/read/delete
+        shell: bash
+        env:
+          DROP_URL: https://jbxmjsezaaqarheyjjte.supabase.co/functions/v1/zeroai-drop
+          DROP_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpieG1qc2V6YWFxYXJoZXlqanRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3Nzc2MzUsImV4cCI6MjEwMTM1MzYzNX0.ZEoudIFSGGFSVhXpNc4Vf_Obv884mQQLS_9qhaWzxHI
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            --request POST "$DROP_URL" \
+            --header "Authorization: Bearer $DROP_ANON_KEY" \
+            --header "apikey: $DROP_ANON_KEY" \
+            --form "_selftest=1")"
+          echo "$RESPONSE"
+          echo "$RESPONSE" | grep -q '"storageWrite":true'
+          echo "$RESPONSE" | grep -q '"storageRead":true'
+          echo "$RESPONSE" | grep -q '"cleanup":true'
