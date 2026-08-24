@@ -38,9 +38,28 @@ type GitHubRepository = {
   owner: { login: string };
 };
 
+type SiteManifestEntry = {
+  id: string;
+  name: string;
+  description: string;
+  public_url: string;
+  category: string;
+  maker: string;
+  stack: string;
+  status: string;
+  updated_at: string;
+};
+
+type GitHubContentResponse = {
+  content?: string;
+  encoding?: string;
+};
+
 const DEFAULT_GITHUB_OWNER = "ImZooMooGwan";
 const DEFAULT_EXCLUDED_REPOSITORIES = ["00ai", ".github"];
 const GITHUB_CACHE_SECONDS = 300;
+const SITE_MANIFEST_REPOSITORY = "ImZooMooGwan/00AI";
+const SITE_MANIFEST_PATH = "apps/portal/app/data/public-sites.json";
 
 async function readRuntimeEnv(): Promise<ProjectEnv> {
   try {
@@ -194,17 +213,70 @@ async function loadGitHubProjects(runtime: ProjectEnv) {
   }
 }
 
+function decodeGitHubContent(content: string): string {
+  const bytes = Uint8Array.from(atob(content.replace(/\s/g, "")), (char) =>
+    char.charCodeAt(0),
+  );
+  return new TextDecoder().decode(bytes);
+}
+
+async function loadSiteProjects(runtime: ProjectEnv) {
+  const endpoint = new URL(
+    `https://api.github.com/repos/${SITE_MANIFEST_REPOSITORY}/contents/${SITE_MANIFEST_PATH}`,
+  );
+  endpoint.searchParams.set("ref", "main");
+
+  const headers = new Headers({
+    Accept: "application/vnd.github+json",
+    "User-Agent": "00ai-site-registry",
+    "X-GitHub-Api-Version": "2026-03-10",
+  });
+  if (runtime.GITHUB_TOKEN) {
+    headers.set("Authorization", `Bearer ${runtime.GITHUB_TOKEN}`);
+  }
+
+  try {
+    const requestInit: RequestInit & {
+      cf?: { cacheEverything: boolean; cacheTtl: number };
+    } = {
+      headers,
+      cf: { cacheEverything: true, cacheTtl: GITHUB_CACHE_SECONDS },
+    };
+    const response = await fetch(endpoint, requestInit);
+    if (!response.ok) throw new Error(`GitHub manifest API ${response.status}`);
+
+    const payload = (await response.json()) as GitHubContentResponse;
+    if (payload.encoding !== "base64" || !payload.content) {
+      throw new Error("GitHub manifest response is incomplete");
+    }
+
+    const manifest = JSON.parse(
+      decodeGitHubContent(payload.content),
+    ) as SiteManifestEntry[];
+    const projects = manifest.filter((project) => {
+      if (!project.id || !project.name || !project.public_url) return false;
+      return validHomepage(project.public_url) !== null;
+    });
+
+    return { projects, available: true };
+  } catch {
+    return { projects: [], available: false };
+  }
+}
+
 export async function GET() {
   const runtime = await readRuntimeEnv();
-  const [projects, github] = await Promise.all([
+  const [projects, github, sites] = await Promise.all([
     loadDropProjects(runtime),
     loadGitHubProjects(runtime),
+    loadSiteProjects(runtime),
   ]);
 
   return NextResponse.json(
     {
       projects,
       githubProjects: github.projects,
+      siteProjects: sites.projects,
       sources: {
         drop: {
           available: Boolean(runtime.DB && runtime.BUCKET),
@@ -216,6 +288,10 @@ export async function GET() {
           available: github.available,
           owner: github.owner,
           count: github.projects.length,
+        },
+        sites: {
+          available: sites.available,
+          count: sites.projects.length,
         },
       },
       refreshedAt: new Date().toISOString(),

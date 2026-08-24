@@ -33,6 +33,18 @@ type GitHubProject = {
   updated_at: string;
 };
 
+type SiteProject = {
+  id: string;
+  name: string;
+  description: string;
+  public_url: string;
+  category: string;
+  maker: string;
+  stack: string;
+  status: string;
+  updated_at: string;
+};
+
 type GalleryProject = {
   id: string;
   name: string;
@@ -42,7 +54,7 @@ type GalleryProject = {
   stack: string;
   status: string;
   href: string;
-  source: "github" | "drop" | "core";
+  source: "github" | "site" | "drop" | "core";
   hasHomepage?: boolean;
 };
 
@@ -145,10 +157,26 @@ function toGalleryProject(project: GitHubProject): GalleryProject {
   };
 }
 
+function toSiteGalleryProject(project: SiteProject): GalleryProject {
+  return {
+    id: `site-${project.id}`,
+    name: project.name,
+    problem: project.description,
+    field: project.category,
+    maker: project.maker,
+    stack: project.stack,
+    status: project.status,
+    href: project.public_url,
+    source: "site",
+    hasHomepage: true,
+  };
+}
+
 function projectLinkLabel(project: GalleryProject) {
   if (project.source === "github") {
     return project.hasHomepage ? "서비스 열기 →" : "GitHub 보기 →";
   }
+  if (project.source === "site") return "서비스 열기 →";
   return project.source === "drop" ? "프로젝트 열기 →" : "상세 보기 →";
 }
 
@@ -170,6 +198,7 @@ export default function Home() {
     PublishedProject[]
   >([]);
   const [githubProjects, setGitHubProjects] = useState<GitHubProject[]>([]);
+  const [siteProjects, setSiteProjects] = useState<SiteProject[]>([]);
   const [syncState, setSyncState] = useState<SyncState>("loading");
   const [githubOwner, setGithubOwner] = useState("ImZooMooGwan");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -186,6 +215,7 @@ export default function Home() {
 
   const galleryProjects = useMemo(() => {
     const candidates: GalleryProject[] = [
+      ...siteProjects.map(toSiteGalleryProject),
       ...githubProjects.map(toGalleryProject),
       ...publishedProjects.map((project) => ({
         id: `drop-${project.slug}`,
@@ -210,7 +240,7 @@ export default function Home() {
       seen.add(key);
       return true;
     });
-  }, [githubProjects, publishedProjects]);
+  }, [githubProjects, publishedProjects, siteProjects]);
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -233,10 +263,13 @@ export default function Home() {
         if (!active) return;
         setPublishedProjects(result.projects || []);
         setGitHubProjects(result.githubProjects || []);
+        setSiteProjects(result.siteProjects || []);
         setGithubOwner(result.sources?.github?.owner || "ImZooMooGwan");
         setDropReady(Boolean(result.sources?.drop?.available));
         setSyncState(
-          result.sources?.github?.available ? "synced" : "degraded",
+          result.sources?.github?.available && result.sources?.sites?.available
+            ? "synced"
+            : "degraded",
         );
       })
       .catch(() => {
@@ -691,7 +724,7 @@ export default function Home() {
               <i />
               {syncState === "loading" && "GitHub 확인 중"}
               {syncState === "synced" &&
-                `GitHub 자동 동기화 · ${githubProjects.length}개 연결`}
+                `자동 동기화 · GitHub ${githubProjects.length} · 공개서비스 ${siteProjects.length}`}
               {syncState === "degraded" &&
                 "GitHub 연결 지연 · 기존 목록 표시 중"}
             </p>
@@ -755,7 +788,11 @@ export default function Home() {
                   className={`project-source-${project.source}`}
                 >
                   <div className="project-mark">
-                    {project.source === "github" ? "GH" : "00"}
+                    {project.source === "github"
+                      ? "GH"
+                      : project.source === "site"
+                        ? "WEB"
+                        : "00"}
                   </div>
                   <div>
                     <p>

@@ -59,8 +59,18 @@
   background: linear-gradient(90deg, #fff 0, #fff 72%, #f8f9ff 100%);
 }
 
+.project-list article.project-source-site {
+  background: linear-gradient(90deg, #fff 0, #fff 72%, #f4fbf7 100%);
+}
+
 .project-source-github .project-mark {
   background: #24292f;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.project-source-site .project-mark {
+  background: #147343;
   font-size: 13px;
   letter-spacing: 0;
 }
