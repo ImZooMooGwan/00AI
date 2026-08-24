@@ -8,7 +8,7 @@ const { default: worker } = await import(workerUrl.href);
 const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
 const ctx = { waitUntil() {}, passThroughOnException() {} };
 
-test("renders the immersive Y-HUB policy galaxy with production metadata", async () => {
+test("renders the complete Y-HUB data hub with the policy galaxy in the first view", async () => {
   const response = await worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), env, ctx);
   const html = await response.text();
   assert.equal(response.status, 200);
@@ -17,6 +17,13 @@ test("renders the immersive Y-HUB policy galaxy with production metadata", async
   assert.match(html, /청년정책 은하/);
   assert.match(html, /Y-HUB 온톨로지/);
   assert.match(html, /분야는 행성/);
+  assert.match(html, /AI로 시각화한/);
+  assert.match(html, /POLICY DATA PULSE/);
+  assert.match(html, /정책을 찾는 데서 끝나지 않습니다/);
+  assert.match(html, /오늘의 정책 변화/);
+  assert.match(html, /대한민국 정책지도/);
+  assert.match(html, /청년지표 관측소/);
+  assert.match(html, /같은 데이터, 다른 질문/);
   assert.match(html, /aria-label="정책 은하 움직임 제어"/);
   assert.match(html, /자동 공전 일시 정지/);
   assert.match(html, /aria-label="정책 변화 연대기"/);

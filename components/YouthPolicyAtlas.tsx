@@ -245,7 +245,7 @@ function projectNode(
   };
 }
 
-export function YouthPolicyAtlas() {
+export function YouthPolicyAtlas({ embedded = false }: { embedded?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const projectedRef = useRef<ProjectedNode[]>([]);
@@ -336,13 +336,13 @@ export function YouthPolicyAtlas() {
         setUiHidden(false);
         searchRef.current?.focus();
       }
-      if (event.key.toLowerCase() === "h" && document.activeElement?.tagName !== "INPUT") {
+      if (!embedded && event.key.toLowerCase() === "h" && document.activeElement?.tagName !== "INPUT") {
         setUiHidden((current) => !current);
       }
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, []);
+  }, [embedded]);
 
   useEffect(() => {
     if (!cinematic || visiblePolicies.length === 0) return;
@@ -764,7 +764,7 @@ export function YouthPolicyAtlas() {
     });
 
   return (
-    <section className={`yh-galaxy-experience ${uiHidden ? "ui-hidden" : ""} ${dragging ? "is-dragging" : ""}`} aria-labelledby="galaxy-title">
+    <section className={`yh-galaxy-experience ${embedded ? "is-embedded" : ""} ${uiHidden ? "ui-hidden" : ""} ${dragging ? "is-dragging" : ""}`} aria-labelledby="galaxy-title">
       <canvas
         ref={canvasRef}
         className="yh-galaxy-canvas"
@@ -785,7 +785,7 @@ export function YouthPolicyAtlas() {
       <div className="yh-space-vignette" aria-hidden="true" />
 
       <div className="yh-ui-chrome yh-topbar">
-        <Link className="yh-galaxy-brand" href="/" aria-label="Y-HUB 정책 은하 홈">
+        <Link className="yh-galaxy-brand" href="/graph" aria-label="청년정책 은하와 2D 관계지도 열기">
           <span className="yh-brand-orb" aria-hidden="true"><i /></span>
           <span>
             <b id="galaxy-title">청년정책 은하 <em>· Y-HUB 온톨로지</em></b>
@@ -823,22 +823,24 @@ export function YouthPolicyAtlas() {
             <button type="button" className={mode === "category" ? "active" : ""} aria-pressed={mode === "category"} onClick={() => setMode("category")}>분야별</button>
           </div>
           <button type="button" className={`yh-cinema-button ${cinematic ? "active" : ""}`} aria-pressed={cinematic} onClick={() => { setCinematic((current) => !current); setPlaying(true); }}><i />시네마</button>
-          <details className="yh-map-menu">
-            <summary aria-label="다른 Y-HUB 화면 열기">•••</summary>
-            <nav aria-label="Y-HUB 주요 메뉴">
-              <Link href="/policies">정책 대장</Link>
-              <Link href="/changes">변화 추적</Link>
-              <Link href="/map">지역 지도</Link>
-              <Link href="/indicators">청년 지표</Link>
-              <Link href="/api">Open API</Link>
-              <Link href="/admin">수집 관제</Link>
-            </nav>
-          </details>
-          <button type="button" className="yh-hide-ui" onClick={() => setUiHidden(true)} aria-label="UI 감추기 — 우주만 남기기 (H)">◉</button>
+          {!embedded && (
+            <details className="yh-map-menu">
+              <summary aria-label="다른 Y-HUB 화면 열기">•••</summary>
+              <nav aria-label="Y-HUB 주요 메뉴">
+                <Link href="/policies">정책 대장</Link>
+                <Link href="/changes">변화 추적</Link>
+                <Link href="/map">지역 지도</Link>
+                <Link href="/indicators">청년 지표</Link>
+                <Link href="/api">Open API</Link>
+                <Link href="/admin">수집 관제</Link>
+              </nav>
+            </details>
+          )}
+          {!embedded && <button type="button" className="yh-hide-ui" onClick={() => setUiHidden(true)} aria-label="UI 감추기 — 우주만 남기기 (H)">◉</button>}
         </div>
       </div>
 
-      <button type="button" className="yh-ui-restore" onClick={() => setUiHidden(false)} aria-label="UI 다시 보이기">Y-HUB UI</button>
+      {!embedded && <button type="button" className="yh-ui-restore" onClick={() => setUiHidden(false)} aria-label="UI 다시 보이기">Y-HUB UI</button>}
       <button type="button" className="yh-side-arrow left yh-ui-chrome" onClick={() => cycleCategory(-1)} aria-label="이전 정책 분야">‹</button>
       <button type="button" className="yh-side-arrow right yh-ui-chrome" onClick={() => cycleCategory(1)} aria-label="다음 정책 분야">›</button>
 
