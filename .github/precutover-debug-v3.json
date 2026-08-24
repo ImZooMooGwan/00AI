@@ -1,0 +1,23 @@
+{
+  "install_status": 0,
+  "build_status": 0,
+  "deploy_status": 0,
+  "preview_url": "https://00ai-portal-debug-v3.able001.workers.dev",
+  "root_http": "404",
+  "api_http": "404",
+  "root_policy_link": false,
+  "root_harness_link": false,
+  "manifest_first_urls": [
+    "https://youth-policy-data-hub.hayahoyeho.chatgpt.site",
+    "https://oneul-daejeon.hayahoyeho.chatgpt.site",
+    "https://zeroai-platform.hayahoyeho.chatgpt.site",
+    "https://public-ai-gov.hayahoyeho.chatgpt.site"
+  ],
+  "api_first_urls": [],
+  "api_site_count": 0,
+  "api_all_custom": false,
+  "route_grep": "2:import localSiteManifest from \"../../data/public-sites.json\";\n192:function loadSiteProjects() {\n193:  const projects = (localSiteManifest as SiteManifestEntry[])\n212:  const sites = loadSiteProjects();\n",
+  "page_grep": "76:    href: \"https://policy.00ai.kr\",\n85:    href: \"https://harness.00ai.kr/\",\n107:    href: \"https://policy.00ai.kr\",\n118:    href: \"https://harness.00ai.kr/\",\n393:              href=\"https://harness.00ai.kr/\"\n",
+  "build_tail": "\n> zeroai-platform@0.1.0 build\n> bash scripts/build-verified.sh\n\n/usr/bin/timeout\nRunning bounded vinext build...\n\n  vinext build  (Vite 8.0.13)\n\n\u001b[34m[1/5] analyze client references...\u001b[39m\n\u001b[2K\ntransforming...(node:2293) ExperimentalWarning: glob is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n✓ 140 modules transformed.\nrendering chunks...\n\u001b[32m✓ built in 425ms\u001b[39m\n\u001b[34m[2/5] analyze server references...\u001b[39m\n\u001b[2K\ntransforming...✓ 50 modules transformed.\nrendering chunks...\n\u001b[32m✓ built in 90ms\u001b[39m\n\u001b[34m[3/5] build rsc environment...\u001b[39m\n\u001b[2K\ntransforming...✓ 146 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\u001b[32m✓ built in 421ms\u001b[39m\n\u001b[34m[4/5] build client environment...\u001b[39m\n\u001b[2K\ntransforming...✓ 58 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\u001b[32m✓ built in 172ms\u001b[39m\n\u001b[34m[5/5] build ssr environment...\u001b[39m\n\u001b[2K\ntransforming...✓ 56 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\u001b[32m✓ built in 242ms\u001b[39m\n\u001b[0m\n  Route (app)\n  ┌ ? /                        \n  ├ λ /:segments+              \n  ├ λ /api/deploy              \n  ├ λ /api/deployments/rollback\n  ├ λ /api/drop-public/:path+  \n  ├ λ /api/harness/plan        \n  └ λ /api/projects            \n\n  λ API  ? Unknown\n\n  ? Some routes could not be classified. vinext currently uses static analysis\n    and cannot detect dynamic API usage (headers(), cookies(), etc.) at build time.\n    Automatic classification will be improved in a future release.\n\n  Build complete. Run `vinext start` to start the production server.\n\nValidated Sites artifact: ESM Worker default.fetch and hosting manifest are present.\n",
+  "deploy_tail": "\n ⛅️ wrangler 4.92.0\n───────────────────\n🌀 Building list of assets...\n✨ Read 20 files from the assets directory /home/runner/work/00AI/00AI/apps/portal/dist/client\n🌀 Starting asset upload...\n🌀 Found 15 new or modified static assets to upload. Proceeding with upload...\n+ /assets/layout-segment-context-CVrAoARP.js\n+ /assets/rolldown-runtime-S-ySWqyJ.js\n+ /.vite/manifest.json\n+ /policy/index.html\n+ /assets/page-N17u7OHc.js\n+ /window.svg\n+ /favicon.svg\n+ /policy/app.js\n+ /policy/styles.css\n+ /assets/index-D8O3pn_Z.js\n+ /file.svg\n+ /globe.svg\n+ /assets/page-DKsv1ffr.css\n+ /assets/index-D0QoATRm.css\n+ /assets/framework-DjPHiq1u.js\nUploaded 5 of 15 assets\nUploaded 10 of 15 assets\nUploaded 15 of 15 assets\n✨ Success! Uploaded 15 files (1.13 sec)\n\nTotal Upload: 1402.40 KiB / gzip: 267.46 KiB\nWorker Startup Time: 26 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \n\nUploaded 00ai-portal-debug-v3 (4.67 sec)\nDeployed 00ai-portal-debug-v3 triggers (1.32 sec)\n  https://00ai-portal-debug-v3.able001.workers.dev\nCurrent Version ID: fdc13bfe-cdd9-440f-9e82-73623bf2cc47\n\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n"
+}
