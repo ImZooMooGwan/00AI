@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-08-24T13:15:41.855671Z",
+  "token_present": true,
+  "token_ok": true,
+  "zone_id_present": true,
+  "account_id_present": true,
+  "preview_root_code": "200",
+  "preview_api_code": "200",
+  "preview_api_policy": true,
+  "preview_api_yhub": true,
+  "preview_api_bytes": 5786,
+  "apex_domains": [
+    {
+      "id": "db663fda48f1e45fb213a4a13be21e54388438c3",
+      "zone_id": "2acfea2aa48ec8d8af658858800e1c26",
+      "zone_name": "00ai.kr",
+      "hostname": "00ai.kr",
+      "service": "00ai-portal",
+      "environment": "production",
+      "cert_id": "a674c149-b72c-4f99-ba17-da61147285ca",
+      "previews_enabled": false,
+      "enabled": true
+    }
+  ],
+  "apex_routes": [
+    {
+      "id": "34f50fc3ea774a4498e9715748150c53",
+      "pattern": "00ai.kr/*",
+      "script": "00ai-portal",
+      "request_limit_fail_open": false
+    }
+  ],
+  "domain_api_success": true,
+  "route_api_success": true
+}
