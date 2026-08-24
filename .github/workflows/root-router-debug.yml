@@ -1,0 +1,100 @@
+name: Debug 00AI root router preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/root-router-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy preview and capture every value
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github /tmp/root-debug
+          TOKEN_OK=false
+          if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            v="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)"
+            [[ "$(jq -r '.success // false' <<<"$v")" == true ]] && TOKEN_OK=true
+          fi
+
+          python3 - <<'PY'
+          import json
+          data=json.load(open('apps/root-router/wrangler.jsonc'))
+          data['name']='00ai-root-router-debug'
+          data['workers_dev']=True
+          data.pop('routes',None)
+          open('apps/root-router/wrangler.debug.jsonc','w').write(json.dumps(data,indent=2)+'\n')
+          PY
+
+          npx --yes wrangler@4 deploy --config apps/root-router/wrangler.debug.jsonc > /tmp/root-debug/deploy.log 2>&1
+          DEPLOY=$?
+          PREVIEW="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/root-debug/deploy.log | tail -n1)"
+          ROOT_CODE=000
+          API_CODE=000
+          POLICY_CODE=000
+          HARNESS_CODE=000
+          POLICY_LOC=''
+          HARNESS_LOC=''
+          if [[ $DEPLOY -eq 0 && -n "$PREVIEW" ]]; then
+            sleep 5
+            ROOT_CODE="$(curl -ksS --max-time 30 -D /tmp/root-debug/root.headers -o /tmp/root-debug/root.body -w '%{http_code}' "$PREVIEW/")"
+            API_CODE="$(curl -ksS --max-time 30 -D /tmp/root-debug/api.headers -o /tmp/root-debug/api.body -w '%{http_code}' "$PREVIEW/api/projects")"
+            POLICY_CODE="$(curl -ksS --max-time 20 -D /tmp/root-debug/policy.headers -o /dev/null -w '%{http_code}' "$PREVIEW/policy")"
+            HARNESS_CODE="$(curl -ksS --max-time 20 -D /tmp/root-debug/harness.headers -o /dev/null -w '%{http_code}' "$PREVIEW/harness")"
+            POLICY_LOC="$(tr -d '\r' < /tmp/root-debug/policy.headers | grep -i '^location:' | head -n1 | cut -d' ' -f2- || true)"
+            HARNESS_LOC="$(tr -d '\r' < /tmp/root-debug/harness.headers | grep -i '^location:' | head -n1 | cut -d' ' -f2- || true)"
+          fi
+          touch /tmp/root-debug/{root.headers,root.body,api.headers,api.body,policy.headers,harness.headers}
+
+          python3 - <<PY
+          import json,pathlib
+          def text(p,n=12000):
+              try:return pathlib.Path(p).read_text(errors='replace')[-n:]
+              except:return ''
+          api=text('/tmp/root-debug/api.body',20000)
+          root=text('/tmp/root-debug/root.body',10000)
+          report={
+            'token_ok': '$TOKEN_OK'=='true',
+            'deploy_exit': $DEPLOY,
+            'preview_url': '''$PREVIEW''',
+            'root_code': '$ROOT_CODE',
+            'api_code': '$API_CODE',
+            'policy_code': '$POLICY_CODE',
+            'harness_code': '$HARNESS_CODE',
+            'policy_location': '''$POLICY_LOC''',
+            'harness_location': '''$HARNESS_LOC''',
+            'root_has_00ai':'00AI' in root,
+            'api_has_policy':'policy.00ai.kr' in api,
+            'api_has_yhub':'yhub.00ai.kr' in api,
+            'deploy_log':text('/tmp/root-debug/deploy.log'),
+            'root_headers':text('/tmp/root-debug/root.headers'),
+            'api_headers':text('/tmp/root-debug/api.headers'),
+            'api_body_prefix':api[:6000],
+          }
+          pathlib.Path('.github/root-router-debug.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/root-router-debug.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update root router debug [skip ci]"
+            git push || true
+          fi
