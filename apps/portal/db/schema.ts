@@ -12,6 +12,16 @@ export const projects = sqliteTable("projects", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+export const projectProfiles = sqliteTable("project_profiles", {
+  projectId: text("project_id")
+    .primaryKey()
+    .references(() => projects.id),
+  organization: text("organization").notNull(),
+  uploaderName: text("uploader_name").notNull(),
+  description: text("description").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export const deployments = sqliteTable("deployments", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => projects.id),
