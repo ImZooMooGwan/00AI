@@ -1,0 +1,200 @@
+name: Final direct 00ai.kr portal ownership
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/final-direct-portal-root.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Switch Custom Domain to portal origin and add legacy path routes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,ssl,time,urllib.parse,urllib.request,urllib.error
+          TOKEN=os.environ['CLOUDFLARE_API_TOKEN']; API='https://api.cloudflare.com/client/v4'; HOST='00ai.kr'
+          NEW='00ai-portal-origin'; REDIRECT='00ai-root-router-debug-v2'; FALLBACK='00ai-root-router-debug-v2'
+          OUT=pathlib.Path('.github/final-direct-root-health.json'); OUT.parent.mkdir(parents=True,exist_ok=True)
+          ctx=ssl.create_default_context(); report={'checked_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'healthy':False,'deployed':False,'rolled_back':False,'steps':[]}
+          def save(): OUT.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          def cf(method,path,body=None):
+            h={'Authorization':f'Bearer {TOKEN}','Accept':'application/json'}; data=None
+            if body is not None: h['Content-Type']='application/json'; data=json.dumps(body).encode()
+            req=urllib.request.Request(API+path,data=data,headers=h,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=30,context=ctx) as r:
+                raw=r.read().decode('utf-8','replace')
+                try:o=json.loads(raw) if raw else {}
+                except:o={'raw':raw[:4000]}
+                return r.status,o
+            except urllib.error.HTTPError as e:
+              raw=e.read().decode('utf-8','replace')
+              try:o=json.loads(raw) if raw else {}
+              except:o={'raw':raw[:4000]}
+              return e.code,o
+          def get(url):
+            try:
+              with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'00AI-final-direct-check'}),timeout=30,context=ctx) as r:
+                return r.status,r.read().decode('utf-8','replace'),dict(r.headers.items()),r.geturl()
+            except urllib.error.HTTPError as e:return e.code,e.read().decode('utf-8','replace'),dict(e.headers.items()),url
+            except Exception as e:return 0,str(e),{},url
+
+          account=zone=None; mutated=False; old_service=FALLBACK; created_routes=[]
+          try:
+            c,v=cf('GET','/user/tokens/verify'); assert c==200 and v.get('success') is True
+            q=urllib.parse.urlencode({'name':HOST,'status':'active'}); c,z=cf('GET','/zones?'+q); assert c==200 and z.get('result')
+            zone=z['result'][0]['id']; account=z['result'][0]['account']['id']; report['steps']+=['token_ok','zone_ok']
+
+            # Portal origin must already be functional and publish only 00ai.kr links.
+            pc,pbody,_,_=get('https://00ai-portal-origin.able001.workers.dev/api/projects')
+            assert pc==200 and 'policy.00ai.kr' in pbody and 'yhub.00ai.kr' in pbody
+            preg=json.loads(pbody); assert len(preg.get('siteProjects',[]))>=10
+            assert all('.00ai.kr' in x.get('public_url','') for x in preg.get('siteProjects',[]))
+            report['portal_origin_precheck']={'api':pc,'site_projects':len(preg.get('siteProjects',[]))}; report['steps'].append('portal_origin_ok')
+
+            c,d=cf('GET',f'/accounts/{account}/workers/domains'); assert c==200 and d.get('success') is True
+            current=next((x for x in d.get('result',[]) if x.get('hostname')==HOST),None)
+            if current and current.get('service'): old_service=current['service']
+            c,r=cf('GET',f'/zones/{zone}/workers/routes'); assert c==200 and r.get('success') is True
+            # Remove any old exact apex catch-all and any previously created legacy routes before re-creating cleanly.
+            remove_routes=[x for x in r.get('result',[]) if x.get('pattern') in [HOST+'/*',HOST+'/policy*',HOST+'/harness*']]
+            report['before']={'domain_service':current.get('service') if current else None,'routes':[{'pattern':x.get('pattern'),'script':x.get('script')} for x in remove_routes]}; save()
+
+            if current and current.get('service')!=NEW:
+              c,_=cf('DELETE',f'/accounts/{account}/workers/domains/{current["id"]}'); assert 200<=c<300
+              mutated=True
+            for route in remove_routes:
+              c,_=cf('DELETE',f'/zones/{zone}/workers/routes/{route["id"]}'); assert 200<=c<300
+              mutated=True
+
+            # If the desired custom domain was not already present, attach it now.
+            c,d2=cf('GET',f'/accounts/{account}/workers/domains'); existing=next((x for x in d2.get('result',[]) if x.get('hostname')==HOST),None) if isinstance(d2,dict) else None
+            if not existing or existing.get('service')!=NEW:
+              c,o=cf('PUT',f'/accounts/{account}/workers/domains',{'hostname':HOST,'service':NEW,'zone_id':zone,'zone_name':HOST})
+              report['attach_http']=c
+              if not (200<=c<300 and o.get('success') is True): report['attach_error']=o; save(); raise RuntimeError(('attach',c,o))
+              mutated=True
+            report['steps'].append('portal_custom_domain_attached'); save()
+
+            # Specific Routes run before the Custom Domain origin, and only redirect old legacy paths.
+            for pattern in [HOST+'/policy*',HOST+'/harness*']:
+              c,o=cf('POST',f'/zones/{zone}/workers/routes',{'pattern':pattern,'script':REDIRECT})
+              if not (200<=c<300 and o.get('success') is True): raise RuntimeError(('route_create',pattern,c,o))
+              rid=(o.get('result') or {}).get('id'); created_routes.append(rid)
+            report['steps'].append('legacy_path_routes_attached'); save()
+
+            # Control-plane and HTTP verification; Chrome verification runs in the next step.
+            live=None
+            for n in range(1,13):
+              time.sleep(7)
+              rc,rb,rh,_=get('https://00ai.kr/'); ac,ab,_,_=get('https://00ai.kr/api/projects')
+              if rc==200 and ac==200 and 'policy.00ai.kr' in ab and 'yhub.00ai.kr' in ab:
+                live=(rc,ac,ab); break
+              report['wait']={'n':n,'root':rc,'api':ac}; save()
+            assert live is not None
+            c,d=cf('GET',f'/accounts/{account}/workers/domains'); apex=next((x for x in d.get('result',[]) if x.get('hostname')==HOST),None); assert apex and apex.get('service')==NEW
+            c,r=cf('GET',f'/zones/{zone}/workers/routes'); patterns={x.get('pattern'):x.get('script') for x in r.get('result',[])}
+            assert patterns.get(HOST+'/policy*')==REDIRECT and patterns.get(HOST+'/harness*')==REDIRECT
+            assert HOST+'/*' not in patterns
+            report.update({'deployed':True,'control_plane_service':NEW,'root':live[0],'api':live[1],'site_projects':len(json.loads(live[2]).get('siteProjects',[])),'policy_route':patterns.get(HOST+'/policy*'),'harness_route':patterns.get(HOST+'/harness*')})
+            report['steps'].append('http_and_control_plane_ok'); save()
+          except Exception as e:
+            report['error']=repr(e)[:6000]
+            if mutated and account and zone:
+              try:
+                c,d=cf('GET',f'/accounts/{account}/workers/domains'); cur=next((x for x in (d.get('result') or []) if x.get('hostname')==HOST),None) if isinstance(d,dict) else None
+                if cur: cf('DELETE',f'/accounts/{account}/workers/domains/{cur["id"]}')
+                c,r=cf('GET',f'/zones/{zone}/workers/routes')
+                for x in (r.get('result') or []) if isinstance(r,dict) else []:
+                  if x.get('pattern') in [HOST+'/policy*',HOST+'/harness*']: cf('DELETE',f'/zones/{zone}/workers/routes/{x["id"]}')
+                cf('PUT',f'/accounts/{account}/workers/domains',{'hostname':HOST,'service':FALLBACK,'zone_id':zone,'zone_name':HOST})
+                report['rolled_back']=True
+              except Exception as re: report['rollback_error']=repr(re)[:4000]
+            report['healthy']=False; report['deployed']=False; save(); raise
+          finally: save()
+          PY
+
+      - name: Verify actual 00ai.kr in Chrome
+        shell: bash
+        run: |
+          set +e
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=12000 --dump-dom https://00ai.kr/ > /tmp/live-dom 2>/tmp/live-chrome || true
+          python3 - <<'PY'
+          import json,re,pathlib
+          html=pathlib.Path('/tmp/live-dom').read_text(errors='replace'); log=pathlib.Path('/tmp/live-chrome').read_text(errors='replace')
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I); custom=[x for x in hrefs if '.00ai.kr' in x]; bad=[x for x in hrefs if 'chatgpt.site' in x]
+          errors=[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:20]
+          p=pathlib.Path('.github/final-direct-root-health.json'); d=json.loads(p.read_text())
+          d.update({'browser_dom_bytes':len(html),'browser_yhub':'청년정책데이터허브' in html,'browser_policy':'정책상황실' in html,'browser_custom_hrefs':len(custom),'browser_chatgpt_hrefs':len(bad),'browser_runtime_errors':errors})
+          d['healthy']=d.get('deployed') is True and d['browser_dom_bytes']>10000 and d['browser_yhub'] and d['browser_policy'] and len(custom)>=10 and not bad and not errors
+          p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n'); print(json.dumps(d,ensure_ascii=False,indent=2))
+          if not d['healthy']: raise SystemExit(1)
+          PY
+
+      - name: Verify legacy redirects and service functionality
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLOC="$(curl -ksSI --max-time 20 https://00ai.kr/policy | tr -d '\r' | grep -i '^location:' | head -n1 | cut -d' ' -f2-)"
+          HLOC="$(curl -ksSI --max-time 20 https://00ai.kr/harness | tr -d '\r' | grep -i '^location:' | head -n1 | cut -d' ' -f2-)"
+          [[ "$PLOC" == https://policy.00ai.kr* ]]
+          [[ "$HLOC" == https://harness.00ai.kr* ]]
+          test "$(curl -ksS --max-time 30 -o /dev/null -w '%{http_code}' https://policy.00ai.kr/api/hasa/health)" = 200
+          test "$(curl -ksS --max-time 30 -o /dev/null -w '%{http_code}' https://yhub.00ai.kr/policies)" = 200
+          test "$(curl -ksS --max-time 30 -o /dev/null -w '%{http_code}' https://harness.00ai.kr/)" = 200
+          python3 - <<PY
+          import json,pathlib
+          p=pathlib.Path('.github/final-direct-root-health.json'); d=json.loads(p.read_text()); d.update({'policy_redirect':'$PLOC','harness_redirect':'$HLOC','services_verified':True,'healthy':True}); p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
+          PY
+
+      - name: Roll back if browser or redirect verification fails
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,ssl,urllib.parse,urllib.request,urllib.error,pathlib,time
+          TOKEN=os.environ['CLOUDFLARE_API_TOKEN']; API='https://api.cloudflare.com/client/v4'; H='00ai.kr'; FALLBACK='00ai-root-router-debug-v2'; ctx=ssl.create_default_context()
+          def cf(method,path,body=None):
+            h={'Authorization':f'Bearer {TOKEN}','Accept':'application/json'}; data=None
+            if body is not None: h['Content-Type']='application/json'; data=json.dumps(body).encode()
+            try:
+              with urllib.request.urlopen(urllib.request.Request(API+path,data=data,headers=h,method=method),timeout=30,context=ctx) as r:
+                raw=r.read().decode(); return r.status,(json.loads(raw) if raw else {})
+            except urllib.error.HTTPError as e:
+              raw=e.read().decode(); return e.code,(json.loads(raw) if raw else {})
+          q=urllib.parse.urlencode({'name':H,'status':'active'}); _,z=cf('GET','/zones?'+q); zone=z['result'][0]['id']; account=z['result'][0]['account']['id']
+          _,d=cf('GET',f'/accounts/{account}/workers/domains'); cur=next((x for x in d.get('result',[]) if x.get('hostname')==H),None)
+          if cur: cf('DELETE',f'/accounts/{account}/workers/domains/{cur["id"]}')
+          _,r=cf('GET',f'/zones/{zone}/workers/routes')
+          for x in r.get('result',[]):
+            if x.get('pattern') in [H+'/policy*',H+'/harness*']: cf('DELETE',f'/zones/{zone}/workers/routes/{x["id"]}')
+          cf('PUT',f'/accounts/{account}/workers/domains',{'hostname':H,'service':FALLBACK,'zone_id':zone,'zone_name':H})
+          p=pathlib.Path('.github/final-direct-root-health.json');
+          try: state=json.loads(p.read_text())
+          except: state={}
+          state.update({'healthy':False,'deployed':False,'rolled_back':True,'rollback_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}); p.write_text(json.dumps(state,ensure_ascii=False,indent=2)+'\n')
+          PY
+
+      - name: Persist final result
+        if: always()
+        run: |
+          if [[ ! -f .github/final-direct-root-health.json ]]; then mkdir -p .github; printf '{"healthy":false,"deployed":false,"reason":"transaction did not start"}\n' > .github/final-direct-root-health.json; fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/final-direct-root-health.json
+          if ! git diff --cached --quiet; then git commit -m "ci: update final direct portal root health [skip ci]"; git push || true; fi
