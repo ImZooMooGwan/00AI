@@ -1,0 +1,70 @@
+{
+  "checked_at": "2026-08-24T12:44:16.903065Z",
+  "title": "00AI — 공공을 위한 AI",
+  "body_length": 10285,
+  "links": [
+    {
+      "href": "/assets/index-D0QoATRm.css",
+      "url": "https://00ai.kr/assets/index-D0QoATRm.css",
+      "result": "200|https://00ai.kr/assets/index-D0QoATRm.css"
+    },
+    {
+      "href": "/assets/page-DKsv1ffr.css",
+      "url": "https://00ai.kr/assets/page-DKsv1ffr.css",
+      "result": "200|https://00ai.kr/assets/page-DKsv1ffr.css"
+    },
+    {
+      "href": "/assets/layout-segment-context-kOwRH7AF.js",
+      "url": "https://00ai.kr/assets/layout-segment-context-kOwRH7AF.js",
+      "result": "200|https://00ai.kr/assets/layout-segment-context-kOwRH7AF.js"
+    },
+    {
+      "href": "/assets/rolldown-runtime-S-ySWqyJ.js",
+      "url": "https://00ai.kr/assets/rolldown-runtime-S-ySWqyJ.js",
+      "result": "200|https://00ai.kr/assets/rolldown-runtime-S-ySWqyJ.js"
+    },
+    {
+      "href": "/assets/index-rRddX3GL.js",
+      "url": "https://00ai.kr/assets/index-rRddX3GL.js",
+      "result": "200|https://00ai.kr/assets/index-rRddX3GL.js"
+    },
+    {
+      "href": "/assets/framework-DjPHiq1u.js",
+      "url": "https://00ai.kr/assets/framework-DjPHiq1u.js",
+      "result": "200|https://00ai.kr/assets/framework-DjPHiq1u.js"
+    },
+    {
+      "href": "/assets/page-CvFPFiz1.js",
+      "url": "https://00ai.kr/assets/page-CvFPFiz1.js",
+      "result": "200|https://00ai.kr/assets/page-CvFPFiz1.js"
+    },
+    {
+      "href": "/harness",
+      "url": "https://00ai.kr/harness",
+      "result": "200|https://00ai.kr/#harness"
+    },
+    {
+      "href": "https://github.com/ImZooMooGwan/00AI",
+      "url": "https://github.com/ImZooMooGwan/00AI",
+      "result": "200|https://github.com/ImZooMooGwan/00AI"
+    },
+    {
+      "href": "https://gitlab.aigov.go.kr/00AI",
+      "url": "https://gitlab.aigov.go.kr/00AI",
+      "result": "200|https://gitlab.aigov.go.kr/00AI"
+    },
+    {
+      "href": "/policy",
+      "url": "https://00ai.kr/policy",
+      "result": "200|https://00ai.kr/policy/"
+    },
+    {
+      "href": "https://github.com/ImZooMooGwan?tab=repositories",
+      "url": "https://github.com/ImZooMooGwan?tab=repositories",
+      "result": "200|https://github.com/ImZooMooGwan?tab=repositories"
+    }
+  ],
+  "contains_policy_domain": false,
+  "contains_yhub_domain": false,
+  "contains_original_chatgpt_site": false
+}
