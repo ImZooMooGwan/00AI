@@ -1,0 +1,240 @@
+name: Python atomic 00ai.kr root cutover
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cutover-root-python.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Cloudflare cutover transaction
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, ssl, time, urllib.parse, urllib.request, urllib.error
+
+          TOKEN = os.environ['CLOUDFLARE_API_TOKEN']
+          API = 'https://api.cloudflare.com/client/v4'
+          HOST = '00ai.kr'
+          NEW_SERVICE = '00ai-root-router-debug-v2'
+          PREVIEW = 'https://00ai-root-router-debug-v2.able001.workers.dev'
+          OUT = pathlib.Path('.github/root-python-cutover-health.json')
+          OUT.parent.mkdir(parents=True, exist_ok=True)
+          ctx = ssl.create_default_context()
+          state = {
+              'checked_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+              'deployed': False,
+              'healthy': False,
+              'mutated': False,
+              'rolled_back': False,
+              'steps': [],
+          }
+
+          def save():
+              OUT.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n')
+
+          def api(method, path, body=None, timeout=30):
+              data = None
+              headers = {'Authorization': f'Bearer {TOKEN}', 'Accept': 'application/json'}
+              if body is not None:
+                  data = json.dumps(body).encode()
+                  headers['Content-Type'] = 'application/json'
+              req = urllib.request.Request(API + path, data=data, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+                      raw = r.read().decode('utf-8', 'replace')
+                      return r.status, json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as e:
+                  raw = e.read().decode('utf-8', 'replace')
+                  try: payload = json.loads(raw)
+                  except Exception: payload = {'raw': raw[:4000]}
+                  return e.code, payload
+
+          def public_get(url, timeout=30, headers=False):
+              req = urllib.request.Request(url, headers={'User-Agent':'00AI-cutover-check'})
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+                      body = r.read().decode('utf-8', 'replace')
+                      return r.status, body, dict(r.headers.items())
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode('utf-8','replace'), dict(e.headers.items())
+              except Exception as e:
+                  return 0, str(e), {}
+
+          old_domain = None
+          old_route = None
+          account_id = None
+          zone_id = None
+          detached = False
+
+          try:
+              # 1) Non-mutating precheck.
+              code, verify = api('GET', '/user/tokens/verify')
+              assert code == 200 and verify.get('success') is True, ('token_verify', code, verify)
+              state['steps'].append({'token_verify': True})
+
+              q = urllib.parse.urlencode({'name': HOST, 'status': 'active'})
+              code, zones = api('GET', '/zones?' + q)
+              assert code == 200 and zones.get('success') is True and zones.get('result'), ('zone_lookup', code, zones)
+              zone = zones['result'][0]
+              zone_id = zone['id']
+              account_id = zone['account']['id']
+              state['zone_id'] = zone_id
+              state['steps'].append({'zone_lookup': True})
+
+              rc, rb, rh = public_get(PREVIEW + '/')
+              ac, ab, ah = public_get(PREVIEW + '/api/projects')
+              assert rc == 200 and ac == 200, ('preview_http', rc, ac)
+              reg = json.loads(ab)
+              assert len(reg.get('siteProjects', [])) >= 10
+              assert 'policy.00ai.kr' in ab and 'yhub.00ai.kr' in ab
+              state['preview'] = {'root': rc, 'api': ac, 'site_projects': len(reg.get('siteProjects', []))}
+              state['steps'].append({'preview_verified': True})
+
+              code, domains = api('GET', f'/accounts/{account_id}/workers/domains')
+              assert code == 200 and domains.get('success') is True
+              old_domain = next((x for x in domains.get('result',[]) if x.get('hostname') == HOST), None)
+
+              code, routes = api('GET', f'/zones/{zone_id}/workers/routes')
+              assert code == 200 and routes.get('success') is True
+              old_route = next((x for x in routes.get('result',[]) if x.get('pattern') == f'{HOST}/*'), None)
+              state['old_service'] = old_domain.get('service') if old_domain else None
+              state['old_route_script'] = old_route.get('script') if old_route else None
+              state['steps'].append({'old_bindings_captured': True})
+              save()
+
+              # 2) Mutate: detach old exact custom domain + exact route.
+              if old_domain:
+                  code, resp = api('DELETE', f'/accounts/{account_id}/workers/domains/{old_domain["id"]}')
+                  assert 200 <= code < 300 and resp.get('success') is True, ('detach_domain', code, resp)
+              if old_route:
+                  code, resp = api('DELETE', f'/zones/{zone_id}/workers/routes/{old_route["id"]}')
+                  assert 200 <= code < 300 and resp.get('success') is True, ('detach_route', code, resp)
+              detached = True
+              state['mutated'] = True
+              state['steps'].append({'old_bindings_detached': True})
+              save()
+
+              # 3) Attach verified Worker via official Workers Domains API.
+              attach_body = {'hostname': HOST, 'service': NEW_SERVICE, 'zone_id': zone_id, 'zone_name': HOST}
+              code, resp = api('PUT', f'/accounts/{account_id}/workers/domains', attach_body)
+              state['attach_http'] = code
+              state['attach_success'] = resp.get('success')
+              if not (200 <= code < 300 and resp.get('success') is True):
+                  state['attach_errors'] = resp.get('errors') or resp
+                  save()
+                  raise RuntimeError(('attach_domain', code, resp))
+              state['new_domain_id'] = (resp.get('result') or {}).get('id')
+              state['steps'].append({'new_domain_attached': True})
+              save()
+
+              # 4) Verify live hostname. Cloudflare cert/DNS can take a short time.
+              live = None
+              for attempt in range(1, 11):
+                  time.sleep(8)
+                  rcode, rbody, rheaders = public_get('https://00ai.kr/')
+                  acode, abody, aheaders = public_get('https://00ai.kr/api/projects')
+                  marker = next((v for k,v in rheaders.items() if k.lower() == 'x-00ai-root-router'), '')
+                  good = rcode == 200 and acode == 200 and 'v2' in marker and 'policy.00ai.kr' in abody and 'yhub.00ai.kr' in abody
+                  state['last_live_attempt'] = {'attempt': attempt, 'root': rcode, 'api': acode, 'marker': marker, 'good': good}
+                  save()
+                  if good:
+                      live = (rcode, acode, abody)
+                      break
+              assert live is not None, ('production_verify', state.get('last_live_attempt'))
+
+              # 5) Verify redirects and representative service functionality.
+              # urllib follows redirects, so verify final URLs by opener with no-redirect handler below.
+              class NoRedirect(urllib.request.HTTPRedirectHandler):
+                  def redirect_request(self, req, fp, code, msg, headers, newurl): return None
+              opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx), NoRedirect())
+              def redirect_location(url):
+                  req = urllib.request.Request(url, headers={'User-Agent':'00AI-cutover-check'})
+                  try:
+                      opener.open(req, timeout=20)
+                      return None
+                  except urllib.error.HTTPError as e:
+                      return e.headers.get('Location')
+
+              ploc = redirect_location('https://00ai.kr/policy')
+              hloc = redirect_location('https://00ai.kr/harness')
+              pcode, _, _ = public_get('https://policy.00ai.kr/api/hasa/health')
+              ycode, _, _ = public_get('https://yhub.00ai.kr/policies')
+              hcode, _, _ = public_get('https://harness.00ai.kr/')
+              assert ploc and ploc.startswith('https://policy.00ai.kr')
+              assert hloc and hloc.startswith('https://harness.00ai.kr')
+              assert pcode == 200 and ycode == 200 and hcode == 200, ('service_verify', pcode, ycode, hcode)
+
+              reg = json.loads(live[2])
+              state.update({
+                  'deployed': True,
+                  'healthy': True,
+                  'service': NEW_SERVICE,
+                  'site_projects': len(reg.get('siteProjects', [])),
+                  'github_projects': len(reg.get('githubProjects', [])),
+                  'policy_redirect': ploc,
+                  'harness_redirect': hloc,
+                  'policy_api': pcode,
+                  'yhub': ycode,
+                  'harness': hcode,
+              })
+              state['steps'].append({'production_verified': True})
+              save()
+
+          except Exception as exc:
+              state['error'] = repr(exc)[:6000]
+              # Rollback only if we detached/mutated live apex state.
+              if detached and account_id and zone_id:
+                  try:
+                      code, domains = api('GET', f'/accounts/{account_id}/workers/domains')
+                      cur = next((x for x in (domains.get('result') or []) if x.get('hostname') == HOST), None) if isinstance(domains,dict) else None
+                      if cur:
+                          api('DELETE', f'/accounts/{account_id}/workers/domains/{cur["id"]}')
+                      if old_domain and old_domain.get('service'):
+                          body = {'hostname': HOST, 'service': old_domain['service'], 'zone_id': zone_id, 'zone_name': HOST}
+                          api('PUT', f'/accounts/{account_id}/workers/domains', body)
+                      if old_route and old_route.get('script'):
+                          code, routes = api('GET', f'/zones/{zone_id}/workers/routes')
+                          exists = any(x.get('pattern') == f'{HOST}/*' for x in (routes.get('result') or [])) if isinstance(routes,dict) else False
+                          if not exists:
+                              api('POST', f'/zones/{zone_id}/workers/routes', {'pattern': f'{HOST}/*', 'script': old_route['script']})
+                      state['rolled_back'] = True
+                  except Exception as rexc:
+                      state['rollback_error'] = repr(rexc)[:4000]
+              state['deployed'] = False
+              state['healthy'] = False
+              save()
+              raise
+          finally:
+              save()
+          PY
+
+      - name: Persist transaction report
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -f .github/root-python-cutover-health.json ]]; then
+            mkdir -p .github
+            printf '{"checked_at":"%s","deployed":false,"healthy":false,"reason":"transaction did not start"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .github/root-python-cutover-health.json
+          fi
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/root-python-cutover-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update Python root cutover transaction [skip ci]"
+            git push || true
+          fi
