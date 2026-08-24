@@ -1,0 +1,86 @@
+name: Debug bundled root router v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/root-router-debug-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture preview behavior
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github /tmp/rrd2
+          python3 - <<'PY'
+          import json
+          d=json.load(open('apps/root-router/wrangler.jsonc'))
+          d['name']='00ai-root-router-debug-v2'
+          d['workers_dev']=True
+          d.pop('routes',None)
+          open('apps/root-router/wrangler.debug-v2.jsonc','w').write(json.dumps(d,indent=2)+'\n')
+          PY
+          npx --yes wrangler@4 deploy --config apps/root-router/wrangler.debug-v2.jsonc > /tmp/rrd2/deploy.log 2>&1
+          dep=$?
+          preview="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/rrd2/deploy.log | tail -n1)"
+          rc=000; ac=000; pc=000; hc=000; pl=''; hl=''
+          if [[ $dep -eq 0 && -n "$preview" ]]; then
+            sleep 5
+            rc="$(curl -ksS --max-time 30 -D /tmp/rrd2/root.h -o /tmp/rrd2/root.b -w '%{http_code}' "$preview/")"
+            ac="$(curl -ksS --max-time 30 -D /tmp/rrd2/api.h -o /tmp/rrd2/api.b -w '%{http_code}' "$preview/api/projects")"
+            pc="$(curl -ksS --max-time 20 -D /tmp/rrd2/p.h -o /dev/null -w '%{http_code}' "$preview/policy")"
+            hc="$(curl -ksS --max-time 20 -D /tmp/rrd2/h.h -o /dev/null -w '%{http_code}' "$preview/harness")"
+            pl="$(tr -d '\r' < /tmp/rrd2/p.h | grep -i '^location:' | head -n1 | cut -d' ' -f2- || true)"
+            hl="$(tr -d '\r' < /tmp/rrd2/h.h | grep -i '^location:' | head -n1 | cut -d' ' -f2- || true)"
+          fi
+          touch /tmp/rrd2/{root.h,root.b,api.h,api.b,p.h,h.h}
+          python3 - <<PY
+          import json,pathlib
+          def t(p,n=12000):
+            try:return pathlib.Path(p).read_text(errors='replace')[-n:]
+            except:return ''
+          api=t('/tmp/rrd2/api.b',30000)
+          try:d=json.loads(api)
+          except Exception as e:d={'parse_error':str(e),'raw':api[:2000]}
+          sites=d.get('siteProjects',[]) if isinstance(d,dict) else []
+          gh=d.get('githubProjects',[]) if isinstance(d,dict) else []
+          out={
+            'deploy_exit':$dep,
+            'preview_url':'''$preview''',
+            'root_code':'$rc','api_code':'$ac','policy_code':'$pc','harness_code':'$hc',
+            'policy_location':'''$pl''','harness_location':'''$hl''',
+            'root_has_00ai':'00AI' in t('/tmp/rrd2/root.b'),
+            'api_site_count':len(sites),'api_github_count':len(gh),
+            'api_first_urls':[x.get('public_url') for x in sites[:5]],
+            'api_has_policy':'policy.00ai.kr' in api,
+            'api_has_yhub':'yhub.00ai.kr' in api,
+            'api_has_oneul':'oneul-daejeon.00ai.kr' in api,
+            'deploy_log':t('/tmp/rrd2/deploy.log'),
+            'api_body_prefix':api[:8000],
+          }
+          pathlib.Path('.github/root-router-debug-v2.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/root-router-debug-v2.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update root router debug v2 [skip ci]"
+            git push || true
+          fi
