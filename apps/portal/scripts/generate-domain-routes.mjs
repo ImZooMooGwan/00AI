@@ -98,10 +98,14 @@ const sortedMap = Object.fromEntries(
 await fs.writeFile(MAP_FILE, `${JSON.stringify(sortedMap, null, 2)}\n`);
 
 const wrangler = JSON.parse(await fs.readFile(WRANGLER_FILE, "utf8"));
-wrangler.routes = Object.keys(sortedMap)
-  .filter((host) => host !== `harness.${BASE_DOMAIN}`)
-  .sort()
-  .map((host) => ({ pattern: host, custom_domain: true }));
+wrangler.routes = [
+  // 기존 포털 도메인을 Wrangler의 source of truth에 반드시 포함해 유지합니다.
+  { pattern: BASE_DOMAIN, custom_domain: true },
+  ...Object.keys(sortedMap)
+    .filter((host) => host !== `harness.${BASE_DOMAIN}`)
+    .sort()
+    .map((host) => ({ pattern: host, custom_domain: true })),
+];
 await fs.writeFile(WRANGLER_FILE, `${JSON.stringify(wrangler, null, 2)}\n`);
 
 console.log(`00AI domains prepared: ${wrangler.routes.length}`);
