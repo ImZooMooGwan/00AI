@@ -1,14 +1,14 @@
 {
-  "checked_at": "2026-08-24T12:20:39Z",
-  "commit": "aff54b5218e42e077fa8fc75e6fe685a52310401",
+  "checked_at": "2026-08-24T12:52:15Z",
+  "commit": "2ffb9411a5d600994de42dab142596510b4a2f9b",
   "domains": {
     "00ai.kr": {"resolved": true, "http": "200", "healthy": true},
     "harness.00ai.kr": {"resolved": true, "http": "200", "healthy": true},
-    "policy.00ai.kr": {"resolved": true, "http": "521", "healthy": false},
-    "public-ai-gov.00ai.kr": {"resolved": false, "http": "000", "healthy": false},
-    "yhub.00ai.kr": {"resolved": false, "http": "000", "healthy": false},
-    "youth-policy-data-hub.00ai.kr": {"resolved": false, "http": "000", "healthy": false},
-    "drop.00ai.kr": {"resolved": true, "http": "522", "healthy": false}
+    "policy.00ai.kr": {"resolved": true, "http": "200", "healthy": true},
+    "public-ai-gov.00ai.kr": {"resolved": true, "http": "200", "healthy": true},
+    "yhub.00ai.kr": {"resolved": true, "http": "200", "healthy": true},
+    "youth-policy-data-hub.00ai.kr": {"resolved": true, "http": "200", "healthy": true},
+    "drop.00ai.kr": {"resolved": true, "http": "200", "healthy": true}
   },
-  "healthy": false
+  "healthy": true
 }
