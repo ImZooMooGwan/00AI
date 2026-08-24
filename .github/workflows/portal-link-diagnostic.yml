@@ -1,0 +1,57 @@
+name: 00AI portal link diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-link-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live portal links
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import re,json,subprocess,datetime,pathlib,urllib.parse
+          html=subprocess.run(['curl','-ksSL','--max-time','30','https://00ai.kr/'],capture_output=True,text=True).stdout
+          links=[]
+          for href in re.findall(r'''href=["']([^"']+)["']''',html,re.I):
+              if href.startswith('#') or href.startswith('mailto:') or href.startswith('javascript:'): continue
+              url=urllib.parse.urljoin('https://00ai.kr/',href)
+              if url not in [x['url'] for x in links]:
+                  p=subprocess.run(['curl','-ksSL','--max-time','20','-o','/dev/null','-w','%{http_code}|%{url_effective}',url],capture_output=True,text=True)
+                  links.append({'href':href,'url':url,'result':p.stdout.strip()})
+              if len(links)>=80: break
+          report={
+            'checked_at':datetime.datetime.utcnow().isoformat()+'Z',
+            'title':(re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S).group(1) if re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S) else ''),
+            'body_length':len(html),
+            'links':links,
+            'contains_policy_domain':'policy.00ai.kr' in html,
+            'contains_yhub_domain':'yhub.00ai.kr' in html,
+            'contains_original_chatgpt_site':'chatgpt.site' in html,
+          }
+          p=pathlib.Path('.github/portal-link-diagnostic.json')
+          p.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          print(p.read_text())
+          PY
+      - name: Persist portal diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-link-diagnostic.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal link diagnostic [skip ci]"
+            git push || true
+          fi
