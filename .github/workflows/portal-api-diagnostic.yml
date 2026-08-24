@@ -1,0 +1,51 @@
+name: 00AI portal API diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-api-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live /api/projects
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json,subprocess,datetime,pathlib
+          p=subprocess.run(['curl','-ksSL','--max-time','30','https://00ai.kr/api/projects'],capture_output=True,text=True)
+          body=p.stdout
+          try: data=json.loads(body)
+          except Exception: data={'raw':body[:20000]}
+          report={
+            'checked_at':datetime.datetime.utcnow().isoformat()+'Z',
+            'curl_exit':p.returncode,
+            'contains_policy_domain':'policy.00ai.kr' in body,
+            'contains_yhub_domain':'yhub.00ai.kr' in body,
+            'contains_chatgpt_site':'chatgpt.site' in body,
+            'payload':data,
+          }
+          path=pathlib.Path('.github/portal-api-diagnostic.json')
+          path.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          print(path.read_text())
+          PY
+      - name: Persist diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-api-diagnostic.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal API diagnostic [skip ci]"
+            git push || true
+          fi
