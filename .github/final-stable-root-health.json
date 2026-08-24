@@ -1,0 +1,34 @@
+{
+  "checked_at": "2026-08-24T13:32:09Z",
+  "healthy": true,
+  "deployed": true,
+  "rolled_back": false,
+  "steps": [
+    "token_ok",
+    "zone_ok",
+    "replacement_verified",
+    "legacy_bindings_removed",
+    "stable_domain_attached",
+    "production_and_control_plane_verified"
+  ],
+  "preview": {
+    "root": 200,
+    "api": 200,
+    "site_projects": 16
+  },
+  "before": {
+    "domain_service": "00ai-portal",
+    "route_script": null
+  },
+  "attach_http": 200,
+  "service": "00ai-root-router-debug-v2",
+  "control_plane_service": "00ai-root-router-debug-v2",
+  "exact_apex_routes": 0,
+  "site_projects": 16,
+  "github_projects": 0,
+  "policy_redirect": "https://policy.00ai.kr/",
+  "harness_redirect": "https://harness.00ai.kr/",
+  "policy_api": 200,
+  "yhub": 200,
+  "harness": 200
+}
