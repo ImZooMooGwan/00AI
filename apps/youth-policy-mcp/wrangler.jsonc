@@ -24,12 +24,20 @@
     "POLICY_STORAGE_BACKEND": "d1",
     "TZ": "Asia/Seoul"
   },
-  "kv_namespaces": [
-    {
-      "binding": "POLICY_STORE",
-      "id": "00000000000000000000000000000000"
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "POLICY_STORE_DO",
+        "class_name": "YouthPolicyStore"
+      }
+    ]
+  },
+  "exports": {
+    "YouthPolicyStore": {
+      "type": "durable-object",
+      "storage": "sqlite"
     }
-  ],
+  },
   "d1_databases": [
     {
       "binding": "DB",

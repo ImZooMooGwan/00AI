@@ -1,5 +1,7 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 
+export { YouthPolicyStore } from "./db/policy-store-do";
+
 import { createPolicyRepository, policyStorageBackend } from "./db/repository";
 import { TOOL_NAMES } from "./domain/types";
 import type { RuntimeEnv } from "./env";

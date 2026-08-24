@@ -11,7 +11,7 @@
 - `YOUTH_POLICY_API_KEY` 미설정: 동기화가 `skipped`입니다. Secret을 설정하고 수동 동기화를 실행합니다.
 - `UPSTREAM_SCHEMA_MISMATCH`: 원문을 정책으로 저장하지 않습니다. 공식 응답 변경을 확인하고 버전별 파서를 추가합니다.
 - `UPSTREAM_TEMPORARY_ERROR`: 자동 재시도 후 실패합니다. 원천 상태를 확인하고 수동 재실행합니다.
-- 저장소 연결 실패: 운영 환경은 KV binding `POLICY_STORE`와 namespace ID, 로컬·테스트 환경은 D1 binding `DB`와 마이그레이션 적용 여부를 확인합니다.
+- 저장소 연결 실패: 운영 환경은 Durable Object RPC binding `POLICY_STORE_DO`, `YouthPolicyStore` export와 `storage=sqlite` 선언을 확인합니다. 로컬 D1 회귀 환경은 binding `DB`와 마이그레이션 적용 여부를 확인합니다.
 - MCP 403: `MCP_ALLOWED_HOSTS`, `MCP_ALLOWED_ORIGINS`와 Custom Domain을 확인합니다.
 - MCP 429: 요청 주체별 60초 제한을 확인하고 필요할 때 binding 한도를 조정합니다.
 

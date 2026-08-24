@@ -110,41 +110,12 @@ jobs:
           echo "CLOUDFLARE_API_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
 
-      - name: Provision the KV namespace and production config
+      - name: Prepare the Durable Object production config
         shell: bash
         run: |
           set -euo pipefail
-          namespace_title="00ai-youth-policy"
-
-          find_namespace_id() {
-            curl -fsS -G \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              --data-urlencode "per_page=100" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
-              | jq -r --arg title "$namespace_title" \
-                '.result[]? | select(.title == $title) | .id' \
-              | head -n 1
-          }
-
-          namespace_id="$(find_namespace_id)"
-          if [[ -z "$namespace_id" ]]; then
-            response="$(curl -fsS \
-              -X POST \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H 'Content-Type: application/json' \
-              --data "$(jq -cn --arg title "$namespace_title" '{title: $title}')" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces")"
-            namespace_id="$(jq -r '.result.id // empty' <<<"$response")"
-          fi
-          if [[ -z "$namespace_id" ]]; then
-            echo "KV namespace provisioning did not return an ID." >&2
-            exit 1
-          fi
-
-          jq --arg namespace_id "$namespace_id" \
-            'del(.d1_databases)
-             | .kv_namespaces[0].id = $namespace_id
-             | .vars.POLICY_STORAGE_BACKEND = "kv"' \
+          jq 'del(.d1_databases)
+             | .vars.POLICY_STORAGE_BACKEND = "durable_object"' \
             wrangler.jsonc > wrangler.deploy.jsonc
 
       - name: Deploy the MCP Worker and custom domain
@@ -179,7 +150,7 @@ jobs:
           healthy=false
           for _ in $(seq 1 12); do
             if body="$(curl -fsS --max-time 20 "$health" 2>/dev/null)" \
-              && jq -e '.ok == true and .database.connected == true and .storage_backend == "kv" and .tools == 6' \
+              && jq -e '.ok == true and .database.connected == true and .storage_backend == "durable_object" and .tools == 6' \
                 <<<"$body" >/dev/null; then
               healthy=true
               break

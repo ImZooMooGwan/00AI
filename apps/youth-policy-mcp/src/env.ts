@@ -3,10 +3,12 @@
  * present in wrangler.jsonc, so they are added as an intersection without
  * re-declaring any platform binding.
  */
-export type RuntimeEnv = Omit<Env, "DB" | "POLICY_STORE" | "POLICY_STORAGE_BACKEND"> & {
+export type RuntimeEnv = Omit<Env, "DB" | "POLICY_STORE_DO" | "POLICY_STORAGE_BACKEND"> & {
   readonly DB?: D1Database;
-  readonly POLICY_STORE?: KVNamespace;
-  readonly POLICY_STORAGE_BACKEND?: "d1" | "kv";
+  readonly POLICY_STORE_DO?: DurableObjectNamespace<
+    import("./db/policy-store-do").YouthPolicyStore
+  >;
+  readonly POLICY_STORAGE_BACKEND?: "d1" | "durable_object";
   readonly YOUTH_POLICY_API_KEY?: string;
   readonly YOUTH_POLICY_LEGACY_ENABLED?: string;
   readonly LAW_API_OC?: string;
