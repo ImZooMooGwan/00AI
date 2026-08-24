@@ -41,7 +41,7 @@ export function ChangePreview() {
           const policy = getPolicy(change.policyId);
           return (
             <Link className="change-row" href={`/policy/${policy?.slug ?? ""}`} key={change.id}>
-              <time>{new Date(change.detectedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}</time>
+              <time>{new Date(change.detectedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" })}</time>
               <span className={`change-symbol impact-${change.impact}`} aria-hidden="true" />
               <span className="change-copy">
                 <b>{policy?.officialName}</b>

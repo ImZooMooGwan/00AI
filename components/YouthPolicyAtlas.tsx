@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
 import {
   changes,
   formatPolicyStatus,
@@ -17,6 +24,9 @@ import {
 type ViewMode = "galaxy" | "registry";
 type RegionMode = "all" | "national" | "daejeon";
 type CategoryMode = "전체" | PolicyCategory;
+type PlaybackSpeed = 0.5 | 1 | 2;
+
+const GALAXY_CENTER = { x: 380, y: 260 };
 
 const categoryMeta: Array<{
   name: PolicyCategory;
@@ -52,16 +62,42 @@ function matchesRegion(policy: PolicyRecord, region: RegionMode) {
   return true;
 }
 
-function nodePosition(policy: PolicyRecord, visible: PolicyRecord[]) {
+const galaxyStars = Array.from({ length: 72 }, (_, index) => ({
+  x: (index * 137 + 29) % 760,
+  y: (index * 83 + 47) % 520,
+  r: 0.45 + (index % 4) * 0.25,
+  delay: -((index * 0.19) % 4.8),
+}));
+
+function rotatePoint(x: number, y: number, degrees: number) {
+  const radians = (degrees * Math.PI) / 180;
+  const dx = x - GALAXY_CENTER.x;
+  const dy = y - GALAXY_CENTER.y;
+  return {
+    x: GALAXY_CENTER.x + dx * Math.cos(radians) - dy * Math.sin(radians),
+    y: GALAXY_CENTER.y + dx * Math.sin(radians) + dy * Math.cos(radians),
+  };
+}
+
+function categoryPosition(categoryIndex: number, rotation: number) {
+  const category = categoryMeta[categoryIndex];
+  return rotatePoint(category.x, category.y, rotation * 0.42);
+}
+
+function nodePosition(policy: PolicyRecord, visible: PolicyRecord[], rotation: number) {
   const categoryIndex = categoryMeta.findIndex((item) => item.name === policy.category);
-  const category = categoryMeta[Math.max(categoryIndex, 0)];
+  const safeCategoryIndex = Math.max(categoryIndex, 0);
+  const category = categoryPosition(safeCategoryIndex, rotation);
   const siblings = visible.filter((item) => item.category === policy.category);
   const index = Math.max(siblings.findIndex((item) => item.id === policy.id), 0);
-  const angle = ((index * 137.5 + categoryIndex * 21) * Math.PI) / 180;
-  const radius = 43 + (index % 3) * 16;
+  const angleDegrees = index * 137.5 + safeCategoryIndex * 21 + rotation * (1.08 + safeCategoryIndex * 0.045);
+  const angle = (angleDegrees * Math.PI) / 180;
+  const radius = 42 + (index % 3) * 15;
+  const depth = (Math.sin(angle) + 1) / 2;
   return {
     x: category.x + Math.cos(angle) * radius,
-    y: category.y + Math.sin(angle) * radius,
+    y: category.y + Math.sin(angle) * radius * 0.78,
+    depth,
   };
 }
 
@@ -74,46 +110,141 @@ function PolicyGalaxy({
   focusedId: string;
   onFocus: (id: string) => void;
 }) {
+  const [rotation, setRotation] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
+  const [zoom, setZoom] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startRotation: 0, resume: true });
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const applyPreference = () => setPlaying(!media.matches);
+    const frame = requestAnimationFrame(applyPreference);
+    media.addEventListener("change", applyPreference);
+    return () => {
+      cancelAnimationFrame(frame);
+      media.removeEventListener("change", applyPreference);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!playing) return;
+    let frame = 0;
+    let previous = performance.now();
+    const animate = (now: number) => {
+      const elapsed = Math.min(now - previous, 40);
+      previous = now;
+      setRotation((current) => (current + elapsed * 0.009 * speed) % 360);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, speed]);
+
+  const categoryPoints = categoryMeta.map((_, index) => categoryPosition(index, rotation));
+  const policyPoints = visiblePolicies.map((policy) => ({ policy, ...nodePosition(policy, visiblePolicies, rotation) }));
+  const focusedPoint = policyPoints.find((point) => point.policy.id === focusedId);
+  const focusedPolicy = focusedPoint?.policy;
+  const sweepAngle = ((rotation * 1.6 - 90) * Math.PI) / 180;
+  const sweepPoint = {
+    x: GALAXY_CENTER.x + Math.cos(sweepAngle) * 215,
+    y: GALAXY_CENTER.y + Math.sin(sweepAngle) * 215,
+  };
+
+  function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { startX: event.clientX, startRotation: rotation, resume: playing };
+    setPlaying(false);
+    setDragging(true);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!dragging) return;
+    setRotation(dragRef.current.startRotation + (event.clientX - dragRef.current.startX) * 0.38);
+  }
+
+  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!dragging) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragging(false);
+    if (dragRef.current.resume) setPlaying(true);
+  }
+
+  function handleWheel(event: ReactWheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    setZoom((current) => Math.min(1.65, Math.max(0.72, current - event.deltaY * 0.0012)));
+  }
+
+  function resetView() {
+    setRotation(0);
+    setZoom(1);
+  }
+
   return (
-    <div className="policy-galaxy">
-      <svg viewBox="0 0 760 520" role="img" aria-labelledby="atlas-graph-title atlas-graph-desc">
+    <div className={`policy-galaxy ${playing ? "is-playing" : "is-paused"}`}>
+      <div className="galaxy-live-status"><i /><span>{playing ? `자동 공전 · ${speed}×` : "정지됨"}</span><small>드래그 회전 · 휠 확대/축소 · 점 선택</small></div>
+      <svg
+        className={dragging ? "is-dragging" : ""}
+        viewBox="0 0 760 520"
+        role="img"
+        aria-labelledby="atlas-graph-title atlas-graph-desc"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onWheel={handleWheel}
+        onDoubleClick={resetView}
+      >
         <title id="atlas-graph-title">대한민국 청년정책 분야 관계지도</title>
-        <desc id="atlas-graph-desc">Y-HUB를 중심으로 일자리, 주거, 교육, 금융, 복지문화, 창업, 참여기반 정책이 연결된 지도</desc>
+        <desc id="atlas-graph-desc">자동으로 공전하며 드래그 회전과 확대 축소가 가능한 청년정책 관계지도. Y-HUB를 중심으로 일자리, 주거, 교육, 금융, 복지문화, 창업, 참여기반 정책이 연결됩니다.</desc>
         <defs>
           <radialGradient id="atlas-core" cx="50%" cy="42%" r="60%">
             <stop offset="0%" stopColor="#1fcab6" stopOpacity=".42" />
             <stop offset="100%" stopColor="#08151d" stopOpacity=".96" />
           </radialGradient>
+          <radialGradient id="policy-depth" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity=".95" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity=".08" />
+          </radialGradient>
         </defs>
-        <g className="atlas-grid-lines" aria-hidden="true">
-          {[80, 160, 240, 320, 400, 480, 560, 640, 720].map((x) => <line key={`x-${x}`} x1={x} x2={x} y1="0" y2="520" />)}
-          {[40, 100, 160, 220, 280, 340, 400, 460].map((y) => <line key={`y-${y}`} x1="0" x2="760" y1={y} y2={y} />)}
-        </g>
-        <g className="atlas-orbits" aria-hidden="true">
-          <ellipse cx="380" cy="260" rx="284" ry="205" />
-          <ellipse cx="380" cy="260" rx="218" ry="155" />
-          <circle cx="380" cy="260" r="102" />
-        </g>
-        <g className="atlas-category-links" aria-hidden="true">
-          {categoryMeta.map((category) => (
-            <line key={category.name} x1="380" y1="260" x2={category.x} y2={category.y} />
-          ))}
-          {visiblePolicies.map((policy) => {
-            const category = categoryMeta.find((item) => item.name === policy.category)!;
-            const point = nodePosition(policy, visiblePolicies);
-            return <line key={policy.id} x1={category.x} y1={category.y} x2={point.x} y2={point.y} />;
-          })}
-        </g>
-        <g className="atlas-core-node" aria-hidden="true">
-          <circle cx="380" cy="260" r="63" fill="url(#atlas-core)" />
-          <circle cx="380" cy="260" r="50" />
-          <text x="380" y="251">Y-HUB</text>
-          <text className="atlas-core-count" x="380" y="276">{visiblePolicies.length} POLICIES</text>
-        </g>
-        {categoryMeta.map((category) => {
+        <g transform={`translate(${GALAXY_CENTER.x} ${GALAXY_CENTER.y}) scale(${zoom}) translate(${-GALAXY_CENTER.x} ${-GALAXY_CENTER.y})`}>
+          <g className="galaxy-star-field" aria-hidden="true">
+            {galaxyStars.map((star, index) => <circle key={index} cx={star.x} cy={star.y} r={star.r} style={{ animationDelay: `${star.delay}s` }} />)}
+          </g>
+          <g className="atlas-grid-lines" aria-hidden="true">
+            {[80, 160, 240, 320, 400, 480, 560, 640, 720].map((x) => <line key={`x-${x}`} x1={x} x2={x} y1="0" y2="520" />)}
+            {[40, 100, 160, 220, 280, 340, 400, 460].map((y) => <line key={`y-${y}`} x1="0" x2="760" y1={y} y2={y} />)}
+          </g>
+          <g className="atlas-orbits" aria-hidden="true">
+            <ellipse cx="380" cy="260" rx="284" ry="205" />
+            <ellipse cx="380" cy="260" rx="218" ry="155" />
+            <circle cx="380" cy="260" r="102" />
+          </g>
+          <g className="galaxy-sweep" aria-hidden="true">
+            <line x1={GALAXY_CENTER.x} y1={GALAXY_CENTER.y} x2={sweepPoint.x} y2={sweepPoint.y} />
+          </g>
+          <g className="atlas-category-links" aria-hidden="true">
+            {categoryPoints.map((point, index) => (
+              <line key={categoryMeta[index].name} x1={GALAXY_CENTER.x} y1={GALAXY_CENTER.y} x2={point.x} y2={point.y} />
+            ))}
+            {policyPoints.map((point) => {
+              const categoryIndex = categoryMeta.findIndex((item) => item.name === point.policy.category);
+              const category = categoryPoints[Math.max(categoryIndex, 0)];
+              return <line key={point.policy.id} x1={category.x} y1={category.y} x2={point.x} y2={point.y} />;
+            })}
+          </g>
+          <g className="atlas-core-node" aria-hidden="true">
+            <circle cx="380" cy="260" r="63" fill="url(#atlas-core)" />
+            <circle cx="380" cy="260" r="50" />
+            <text x="380" y="251">Y-HUB</text>
+            <text className="atlas-core-count" x="380" y="276">{visiblePolicies.length} POLICIES</text>
+          </g>
+          {categoryMeta.map((category, index) => {
           const count = visiblePolicies.filter((policy) => policy.category === category.name).length;
+          const point = categoryPoints[index];
           return (
-            <g className={`atlas-category-node ${count === 0 ? "is-muted" : ""}`} key={category.name} transform={`translate(${category.x} ${category.y})`}>
+            <g className={`atlas-category-node ${count === 0 ? "is-muted" : ""}`} key={category.name} transform={`translate(${point.x} ${point.y})`}>
               <circle r={26 + Math.min(count, 5) * 2} fill={category.color} />
               <circle className="atlas-category-core" r="6" />
               <text y="47">{category.name}</text>
@@ -121,11 +252,11 @@ function PolicyGalaxy({
             </g>
           );
         })}
-        {visiblePolicies.map((policy) => {
-          const point = nodePosition(policy, visiblePolicies);
+          {policyPoints.map(({ policy, x, y, depth }) => {
           const category = categoryMeta.find((item) => item.name === policy.category)!;
           const isFocused = policy.id === focusedId;
-          const radius = policy.status === "open" ? 7 : policy.status === "rolling" ? 5.5 : 4.5;
+          const baseRadius = policy.status === "open" ? 7 : policy.status === "rolling" ? 5.5 : 4.5;
+          const radius = baseRadius * (0.8 + depth * 0.38);
           return (
             <g
               className={`atlas-policy-node ${isFocused ? "is-focused" : ""}`}
@@ -133,7 +264,9 @@ function PolicyGalaxy({
               role="button"
               tabIndex={0}
               aria-label={`${policy.officialName}, ${formatPolicyStatus(policy.status)}`}
-              transform={`translate(${point.x} ${point.y})`}
+              transform={`translate(${x} ${y})`}
+              style={{ opacity: 0.56 + depth * 0.44 }}
+              onPointerDown={(event) => event.stopPropagation()}
               onClick={() => onFocus(policy.id)}
               onMouseEnter={() => onFocus(policy.id)}
               onFocus={() => onFocus(policy.id)}
@@ -143,15 +276,31 @@ function PolicyGalaxy({
             >
               <circle className="atlas-policy-halo" r={radius + 7} fill={category.color} />
               <circle r={radius} fill={category.color} />
+              <circle className="atlas-policy-shine" r={Math.max(1.2, radius * 0.33)} cx={-radius * 0.25} cy={-radius * 0.25} fill="url(#policy-depth)" />
             </g>
           );
         })}
+          {focusedPoint && focusedPolicy && (
+            <g className="galaxy-tooltip" transform={`translate(${focusedPoint.x} ${focusedPoint.y - 24})`} pointerEvents="none">
+              <rect x="-82" y="-25" width="164" height="34" rx="4" />
+              <text className="galaxy-tooltip-title" y="-11">{focusedPolicy.officialName.length > 20 ? `${focusedPolicy.officialName.slice(0, 20)}…` : focusedPolicy.officialName}</text>
+              <text className="galaxy-tooltip-meta" y="1">{focusedPolicy.category} · {formatPolicyStatus(focusedPolicy.status)}</text>
+            </g>
+          )}
+        </g>
       </svg>
       <div className="galaxy-legend" aria-label="지도 범례">
         <span><i className="legend-dot open" />신청 가능</span>
         <span><i className="legend-dot rolling" />상시·수시</span>
         <span><i className="legend-dot closed" />모집 종료·확인 필요</span>
-        <small>점을 선택하면 오른쪽에서 정책 요약을 확인할 수 있습니다.</small>
+      </div>
+      <div className="galaxy-controls" aria-label="은하 움직임 제어">
+        <button className="galaxy-play" type="button" onClick={() => setPlaying((current) => !current)} aria-label={playing ? "자동 공전 일시 정지" : "자동 공전 재생"}>{playing ? "Ⅱ" : "▶"}</button>
+        <div className="galaxy-speeds" role="group" aria-label="공전 속도">
+          {([0.5, 1, 2] as PlaybackSpeed[]).map((value) => <button type="button" key={value} className={speed === value ? "active" : ""} aria-pressed={speed === value} onClick={() => setSpeed(value)}>{value}×</button>)}
+        </div>
+        <label className="galaxy-zoom"><span>ZOOM</span><input type="range" min="0.72" max="1.65" step="0.01" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /><b>{Math.round(zoom * 100)}%</b></label>
+        <button className="galaxy-reset-view" type="button" onClick={resetView}>시점 초기화</button>
       </div>
     </div>
   );
@@ -324,7 +473,7 @@ export function YouthPolicyAtlas() {
                 const policy = policies.find((item) => item.id === change.policyId);
                 return (
                   <Link href={`/policy/${policy?.slug ?? ""}`} key={change.id}>
-                    <time>{new Date(change.detectedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}</time>
+                    <time>{new Date(change.detectedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" })}</time>
                     <span><b>{change.type}</b>{policy?.officialName}</span>
                     <i>↗</i>
                   </Link>

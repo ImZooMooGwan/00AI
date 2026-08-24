@@ -33,7 +33,7 @@ export function ChangeExplorer() {
           const open = expanded === change.id;
           return (
             <article className={`timeline-event ${open ? "open" : ""}`} key={change.id}>
-              <div className="timeline-time"><time>{new Date(change.detectedAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}</time><span>{new Date(change.detectedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span></div>
+              <div className="timeline-time"><time>{new Date(change.detectedAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit", timeZone: "Asia/Seoul" })}</time><span>{new Date(change.detectedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" })}</span></div>
               <span className={`timeline-node impact-${change.impact}`} aria-hidden="true" />
               <div className="event-body">
                 <button className="event-toggle" type="button" onClick={() => setExpanded(open ? null : change.id)} aria-expanded={open}>
@@ -52,4 +52,3 @@ export function ChangeExplorer() {
     </div>
   );
 }
-

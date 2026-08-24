@@ -444,12 +444,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
   radial-gradient(circle at 26% 80%, rgba(255,155,98,.12) 0 1px, transparent 2px),
   linear-gradient(145deg, #071018, #09141c 64%, #071018); }
 .policy-galaxy::before { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 44%, rgba(15,157,137,.095), transparent 43%); content: ""; }
-.policy-galaxy svg { position: relative; z-index: 1; width: 100%; height: 500px; display: block; }
+.policy-galaxy svg { position: relative; z-index: 1; width: 100%; height: 500px; display: block; cursor: grab; touch-action: none; user-select: none; }
+.policy-galaxy svg.is-dragging { cursor: grabbing; }
+.galaxy-live-status { position: absolute; z-index: 3; left: 14px; top: 12px; display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid rgba(132,191,181,.14); border-radius: 5px; color: #9fc0b9; background: rgba(6,17,23,.74); backdrop-filter: blur(10px); pointer-events: none; }
+.galaxy-live-status > i { width: 6px; height: 6px; border-radius: 50%; background: #55ddb1; box-shadow: 0 0 8px rgba(85,221,177,.7); }
+.policy-galaxy.is-paused .galaxy-live-status > i { background: #f6c85f; box-shadow: none; }
+.galaxy-live-status span { font-family: ui-monospace, monospace; font-size: 7px; font-weight: 750; letter-spacing: .06em; }
+.galaxy-live-status small { padding-left: 7px; border-left: 1px solid rgba(164,207,199,.15); color: #627b75; font-size: 6px; }
+.galaxy-star-field circle { fill: #c6f2ea; opacity: .16; animation: galaxy-twinkle 3.4s ease-in-out infinite; }
+@keyframes galaxy-twinkle { 50% { opacity: .7; } }
 .atlas-grid-lines line { stroke: rgba(178,219,210,.035); stroke-width: 1; }
 .atlas-orbits > * { fill: none; stroke: rgba(160,207,198,.12); stroke-width: 1; stroke-dasharray: 4 9; }
 .atlas-orbits > :nth-child(2) { stroke: rgba(126,168,220,.1); stroke-dasharray: 2 10; }
 .atlas-category-links line { stroke: rgba(143,197,188,.16); stroke-width: .8; }
 .atlas-category-links line:nth-child(n+8) { stroke: rgba(143,197,188,.12); stroke-dasharray: 2 4; }
+.galaxy-sweep line { stroke: rgba(63,213,190,.22); stroke-width: 1; stroke-dasharray: 2 5; filter: drop-shadow(0 0 4px rgba(63,213,190,.26)); }
 .atlas-core-node circle:first-child { filter: drop-shadow(0 0 24px rgba(32,203,179,.22)); }
 .atlas-core-node circle:nth-child(2) { fill: rgba(5,18,24,.76); stroke: rgba(55,219,196,.56); stroke-width: 1; }
 .atlas-core-node text { fill: #effffc; font-size: 15px; font-weight: 850; text-anchor: middle; letter-spacing: .05em; }
@@ -460,15 +469,26 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .atlas-category-node text { fill: #ecf8f6; font-size: 8px; font-weight: 760; text-anchor: middle; }
 .atlas-category-node .atlas-category-count { fill: #758f8a; font-family: ui-monospace, monospace; font-size: 6px; font-weight: 500; }
 .atlas-policy-node { cursor: pointer; outline: none; }
-.atlas-policy-node > circle:last-child { stroke: rgba(255,255,255,.82); stroke-width: .7; transition: transform .16s ease, filter .16s ease; }
+.atlas-policy-node > circle:nth-of-type(2) { stroke: rgba(255,255,255,.82); stroke-width: .7; transition: transform .16s ease, filter .16s ease; }
 .atlas-policy-node .atlas-policy-halo { opacity: .08; transition: opacity .16s ease; }
-.atlas-policy-node:hover > circle:last-child, .atlas-policy-node:focus-visible > circle:last-child, .atlas-policy-node.is-focused > circle:last-child { transform: scale(1.65); filter: drop-shadow(0 0 6px currentColor); }
+.atlas-policy-node .atlas-policy-shine { pointer-events: none; opacity: .8; }
+.atlas-policy-node:hover > circle:nth-of-type(2), .atlas-policy-node:focus-visible > circle:nth-of-type(2), .atlas-policy-node.is-focused > circle:nth-of-type(2) { transform: scale(1.65); filter: drop-shadow(0 0 6px currentColor); }
 .atlas-policy-node:hover .atlas-policy-halo, .atlas-policy-node:focus-visible .atlas-policy-halo, .atlas-policy-node.is-focused .atlas-policy-halo { opacity: .22; }
-.galaxy-legend { position: absolute; z-index: 2; right: 15px; bottom: 12px; left: 15px; display: flex; align-items: center; gap: 15px; padding-top: 10px; border-top: 1px solid rgba(196,226,220,.12); color: #8ea59f; font-size: 7px; }
+.galaxy-tooltip rect { fill: rgba(6,15,21,.94); stroke: rgba(121,213,197,.32); stroke-width: .8; filter: drop-shadow(0 7px 12px rgba(0,0,0,.28)); }
+.galaxy-tooltip text { text-anchor: middle; }.galaxy-tooltip-title { fill: #f3fffc; font-size: 7px; font-weight: 780; }.galaxy-tooltip-meta { fill: #78a39a; font-family: ui-monospace, monospace; font-size: 5.5px; }
+.galaxy-legend { position: absolute; z-index: 3; right: 14px; top: 12px; display: flex; align-items: center; gap: 11px; padding: 7px 9px; border: 1px solid rgba(132,191,181,.14); border-radius: 5px; color: #8ea59f; background: rgba(6,17,23,.7); backdrop-filter: blur(10px); font-size: 6px; pointer-events: none; }
 .galaxy-legend span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.galaxy-legend small { margin-left: auto; color: #617b75; font-size: 7px; }
 .legend-dot { width: 6px; height: 6px; border-radius: 50%; background: #73827e; }
 .legend-dot.open { background: #55ddb1; box-shadow: 0 0 7px rgba(85,221,177,.7); }.legend-dot.rolling { background: #46b7ff; }.legend-dot.closed { width: 5px; height: 5px; background: #66736f; }
+.galaxy-controls { position: absolute; z-index: 4; right: 14px; bottom: 13px; left: 14px; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 7px 9px; border: 1px solid rgba(142,197,188,.18); border-radius: 8px; color: #8ea8a2; background: rgba(7,17,24,.86); box-shadow: 0 10px 30px rgba(0,0,0,.22); backdrop-filter: blur(14px); }
+.galaxy-controls button { height: 31px; border: 1px solid rgba(148,199,191,.15); color: #88a39d; background: rgba(255,255,255,.025); font-family: ui-monospace, monospace; font-size: 7px; cursor: pointer; }
+.galaxy-controls button:hover, .galaxy-controls button.active { border-color: rgba(82,220,190,.42); color: #d9fff7; background: rgba(32,175,149,.12); }
+.galaxy-play { width: 34px; border-radius: 50% !important; color: #75e2c8 !important; font-size: 10px !important; }
+.galaxy-speeds { display: flex; gap: 3px; }.galaxy-speeds button { min-width: 31px; }
+.galaxy-zoom { flex: 1; display: grid; grid-template-columns: auto minmax(70px,1fr) 34px; align-items: center; gap: 8px; padding-left: 8px; border-left: 1px solid rgba(155,202,194,.13); }
+.galaxy-zoom span, .galaxy-zoom b { color: #78928c; font-family: ui-monospace, monospace; font-size: 6px; font-weight: 600; }.galaxy-zoom b { text-align: right; }
+.galaxy-zoom input { width: 100%; height: 2px; accent-color: #54d8ba; cursor: pointer; }
+.galaxy-reset-view { min-width: 62px; padding: 0 8px; }
 .atlas-stage-footer { min-height: 43px; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-top: 1px solid var(--line); color: #76837c; background: #f8faf8; font-size: 7px; }
 .atlas-stage-footer span { display: flex; align-items: center; gap: 5px; }.atlas-stage-footer span i { width: 6px; height: 6px; border-radius: 50%; background: #0c9b75; box-shadow: 0 0 0 3px rgba(12,155,117,.1); }
 .atlas-stage-footer a { margin-left: auto; color: #087f70; font-weight: 750; }
@@ -544,7 +564,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .atlas-shell { width: min(calc(100% - 20px), 1530px); padding-top: 10px; }
   .atlas-summary { grid-template-columns: 1fr; }.atlas-title-block { border-right: 0; border-bottom: 1px solid var(--line); }.atlas-search { min-height: 54px; border-right: 0; }.atlas-metrics { grid-template-columns: repeat(5, minmax(78px,1fr)); overflow-x: auto; }.atlas-metrics a { min-width: 82px; }
   .atlas-workspace { grid-template-columns: 1fr; }.atlas-sidebar { border-right: 0; border-bottom: 1px solid var(--line); }.atlas-sidebar > header { height: 44px; }.atlas-category-list { display: flex; overflow-x: auto; padding: 0; }.atlas-category-list button { min-width: 105px; padding: 0 10px; border-right: 1px solid var(--line); }.atlas-filter-block { display: flex; align-items: center; gap: 12px; padding: 9px 12px; }.atlas-filter-block > span { margin: 0 auto 0 0; }.atlas-filter-block button { width: auto; gap: 6px; }.atlas-open-switch { justify-content: flex-start; }.atlas-open-switch > i { margin-left: auto; }.atlas-reset { position: absolute; right: 14px; margin: 0; border: 0; font-size: 7px; }
-  .atlas-stage-header { min-height: 66px; padding-inline: 14px; }.atlas-stage-body, .atlas-registry-wrap { min-height: 430px; height: 430px; }.policy-galaxy { min-height: 430px; }.policy-galaxy svg { height: 405px; }.galaxy-legend { overflow-x: auto; }.galaxy-legend small { display: none; }
+  .atlas-stage-header { min-height: 66px; padding-inline: 14px; }.atlas-stage-body, .atlas-registry-wrap { min-height: 430px; height: 430px; }.policy-galaxy { min-height: 430px; }.policy-galaxy svg { height: 405px; }.galaxy-live-status small { display: none; }.galaxy-legend { top: 47px; right: auto; left: 12px; max-width: calc(100% - 24px); overflow: hidden; }.galaxy-controls { right: 10px; bottom: 9px; left: 10px; }.galaxy-zoom { min-width: 90px; }
   .atlas-live-rail { display: block; }.atlas-focus-card { border-right: 0; border-bottom: 1px solid var(--line); }.atlas-change-stream { min-height: 270px; }
   .atlas-source-dock { grid-template-columns: 1fr; }.atlas-source-dock > div, .atlas-source-dock > a:not(.atlas-admin-link) { min-height: 64px; border-right: 0; border-bottom: 1px solid var(--line); }
   .atlas-quick-links { grid-template-columns: 1fr 1fr; }.atlas-quick-links > a { min-height: 180px; }
@@ -553,7 +573,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (max-width: 480px) {
   .atlas-title-block h1 { font-size: 22px; }.atlas-title-block > span { font-size: 6px; }.atlas-search kbd { display: none; }
   .atlas-stage-header { align-items: flex-start; flex-direction: column; }.atlas-view-toggle { width: 100%; }.atlas-view-toggle button { flex: 1; }
-  .atlas-stage-body, .atlas-registry-wrap { min-height: 360px; height: 360px; }.policy-galaxy { min-height: 360px; }.policy-galaxy svg { height: 336px; }
+  .atlas-stage-body, .atlas-registry-wrap { min-height: 360px; height: 360px; }.policy-galaxy { min-height: 360px; }.policy-galaxy svg { height: 336px; }.galaxy-speeds button { min-width: 27px; }.galaxy-zoom { padding-left: 5px; }.galaxy-zoom span { display: none; }.galaxy-zoom { grid-template-columns: minmax(54px,1fr) 30px; }.galaxy-reset-view { display: none; }
   .atlas-stage-footer span:nth-child(2) { display: none; }
   .atlas-quick-links { grid-template-columns: 1fr; }.atlas-quick-links > a { min-height: 165px; }
 }
