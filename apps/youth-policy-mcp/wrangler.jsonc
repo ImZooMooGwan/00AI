@@ -21,8 +21,15 @@
     "MCP_ALLOWED_HOSTS": "mcp.00ai.kr,localhost,127.0.0.1",
     "MCP_ALLOWED_ORIGINS": "https://mcp.00ai.kr,http://localhost:5173,http://localhost:6274",
     "SYNC_CRON_KST": "30 3 * * *",
+    "POLICY_STORAGE_BACKEND": "d1",
     "TZ": "Asia/Seoul"
   },
+  "kv_namespaces": [
+    {
+      "binding": "POLICY_STORE",
+      "id": "00000000000000000000000000000000"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

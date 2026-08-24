@@ -1,4 +1,4 @@
-import { D1PolicyRepository } from "../db/d1-repository";
+import { createPolicyRepository } from "../db/repository";
 import { DomainError, type SyncSummary } from "../domain/types";
 import type { RuntimeEnv } from "../env";
 import { normalizeYouthPolicy } from "./normalize";
@@ -20,7 +20,7 @@ function safeErrorSummary(error: unknown): string {
 }
 
 export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSummary> {
-  const repository = new D1PolicyRepository(env.DB);
+  const repository = createPolicyRepository(env);
   const startedAt = new Date().toISOString();
   const id = await repository.startSync(SOURCE, startedAt);
   const base = {

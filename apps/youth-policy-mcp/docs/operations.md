@@ -2,7 +2,7 @@
 
 ## 일일 확인
 
-1. `/youth/health`의 `database.connected`, `last_sync_at`, `last_sync_status`를 봅니다.
+1. `/youth/health`의 `database.connected`, `storage_backend`, `last_sync_at`, `last_sync_status`를 봅니다.
 2. Workers Logs에서 `youth_policy_sync` 구조화 이벤트를 확인합니다.
 3. `failed` 또는 `partial`이면 `sync_runs.error_summary`의 안정적인 오류 코드를 확인합니다.
 
@@ -11,7 +11,7 @@
 - `YOUTH_POLICY_API_KEY` 미설정: 동기화가 `skipped`입니다. Secret을 설정하고 수동 동기화를 실행합니다.
 - `UPSTREAM_SCHEMA_MISMATCH`: 원문을 정책으로 저장하지 않습니다. 공식 응답 변경을 확인하고 버전별 파서를 추가합니다.
 - `UPSTREAM_TEMPORARY_ERROR`: 자동 재시도 후 실패합니다. 원천 상태를 확인하고 수동 재실행합니다.
-- DB 연결 실패: D1 binding 이름 `DB`, database ID, 원격 마이그레이션 적용 여부를 확인합니다.
+- 저장소 연결 실패: 운영 환경은 KV binding `POLICY_STORE`와 namespace ID, 로컬·테스트 환경은 D1 binding `DB`와 마이그레이션 적용 여부를 확인합니다.
 - MCP 403: `MCP_ALLOWED_HOSTS`, `MCP_ALLOWED_ORIGINS`와 Custom Domain을 확인합니다.
 - MCP 429: 요청 주체별 60초 제한을 확인하고 필요할 때 binding 한도를 조정합니다.
 

@@ -3,7 +3,10 @@
  * present in wrangler.jsonc, so they are added as an intersection without
  * re-declaring any platform binding.
  */
-export type RuntimeEnv = Env & {
+export type RuntimeEnv = Omit<Env, "DB" | "POLICY_STORE" | "POLICY_STORAGE_BACKEND"> & {
+  readonly DB?: D1Database;
+  readonly POLICY_STORE?: KVNamespace;
+  readonly POLICY_STORAGE_BACKEND?: "d1" | "kv";
   readonly YOUTH_POLICY_API_KEY?: string;
   readonly YOUTH_POLICY_LEGACY_ENABLED?: string;
   readonly LAW_API_OC?: string;

@@ -5,14 +5,14 @@
 - 목표 MCP 엔드포인트: `https://mcp.00ai.kr/youth`
 - 헬스체크: `https://mcp.00ai.kr/youth/health`
 - 전송 방식: stateless Streamable HTTP
-- 런타임: TypeScript + Cloudflare Workers + D1
+- 런타임: TypeScript + Cloudflare Workers + Workers KV (운영) / D1 (로컬·테스트)
 - 정상 정책 질의 중 LLM API 호출: 없음
 
 ## 구조
 
 ```text
 온통청년 API ─┐
-국가법령 API ─┼─ ingestion/validation/normalization ─ D1 + versions/evidence
+국가법령 API ─┼─ ingestion/validation/normalization ─ KV snapshots + versions/evidence
 공식 공고 ────┘                                      │
                                                        ▼
                                        deterministic domain service
@@ -24,7 +24,7 @@
 KOSIS MCP ── 별도 통계 계층 (도구를 이 서버에 복제하지 않음)
 ```
 
-MCP 핸들러는 `YouthPolicyService`를 호출하는 얇은 어댑터입니다. 저장소 인터페이스는 D1 구현과 테스트용 메모리 구현을 분리합니다. 공개 서버는 테스트 데이터를 실데이터 폴백으로 반환하지 않습니다.
+MCP 핸들러는 `YouthPolicyService`를 호출하는 얇은 어댑터입니다. 저장소 인터페이스는 운영 KV, 로컬 D1, 테스트용 메모리 구현을 분리합니다. KV 동기화는 새 스냅샷 청크를 모두 쓴 뒤 루트 포인터를 교체하며 직전 세대를 전파 지연용 폴백으로 유지합니다. 공개 서버는 테스트 데이터를 실데이터 폴백으로 반환하지 않습니다.
 
 ## MCP 도구
 
@@ -53,13 +53,13 @@ npm run dev
 
 로컬 MCP 주소는 `http://localhost:8787/youth`, 헬스체크는 `http://localhost:8787/youth/health`입니다. 실제 API 키 없이도 서버, 테스트, 빌드가 동작하며 동기화만 `skipped`로 기록됩니다.
 
-## 데이터베이스 마이그레이션
+## 로컬 데이터베이스 마이그레이션
 
 ```bash
 # 로컬 D1
 npm run db:migrate:local
 
-# 실제 D1 database_id를 wrangler.jsonc에 설정한 뒤 원격 적용
+# D1 권한이 있는 별도 환경에서만 원격 적용
 npm run db:migrate:remote
 ```
 
@@ -84,7 +84,7 @@ npx wrangler secret put SYNC_SECRET
 - `KOSIS_MCP_URL`: 별도 국가통계 MCP 주소
 - `MCP_PUBLIC_BASE_URL`: 공개 MCP 기준 URL
 
-`wrangler.jsonc`의 D1 `database_id`는 실제 생성 결과로 교체해야 합니다. `.env.example`에는 실제 비밀값이 없습니다.
+운영 배포 워크플로는 `00ai-youth-policy` KV namespace를 생성하거나 재사용하고 배포 전용 설정을 자동 생성합니다. Git에 있는 KV·D1 ID는 로컬 검증용 placeholder이며 `.env.example`에는 실제 비밀값이 없습니다.
 
 ## 동기화
 
@@ -105,7 +105,7 @@ npm test
 npm run build
 ```
 
-테스트는 실제 API 키나 외부 네트워크를 사용하지 않습니다. JSON/XML 파싱, 날짜·지역, 자격 판정, 변경 감지, D1 버전 보존, MCP 초기화·도구 목록, HTTP 보안을 Workerd에서 검증합니다.
+테스트는 실제 API 키나 외부 네트워크를 사용하지 않습니다. JSON/XML 파싱, 날짜·지역, 자격 판정, 변경 감지, D1·KV 버전 보존, MCP 초기화·도구 목록, HTTP 보안을 Workerd에서 검증합니다.
 
 ## MCP 연결 예시
 
@@ -126,12 +126,10 @@ MCP Inspector에서 `http://localhost:8787/youth` 또는 배포 후 `https://mcp
 
 ## 배포
 
-1. Cloudflare에 D1 데이터베이스를 생성합니다.
-2. `wrangler.jsonc`의 placeholder `database_id`를 교체합니다.
-3. 원격 마이그레이션과 세 가지 Secret 설정을 완료합니다.
-4. `npm run deploy`로 Worker를 배포합니다.
-5. `mcp.00ai.kr` Custom Domain을 Worker에 연결합니다.
-6. `/youth/health`와 MCP Inspector로 검증합니다.
+1. GitHub Actions에 Workers·KV·DNS 권한이 있는 Cloudflare API Token을 설정합니다.
+2. 온통청년·법령 API와 수동 동기화 Secret을 설정합니다.
+3. `main` 반영 시 워크플로가 KV namespace 생성, Worker 배포와 Custom Domain 연결을 수행합니다.
+4. 워크플로가 `/youth/health`, MCP 초기화와 6개 도구 목록을 실호출로 검증합니다.
 
 세부 절차와 롤백은 [docs/deployment.md](docs/deployment.md), 일상 운영은 [docs/operations.md](docs/operations.md)를 참고하세요.
 
@@ -145,4 +143,4 @@ MCP Inspector에서 `http://localhost:8787/youth` 또는 배포 후 `https://mcp
 
 ## 장애 대응
 
-먼저 `/youth/health`의 DB 연결과 마지막 동기화 상태를 확인하고 Workers Logs에서 구조화 이벤트를 조회합니다. 외부 API 오류에는 인증키나 원시 응답을 기록하지 않습니다. 복구 순서는 [docs/operations.md](docs/operations.md)에 정리되어 있습니다.
+먼저 `/youth/health`의 저장소 연결·`storage_backend`·마지막 동기화 상태를 확인하고 Workers Logs에서 구조화 이벤트를 조회합니다. 외부 API 오류에는 인증키나 원시 응답을 기록하지 않습니다. 복구 순서는 [docs/operations.md](docs/operations.md)에 정리되어 있습니다.

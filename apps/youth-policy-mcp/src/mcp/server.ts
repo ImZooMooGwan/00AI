@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
-import { D1PolicyRepository } from "../db/d1-repository";
+import { createPolicyRepository } from "../db/repository";
 import { currentKoreanDate } from "../domain/date";
 import { YouthPolicyService } from "../domain/service";
 import { DomainError } from "../domain/types";
@@ -132,7 +132,7 @@ export function createYouthPolicyMcpServer(env: RuntimeEnv): McpServer {
         "대한민국 청년정책을 검색·비교하고 자격조건, 변경이력, 공식 근거를 확인합니다. 통계는 KOSIS MCP를 별도로 사용하세요.",
     },
   );
-  const service = new YouthPolicyService(new D1PolicyRepository(env.DB));
+  const service = new YouthPolicyService(createPolicyRepository(env));
 
   server.registerTool(
     "search_youth_policies",

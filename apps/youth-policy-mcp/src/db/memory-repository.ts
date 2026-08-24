@@ -31,10 +31,17 @@ export class MemoryPolicyRepository implements PolicyRepository {
   }
 
   async search(criteria: SearchCriteria): Promise<SearchPage> {
-    const query = criteria.query ? normalizeSearchText(criteria.query) : null;
+    const queryTokens = (criteria.query ?? "")
+      .split(/\s+/)
+      .map(normalizeSearchText)
+      .filter(Boolean)
+      .slice(0, 8);
     const filtered = [...this.bundles.values()]
       .filter(({ policy }) => !policy.isMock && policy.currentStatus === "active")
-      .filter(({ policy }) => !query || policySearchText(policy).includes(query))
+      .filter(({ policy }) => {
+        const searchText = policySearchText(policy);
+        return queryTokens.every((token) => searchText.includes(token));
+      })
       .filter(
         ({ policy }) =>
           !criteria.regionCodes || regionMatches(policy.regionCodes, criteria.regionCodes),
@@ -110,35 +117,55 @@ export class MemoryPolicyRepository implements PolicyRepository {
   }
 
   async upsertPolicy(input: UpsertPolicyInput, observedAt: string): Promise<UpsertPolicyResult> {
-    const existing = this.bundles.get(input.policy.id);
+    const existing =
+      this.bundles.get(input.policy.id) ??
+      [...this.bundles.values()].find(
+        ({ policy }) =>
+          policy.source === input.policy.source &&
+          policy.sourcePolicyId === input.policy.sourcePolicyId,
+      );
     if (existing?.policy.sourceHash === input.policy.sourceHash) {
       existing.policy.collectedAt = observedAt;
       existing.policy.lastSeenAt = observedAt;
       existing.policy.missingCount = 0;
+      existing.policy.currentStatus = "active";
       return { state: "unchanged", changes: [] };
     }
 
-    const changes = existing ? diffPolicies(existing.policy, input.policy) : [];
-    const currentVersions = this.versions.get(input.policy.id) ?? [];
+    const policy = existing
+      ? {
+          ...input.policy,
+          id: existing.policy.id,
+          firstSeenAt: existing.policy.firstSeenAt,
+        }
+      : input.policy;
+    const changes = existing ? diffPolicies(existing.policy, policy) : [];
+    const currentVersions = this.versions.get(policy.id) ?? [];
     if (currentVersions.length > 0) currentVersions[currentVersions.length - 1]!.validTo = observedAt;
     currentVersions.push({
-      id: `${input.policy.id}:v${currentVersions.length + 1}`,
-      policyId: input.policy.id,
+      id: `${policy.id}:v${currentVersions.length + 1}`,
+      policyId: policy.id,
       version: currentVersions.length + 1,
       validFrom: observedAt,
       validTo: null,
-      normalizedData: structuredClone(input.policy),
+      normalizedData: structuredClone(policy),
       rawResponse: structuredClone(input.rawResponse),
       diff: structuredClone(changes),
-      sourceHash: input.policy.sourceHash,
+      sourceHash: policy.sourceHash,
       createdAt: observedAt,
     });
-    this.versions.set(input.policy.id, currentVersions);
-    this.bundles.set(input.policy.id, {
-      policy: structuredClone(input.policy),
-      conditions: structuredClone(input.conditions),
-      evidence: structuredClone(input.evidence),
-      legalBases: structuredClone(input.legalBases),
+    this.versions.set(policy.id, currentVersions);
+    this.bundles.set(policy.id, {
+      policy: structuredClone(policy),
+      conditions: structuredClone(
+        input.conditions.map((condition) => ({ ...condition, policyId: policy.id })),
+      ),
+      evidence: structuredClone(
+        input.evidence.map((item) => ({ ...item, policyId: policy.id })),
+      ),
+      legalBases: structuredClone(
+        input.legalBases.map((basis) => ({ ...basis, policyId: policy.id })),
+      ),
     });
     return { state: existing ? "updated" : "new", changes };
   }

@@ -1,6 +1,6 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 
-import { D1PolicyRepository } from "./db/d1-repository";
+import { createPolicyRepository, policyStorageBackend } from "./db/repository";
 import { TOOL_NAMES } from "./domain/types";
 import type { RuntimeEnv } from "./env";
 import { synchronizeYouthPolicies } from "./ingestion/sync";
@@ -142,7 +142,8 @@ async function secureEquals(left: string, right: string): Promise<boolean> {
 }
 
 async function health(env: RuntimeEnv): Promise<Response> {
-  const state = await new D1PolicyRepository(env.DB).health();
+  const state = await createPolicyRepository(env).health();
+  const backend = policyStorageBackend(env);
   return json(
     {
       ok: state.connected,
@@ -150,7 +151,8 @@ async function health(env: RuntimeEnv): Promise<Response> {
       version: youthPolicyMcpVersion,
       protocol: "Streamable HTTP",
       tools: TOOL_NAMES.length,
-      database: { connected: state.connected, policy_count: state.policyCount },
+      database: { connected: state.connected, policy_count: state.policyCount, backend },
+      storage_backend: backend,
       last_sync_at: state.lastSync?.finishedAt ?? state.lastSync?.startedAt ?? null,
       last_sync_status: state.lastSync?.status ?? null,
       timestamp: new Date().toISOString(),

@@ -2,25 +2,24 @@
 
 ## 사전 준비
 
-Cloudflare Workers, D1, Custom Domain을 관리할 권한과 온통청년·국가법령정보 API 인증값이 필요합니다.
+Cloudflare Workers, Workers KV, Custom Domain을 관리할 권한과 온통청년·국가법령정보 API 인증값이 필요합니다.
 
 `main`에 변경이 반영되면 GitHub Actions가 저장소의 Cloudflare API Token을
-사용해 D1 생성·마이그레이션·Worker 배포·`mcp.00ai.kr` 연결·MCP 프로토콜
-검증을 자동 수행합니다. D1은 `00ai-youth-policy`라는 고정 이름으로 재사용하므로
+사용해 KV namespace 생성·Worker 배포·`mcp.00ai.kr` 연결·MCP 프로토콜
+검증을 자동 수행합니다. KV namespace는 `00ai-youth-policy`라는 고정 이름으로 재사용하므로
 재배포해도 기존 정책 데이터가 유지됩니다.
 
 ```bash
 cd apps/youth-policy-mcp
 npm ci
-npx wrangler d1 create 00ai-youth-policy
+npx wrangler kv namespace create 00ai-youth-policy --binding POLICY_STORE
 ```
 
-출력된 `database_id`로 `wrangler.jsonc`의 placeholder UUID를 교체합니다.
+수동 배포일 때만 출력된 namespace ID로 `wrangler.jsonc`의 placeholder를 교체하고 `POLICY_STORAGE_BACKEND`를 `kv`로 설정합니다. GitHub Actions는 이 배포 전용 설정을 자동 생성합니다.
 
-## 마이그레이션과 Secret
+## Secret
 
 ```bash
-npm run db:migrate:remote
 npx wrangler secret put YOUTH_POLICY_API_KEY
 npx wrangler secret put LAW_API_OC
 npx wrangler secret put SYNC_SECRET
@@ -52,10 +51,10 @@ Cloudflare Cron은 UTC이므로 `30 18 * * *`가 한국시간 03:30입니다. Gi
 
 ## 롤백
 
-Workers 배포 이력에서 직전 버전으로 롤백합니다. 마이그레이션은 기존 테이블·데이터를 제거하지 않습니다. 스키마 롤백이 필요하면 별도 전진 마이그레이션을 작성하고 운영 데이터에 `DROP`이나 초기화를 직접 실행하지 않습니다.
+Workers 배포 이력에서 직전 버전으로 롤백합니다. KV는 현재와 직전의 불변 스냅샷을 유지하므로 새 스냅샷 전파 중에는 자동으로 직전 세대를 읽습니다. 데이터 포맷 롤백이 필요하면 새 세대를 발행하고 운영 namespace를 직접 초기화하지 않습니다.
 
 ## 현재 외부 블로커
 
 Cloudflare API Token이 없으면 자동 배포할 수 없습니다. 온통청년·법령 API Secret이
-없어도 MCP 서버와 빈 D1은 배포되지만 실데이터 동기화는 건너뜁니다. 세 API Secret은
+없어도 MCP 서버와 빈 KV 저장소는 배포되지만 실데이터 동기화는 건너뜁니다. 세 API Secret은
 GitHub Actions Secret 또는 `wrangler secret put`으로만 설정합니다.

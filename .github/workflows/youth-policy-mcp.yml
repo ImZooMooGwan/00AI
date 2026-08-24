@@ -110,39 +110,42 @@ jobs:
           echo "CLOUDFLARE_API_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
 
-      - name: Provision the D1 database and production config
+      - name: Provision the KV namespace and production config
         shell: bash
         run: |
           set -euo pipefail
-          database_name="00ai-youth-policy"
+          namespace_title="00ai-youth-policy"
 
-          find_database_id() {
-            ./node_modules/.bin/wrangler d1 list --json \
-              | jq -r --arg name "$database_name" \
-                '(if type == "array" then .[] else .result[]? end)
-                | select(.name == $name)
-                | (.uuid // .id // empty)' \
+          find_namespace_id() {
+            curl -fsS -G \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              --data-urlencode "per_page=100" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+              | jq -r --arg title "$namespace_title" \
+                '.result[]? | select(.title == $title) | .id' \
               | head -n 1
           }
 
-          database_id="$(find_database_id)"
-          if [[ -z "$database_id" ]]; then
-            ./node_modules/.bin/wrangler d1 create "$database_name" --location apac
-            database_id="$(find_database_id)"
+          namespace_id="$(find_namespace_id)"
+          if [[ -z "$namespace_id" ]]; then
+            response="$(curl -fsS \
+              -X POST \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$(jq -cn --arg title "$namespace_title" '{title: $title}')" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces")"
+            namespace_id="$(jq -r '.result.id // empty' <<<"$response")"
           fi
-          if [[ -z "$database_id" ]]; then
-            echo "D1 database provisioning did not return an ID." >&2
+          if [[ -z "$namespace_id" ]]; then
+            echo "KV namespace provisioning did not return an ID." >&2
             exit 1
           fi
 
-          jq --arg database_id "$database_id" \
-            '.d1_databases[0].database_id = $database_id' \
+          jq --arg namespace_id "$namespace_id" \
+            'del(.d1_databases)
+             | .kv_namespaces[0].id = $namespace_id
+             | .vars.POLICY_STORAGE_BACKEND = "kv"' \
             wrangler.jsonc > wrangler.deploy.jsonc
-
-      - name: Apply D1 migrations
-        run: >-
-          ./node_modules/.bin/wrangler d1 migrations apply 00ai-youth-policy
-          --remote --config wrangler.deploy.jsonc
 
       - name: Deploy the MCP Worker and custom domain
         run: >-
@@ -176,7 +179,7 @@ jobs:
           healthy=false
           for _ in $(seq 1 12); do
             if body="$(curl -fsS --max-time 20 "$health" 2>/dev/null)" \
-              && jq -e '.ok == true and .database.connected == true and .tools == 6' \
+              && jq -e '.ok == true and .database.connected == true and .storage_backend == "kv" and .tools == 6' \
                 <<<"$body" >/dev/null; then
               healthy=true
               break

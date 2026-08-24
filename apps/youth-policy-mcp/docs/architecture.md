@@ -18,7 +18,7 @@ official sources
 
 ## 런타임
 
-Worker는 요청마다 새 MCP 서버 팩토리를 구성하는 stateless Streamable HTTP 방식입니다. 사용자 세션이나 프로필을 전역 상태에 저장하지 않습니다. D1과 Rate Limiting API는 네트워크 REST 대신 Worker binding으로 호출합니다.
+Worker는 요청마다 새 MCP 서버 팩토리를 구성하는 stateless Streamable HTTP 방식입니다. 사용자 세션이나 프로필을 전역 상태에 저장하지 않습니다. 운영 KV와 Rate Limiting API는 네트워크 REST 대신 Worker binding으로 호출합니다. KV 쓰기는 세대별 불변 청크를 먼저 저장하고 작은 루트 포인터를 마지막에 교체하며, 읽기는 전파 지연 시 직전 세대 descriptor로 폴백합니다. D1 구현은 로컬·회귀 테스트에 유지됩니다.
 
 ## 통계 분리
 
