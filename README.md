@@ -16,6 +16,8 @@ Y-HUB는 중앙정부와 지방정부의 청년정책을 정책 패밀리, 프�
 - CSV·JSON 다운로드, RSS 피드, Open API v1
 - Cloudflare D1 영속 저장, 수집 실행이력, 원문 해시와 변경 후보 보존
 - 온통청년·KOSIS·국가법령정보 서버 수집기와 운영 상태 화면
+- GitHub `apps/youth-policy-mcp`의 6개 읽기 전용 도구를 사용하는 Streamable HTTP 클라이언트
+- MCP 장애 시 D1 공식 수집 레코드, 다시 검증 스냅샷으로 자동 전환
 - 데이터·출처·그래프·기준일 검증 스크립트
 - 인메모리 SQLite로 D1 마이그레이션·삽입·무변경·변경감지 검증
 - 모바일, 키보드 탐색, 고대비·동작 줄이기 대응
@@ -76,6 +78,7 @@ GET /api/v1/verification-issues
 GET /api/v1/graph
 GET /api/v1/datasets
 GET /api/v1/live-policies
+GET /api/v1/mcp/status
 GET /api/v1/collection-status
 GET /api/openapi
 ```
@@ -84,7 +87,7 @@ GET /api/openapi
 
 ## 공식 데이터 연동
 
-검증 스냅샷은 안정적인 공개 기준선으로 유지하고, 공식 API 응답은 D1에 별도 영속 저장합니다. 같은 원천 레코드의 해시가 달라지면 자동으로 변경 후보가 생성됩니다.
+검증 스냅샷은 안정적인 공개 기준선으로 유지하고, 공식 API 응답은 D1에 별도 영속 저장합니다. 같은 원천 레코드의 해시가 달라지면 자동으로 변경 후보가 생성됩니다. 실시간 정책 검색은 `YOUTH_POLICY_MCP_URL`의 청년정책 MCP를 우선 사용하고, 실패하면 이 D1 계층과 검증 스냅샷 순으로 전환합니다.
 
 ```bash
 cp .env.example .env.local

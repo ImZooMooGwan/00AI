@@ -2,6 +2,7 @@
 
 ## 우선순위 높음
 
+- `mcp.00ai.kr/youth` Cloudflare Worker·D1·Custom Domain 활성화 및 6개 도구 운영 헬스체크 복구
 - 온통청년 Open API 운영 키 신청·승인
 - KOSIS 운영 키와 12개 지표의 수치조회용 통계표·분류·항목 코드 확정
 - 국가법령정보 공동활용 운영 OC 발급과 자치법규 조문 연결

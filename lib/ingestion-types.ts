@@ -16,6 +16,8 @@ export interface RuntimeEnvironment {
   KOSIS_API_KEY?: string;
   LAW_OPEN_API_KEY?: string;
   LAW_OC?: string;
+  YOUTH_POLICY_MCP_URL?: string;
+  YOUTH_POLICY_MCP_TIMEOUT_MS?: string;
   SYNC_SECRET?: string;
   COLLECTION_INTERVAL_MINUTES?: string;
   [key: string]: unknown;
@@ -76,4 +78,3 @@ export interface IngestionStatus {
   observationCount: number;
   connectors: ConnectorStatusView[];
 }
-

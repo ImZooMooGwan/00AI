@@ -184,7 +184,7 @@ export function IndicatorStatus() {
 }
 
 export function SourceMarquee() {
-  const names = ["온통청년", "KOSIS", "국가법령정보센터", "대전청년포털", "공공데이터포털", "지방재정365"];
+  const names = ["청년정책 MCP", "온통청년", "KOSIS", "국가법령정보센터", "대전청년포털", "공공데이터포털", "지방재정365"];
   return <div className="source-marquee" aria-label="연결 대상 공식 출처"><span>CONNECTED SOURCES</span>{names.map((name) => <b key={name}>{name}<i /></b>)}</div>;
 }
 

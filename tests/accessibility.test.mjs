@@ -22,6 +22,8 @@ test("root exposes Korean language, skip navigation, landmark and accessible pol
   assert.match(body, /aria-labelledby="atlas-graph-title atlas-graph-desc"/);
   assert.match(body, /대한민국 청년정책 은하 관계지도/);
   assert.match(body, /드래그로 회전하고 휠이나 손가락으로 확대/);
+  assert.match(body, /aria-live="polite"/);
+  assert.match(body, /청년정책 MCP 연결/);
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /prefers-reduced-motion/);
 });

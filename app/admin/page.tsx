@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { McpConnectionCard } from "@/components/McpConnectionCard";
 import { SyncControl } from "@/components/SyncControl";
 import { SubpageFrame } from "@/components/SubpageFrame";
 import {
@@ -54,6 +55,8 @@ export default async function AdminPage() {
           <span>온통청년·KOSIS·국가법령정보에서 발급한 키를 배포 환경에 등록하면 코드 변경 없이 수집이 시작됩니다. D1 저장과 변경감지 구조는 활성화되어 있습니다.</span>
         </div>
       ) : null}
+
+      <McpConnectionCard variant="ops" />
 
       <section className="ingestion-panel" aria-labelledby="connector-title">
         <header>

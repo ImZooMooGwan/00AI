@@ -9,6 +9,7 @@ import {
   SourceMarquee,
 } from "@/components/DashboardVisuals";
 import { DataStamp } from "@/components/DataStamp";
+import { McpConnectionCard } from "@/components/McpConnectionCard";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { YouthPolicyAtlas } from "@/components/YouthPolicyAtlas";
@@ -64,6 +65,7 @@ export default function Home() {
         </section>
 
         <div className="shell"><SourceMarquee /></div>
+        <div className="shell"><McpConnectionCard /></div>
 
         <section className="pulse-section shell" aria-labelledby="pulse-heading">
           <div className="section-heading split-heading">
