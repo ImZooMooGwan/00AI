@@ -8,16 +8,18 @@ const { default: worker } = await import(workerUrl.href);
 const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
 const ctx = { waitUntil() {}, passThroughOnException() {} };
 
-test("renders the Y-HUB dashboard with production metadata", async () => {
+test("renders the immersive Y-HUB policy galaxy with production metadata", async () => {
   const response = await worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), env, ctx);
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /청년정책데이터허브 Y-HUB/);
-  assert.match(html, /YOUTH POLICY ATLAS/);
-  assert.match(html, /대한민국 청년정책 지도/);
-  assert.match(html, /aria-label="은하 움직임 제어"/);
+  assert.match(html, /청년정책 은하/);
+  assert.match(html, /Y-HUB 온톨로지/);
+  assert.match(html, /분야는 행성/);
+  assert.match(html, /aria-label="정책 은하 움직임 제어"/);
   assert.match(html, /자동 공전 일시 정지/);
+  assert.match(html, /aria-label="정책 변화 연대기"/);
   assert.doesNotMatch(html, /codex-preview/);
 });
 
