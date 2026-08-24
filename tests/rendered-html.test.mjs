@@ -68,6 +68,16 @@ test("falls back to the verified snapshot when MCP and D1 are unavailable", asyn
   assert.equal(payload.meta.provider, "verified-snapshot");
   assert.equal(payload.meta.fallbackUsed, true);
   assert.ok(payload.data.length >= 30);
+
+  const filteredResponse = await worker.fetch(
+    new Request("http://localhost/api/v1/live-policies?q=%EC%A3%BC%EA%B1%B0&limit=3"),
+    env,
+    ctx,
+  );
+  const filtered = await filteredResponse.json();
+  assert.equal(filtered.meta.provider, "verified-snapshot");
+  assert.equal(filtered.data.length, 3);
+  assert.ok(filtered.data.every((record) => JSON.stringify(record).includes("주거")));
 });
 
 test("uses the GitHub youth-policy MCP contract when the remote server is healthy", async () => {

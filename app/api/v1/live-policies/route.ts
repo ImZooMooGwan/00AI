@@ -126,13 +126,13 @@ export async function GET(request: Request) {
   const status = await getIngestionStatus(runtime);
   const d1Records =
     status.storage === "d1"
-      ? await getExternalRecords("policy", limit, runtime)
+      ? await getExternalRecords("policy", query ? 500 : limit, runtime)
       : [];
   const fallbackRecords = d1Records.length
     ? d1Records
-    : verifiedSnapshotRecords(limit);
+    : verifiedSnapshotRecords();
   const normalizedQuery = query?.toLowerCase();
-  const filtered = normalizedQuery
+  const matchingRecords = normalizedQuery
     ? fallbackRecords.filter((record) =>
         [
           record.title,
@@ -147,6 +147,7 @@ export async function GET(request: Request) {
           .includes(normalizedQuery),
       )
     : fallbackRecords;
+  const filtered = matchingRecords.slice(0, limit);
   const provider = d1Records.length
     ? "d1-official-connectors"
     : "verified-snapshot";
@@ -180,9 +181,9 @@ export async function GET(request: Request) {
   );
 }
 
-function verifiedSnapshotRecords(limit: number) {
+function verifiedSnapshotRecords() {
   const sourceById = new Map(sources.map((source) => [source.id, source]));
-  return policies.slice(0, limit).map((policy) => {
+  return policies.map((policy) => {
     const source = sourceById.get(policy.sourceId);
     return {
       id: policy.id,
