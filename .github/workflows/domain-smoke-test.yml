@@ -9,20 +9,23 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify-domains:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - uses: actions/checkout@v4
+
       - name: Wait for deployment and DNS
         run: sleep 90
 
-      - name: Verify 00AI domains
+      - name: Verify 00AI domains and write status
+        id: check
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
           domains=(
             "00ai.kr"
             "harness.00ai.kr"
@@ -33,14 +36,57 @@ jobs:
             "drop.00ai.kr"
           )
 
+          mkdir -p .github
+          tmp="$(mktemp)"
+          ok=true
+          printf '{\n  "checked_at": "%s",\n  "commit": "%s",\n  "domains": {\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_SHA" > "$tmp"
+
+          first=true
           for domain in "${domains[@]}"; do
             echo "=== ${domain} ==="
-            getent ahosts "$domain" | head -n 3
-            code="$(curl --location --silent --show-error --output /dev/null \
-              --write-out '%{http_code}' --max-time 25 "https://${domain}/")"
-            echo "HTTP ${code}"
-            if [[ "$code" -lt 200 || "$code" -ge 500 ]]; then
-              echo "${domain} failed with HTTP ${code}" >&2
-              exit 1
+            resolved=false
+            if getent ahosts "$domain" >/tmp/hosts 2>/dev/null; then
+              resolved=true
+              head -n 3 /tmp/hosts || true
             fi
+
+            code="000"
+            if [[ "$resolved" == "true" ]]; then
+              code="$(curl --location --silent --show-error --output /dev/null \
+                --write-out '%{http_code}' --max-time 25 "https://${domain}/" || true)"
+            fi
+            echo "resolved=${resolved} HTTP=${code}"
+
+            healthy=false
+            if [[ "$resolved" == "true" && "$code" =~ ^[0-9]{3}$ && "$code" -ge 200 && "$code" -lt 500 ]]; then
+              healthy=true
+            else
+              ok=false
+            fi
+
+            if [[ "$first" != "true" ]]; then printf ',\n' >> "$tmp"; fi
+            first=false
+            printf '    "%s": {"resolved": %s, "http": "%s", "healthy": %s}' \
+              "$domain" "$resolved" "$code" "$healthy" >> "$tmp"
           done
+
+          printf '\n  },\n  "healthy": %s\n}\n' "$ok" >> "$tmp"
+          mv "$tmp" .github/domain-health.json
+          echo "healthy=$ok" >> "$GITHUB_OUTPUT"
+          cat .github/domain-health.json
+
+      - name: Persist domain health result
+        shell: bash
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/domain-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update domain health [skip ci]"
+            git push
+          fi
+
+      - name: Fail if any domain is unhealthy
+        if: steps.check.outputs.healthy != 'true'
+        run: exit 1
