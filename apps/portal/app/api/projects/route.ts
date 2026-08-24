@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import localSiteManifest from "../../data/public-sites.json";
 
 type ProjectEnv = {
   GITHUB_OWNER?: string;
@@ -41,6 +42,8 @@ type SiteManifestEntry = {
   name: string;
   description: string;
   public_url: string;
+  origin_url?: string;
+  aliases?: string[];
   category: string;
   maker: string;
   stack: string;
@@ -48,16 +51,9 @@ type SiteManifestEntry = {
   updated_at: string;
 };
 
-type GitHubContentResponse = {
-  content?: string;
-  encoding?: string;
-};
-
 const DEFAULT_GITHUB_OWNER = "ImZooMooGwan";
 const DEFAULT_EXCLUDED_REPOSITORIES = ["00ai", ".github"];
 const GITHUB_CACHE_SECONDS = 300;
-const SITE_MANIFEST_REPOSITORY = "ImZooMooGwan/00AI";
-const SITE_MANIFEST_PATH = "apps/portal/app/data/public-sites.json";
 const DROP_FUNCTION_URL =
   "https://jbxmjsezaaqarheyjjte.supabase.co/functions/v1/zeroai-drop";
 const SUPABASE_ANON_KEY =
@@ -193,70 +189,27 @@ async function loadGitHubProjects(runtime: ProjectEnv) {
   }
 }
 
-function decodeGitHubContent(content: string): string {
-  const bytes = Uint8Array.from(atob(content.replace(/\s/g, "")), (char) =>
-    char.charCodeAt(0),
-  );
-  return new TextDecoder().decode(bytes);
-}
+function loadSiteProjects() {
+  const projects = (localSiteManifest as SiteManifestEntry[])
+    .filter((project) => {
+      if (!project.id || !project.name || !project.public_url) return false;
+      return validHomepage(project.public_url) !== null;
+    })
+    .map((project) => ({
+      ...project,
+      public_url: validHomepage(project.public_url)!,
+    }));
 
-async function loadSiteProjects(runtime: ProjectEnv) {
-  const endpoint = new URL(
-    `https://api.github.com/repos/${SITE_MANIFEST_REPOSITORY}/contents/${SITE_MANIFEST_PATH}`,
-  );
-  endpoint.searchParams.set("ref", "main");
-
-  const headers = new Headers({
-    Accept: "application/vnd.github+json",
-    "User-Agent": "00ai-site-registry",
-    "X-GitHub-Api-Version": "2026-03-10",
-  });
-  if (runtime.GITHUB_TOKEN) {
-    headers.set("Authorization", `Bearer ${runtime.GITHUB_TOKEN}`);
-  }
-
-  try {
-    const requestInit: RequestInit & {
-      cf?: { cacheEverything: boolean; cacheTtl: number };
-    } = {
-      headers,
-      cf: { cacheEverything: true, cacheTtl: GITHUB_CACHE_SECONDS },
-    };
-    const response = await fetch(endpoint, requestInit);
-    if (!response.ok) throw new Error(`GitHub manifest API ${response.status}`);
-
-    const payload = (await response.json()) as GitHubContentResponse;
-    if (payload.encoding !== "base64" || !payload.content) {
-      throw new Error("GitHub manifest response is incomplete");
-    }
-
-    const manifest = JSON.parse(
-      decodeGitHubContent(payload.content),
-    ) as SiteManifestEntry[];
-    const projects = manifest
-      .filter((project) => {
-        if (!project.id || !project.name || !project.public_url) return false;
-        return validHomepage(project.public_url) !== null;
-      })
-      .map((project) => ({
-        ...project,
-        // The manifest keeps a working chatgpt.site URL until a custom domain is active.
-        public_url: validHomepage(project.public_url)!,
-      }));
-
-    return { projects, available: true };
-  } catch {
-    return { projects: [], available: false };
-  }
+  return { projects, available: true };
 }
 
 export async function GET() {
   const runtime = await readRuntimeEnv();
-  const [drop, github, sites] = await Promise.all([
+  const [drop, github] = await Promise.all([
     loadDropProjects(),
     loadGitHubProjects(runtime),
-    loadSiteProjects(runtime),
   ]);
+  const sites = loadSiteProjects();
 
   return NextResponse.json(
     {
@@ -283,8 +236,7 @@ export async function GET() {
     },
     {
       headers: {
-        "Cache-Control":
-          "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": "no-store",
       },
     },
   );
