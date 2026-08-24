@@ -3,7 +3,7 @@
     "id": "youth-policy-data-hub",
     "name": "청년정책데이터허브 Y-HUB",
     "description": "청년정책과 공공데이터를 한곳에서 탐색하고 분석하는 데이터 허브",
-    "public_url": "https://yhub.00ai.kr",
+    "public_url": "https://youth-policy-data-hub.00ai.kr",
     "origin_url": "https://youth-policy-data-hub.hayahoyeho.chatgpt.site",
     "aliases": [
       "yhub",
@@ -43,7 +43,7 @@
     "id": "public-ai-gov",
     "name": "00AI GOV — AI 정책상황실",
     "description": "공공데이터와 AI로 정책 검토와 행정 의사결정을 지원하는 상황실",
-    "public_url": "https://policy.00ai.kr",
+    "public_url": "https://public-ai-gov.00ai.kr",
     "origin_url": "https://public-ai-gov.hayahoyeho.chatgpt.site",
     "aliases": [
       "policy",
