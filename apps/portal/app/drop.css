@@ -1,6 +1,0 @@
-.project-input { display:grid; gap:7px; margin:2px 0 16px; font-size:12px; font-weight:700; color:#525965; }
-.project-input input { border:1px solid #dfe2e6; border-radius:3px; padding:12px; font:inherit; font-size:15px; color:#111318; background:#fff; }
-.deploy-message { margin:12px 0 0; padding:12px 14px; font-size:13px; line-height:1.5; border-radius:3px; }
-.deploy-message.uploading { background:#eef1ff; color:#2448cf; }
-.deploy-message.done { background:#eaf8f0; color:#147343; }
-.deploy-message.error { background:#fff0f0; color:#a12b2b; }

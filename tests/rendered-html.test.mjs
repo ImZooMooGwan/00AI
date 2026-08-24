@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+const { default: worker } = await import(workerUrl.href);
+
+const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+const ctx = { waitUntil() {}, passThroughOnException() {} };
+
+test("renders the Y-HUB dashboard with production metadata", async () => {
+  const response = await worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), env, ctx);
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.match(html, /청년정책데이터허브 Y-HUB/);
+  assert.match(html, /POLICY DATA PULSE/);
+  assert.doesNotMatch(html, /codex-preview/);
+});
+
+test("serves at least thirty policy records through Open API v1", async () => {
+  const response = await worker.fetch(new Request("http://localhost/api/v1/policies"), env, ctx);
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.meta.apiVersion, "v1");
+  assert.ok(payload.meta.recordCount >= 30);
+  assert.equal(payload.data.length, payload.meta.recordCount);
+});
+
+test("serves a standards-compatible RSS change feed", async () => {
+  const response = await worker.fetch(new Request("http://localhost/feed/changes"), env, ctx);
+  const body = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /application\/rss\+xml/);
+  assert.match(body, /<rss version="2.0">/);
+  assert.match(body, /Y-HUB 정책 변경 피드/);
+});

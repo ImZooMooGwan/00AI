@@ -1,54 +1,105 @@
-# 00AI Harness · Local-First Government AI
+# 청년정책데이터허브 Y-HUB
 
-행정망 안의 파일·문서·데이터·도구를 안전하게 연결하는 00AI Harness의 정적 프로토타입입니다.
+> AI로 시각화한 대한민국 청년정책  
+> 정책의 발표가 아니라, 정책의 변화를 기록합니다.
 
-이 버전은 별도 설치나 API 키 없이 실행됩니다.
+Y-HUB는 중앙정부와 지방정부의 청년정책을 정책 패밀리, 프로그램, 모집회차, 버전, 원천문서로 분리하고 변경 이력과 검증상태를 공개하는 정책 데이터 인프라입니다.
 
-## 핵심 원칙
+## 현재 MVP
 
-- 내부 데이터는 외부 생성형 AI로 전송하지 않습니다.
-- 외부 모델은 필요할 때 추론 계획만 제안하고, 실제 데이터 조회와 문서 처리는 내부 실행기가 담당합니다.
-- 모든 결과는 `FACT · CALCULATED · INFERRED · PROPOSED` 근거 유형으로 구분합니다.
-- API 키와 개인정보는 저장소에 넣지 않습니다.
+- 공식 출처가 연결된 중앙·지역 청년정책 32개
+- 정책 변경 이벤트 8개와 필드 단위 Diff
+- 청년지표 메타데이터 12개
+- 정책 Pulse, 변경 피드, 정책 레지스트리, 상세 9개 영역
+- 신청 스윔레인, 17개 시도 정책지도, 정책 관계망
+- 최대 3개 정책 비교, Research Lab, Newsroom, 공개 검증대장
+- CSV·JSON 다운로드, RSS 피드, Open API v1
+- 데이터·출처·그래프·기준일 검증 스크립트
+- 모바일, 키보드 탐색, 고대비·동작 줄이기 대응
 
-## 로컬 실행
+현재 데이터셋 `2026.08.24-mvp.1`은 개발 스냅샷입니다. 정책의 존재와 공식 출처 연결을 우선 확인했으며, 변동 가능한 신청기간·소득·자격은 반드시 공식 원문에서 최종 확인해야 합니다.
 
-1. 압축을 해제합니다.
-2. `index.html`을 브라우저로 엽니다.
-3. 또는 폴더에서 다음 명령으로 정적 서버를 실행합니다.
+## 실행
 
-```bash
-python -m http.server 4173
-```
-
-브라우저에서 `http://localhost:4173`을 엽니다.
-
-## GitHub 업로드
-
-압축 해제 후 해당 폴더에서 실행합니다.
+요구 환경: Node.js 22.13 이상
 
 ```bash
-git init
-git branch -M main
-git add .
-git commit -m "Build 00AI Harness local-first prototype"
-git remote add origin https://github.com/ImZooMooGwan/00AI.git
-git push -u origin main
+npm ci
+npm run dev
 ```
 
-기존 저장소에 파일이 이미 있다면 먼저 `git pull --rebase origin main`을 실행한 뒤 커밋하세요.
+주요 검증:
 
-## 배포
+```bash
+npm run validate:all
+npm run lint
+npm run typecheck
+npm test
+```
 
-- GitHub Pages: 저장소 Settings → Pages → `main` / root 선택
-- Netlify: `index.html`이 있는 폴더를 드래그 앤 드롭
-- Vercel: 프로젝트 Import 후 Framework Preset을 `Other`로 선택
+## 주요 화면
 
-## 화면 흐름
+| 경로 | 기능 |
+|---|---|
+| `/` | 정책 데이터 Pulse와 통합 대시보드 |
+| `/changes` | 변경 피드·검증필터·필드 Diff |
+| `/policies` | 상황·지역·분야·상태별 정책 탐색 |
+| `/policy/[slug]` | 정책 상세 9개 영역·신청 스윔레인 |
+| `/compare` | 최대 3개 정책 비교 |
+| `/indicators` | 청년지표 메타데이터 관측소 |
+| `/map` | 17개 시도 정책지도 |
+| `/graph` | 설명 가능한 정책 관계망 |
+| `/research` | 재현 가능한 추출·인용·다운로드 |
+| `/newsroom` | 검증 가능한 정책 변화 모니터 |
+| `/verification` | 공개 검증대장 |
+| `/downloads` | 버전 데이터 릴리스 |
+| `/api` | Open API v1 문서 |
+| `/admin` | 읽기 전용 검토화면 데모 |
 
-`RUN HARNESS`를 누르면 `Ready → Active`로 이동합니다. Active 화면의 `DRAFT RENDER` 단계를 누르면 `Verified` 결과 화면으로 이동합니다. `Ctrl/Cmd + K`로 상태 전환 명령 팔레트를 열 수 있습니다.
+## Open API
 
-## 다음 구현 단계
+```text
+GET /api/v1/policies
+GET /api/v1/policies/{id}
+GET /api/v1/programs
+GET /api/v1/rounds
+GET /api/v1/changes
+GET /api/v1/indicators
+GET /api/v1/regions
+GET /api/v1/organizations
+GET /api/v1/legal-bases
+GET /api/v1/sources
+GET /api/v1/verification-issues
+GET /api/v1/graph
+GET /api/v1/datasets
+GET /api/openapi
+```
 
-정적 데모의 상태 전환을 실제 내부 실행기로 교체할 때는 브라우저에 키를 넣지 말고, 행정망 내부 백엔드의 `/api/plan`, `/api/execute`, `/api/evidence` 같은 엔드포인트를 연결하세요.
+공통 응답에는 `apiVersion`, `datasetVersion`, `generatedAt`, `recordCount`, `sourceCount`, `license`, `nextCursor`가 포함됩니다.
+
+## 공식 데이터 연동
+
+현재 MVP는 API 키가 없을 때 검증된 스냅샷과 원천 메타데이터를 사용합니다.
+
+```bash
+cp .env.example .env.local
+```
+
+온통청년, KOSIS, 국가법령정보 공동활용 API는 각각 별도 신청·승인이 필요합니다. 키는 서버 환경변수로만 관리하고 브라우저에 노출하지 않습니다.
+
+## 문서
+
+- [아키텍처](docs/ARCHITECTURE.md)
+- [데이터 모델](docs/DATA_MODEL.md)
+- [공식 데이터 출처](docs/DATA_SOURCES.md)
+- [변경 감지](docs/CHANGE_DETECTION.md)
+- [검증 원칙](docs/VERIFICATION.md)
+- [방법론](docs/METHODOLOGY.md)
+- [배포](docs/DEPLOYMENT.md)
+- [결정 기록](docs/DECISIONS.md)
+- [미완료 과제](docs/OPEN_ISSUES.md)
+
+## 라이선스와 주의사항
+
+소스코드는 MIT License를 따릅니다. 공공데이터는 각 원천기관의 이용조건과 공공누리 유형을 우선 적용합니다. 이 저장소는 공식 정부 서비스가 아니며, Y-HUB의 AI 설명은 공식 원문을 대체하지 않습니다.
 
