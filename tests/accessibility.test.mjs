@@ -19,7 +19,8 @@ test("root exposes Korean language, skip navigation, landmark and accessible map
   assert.match(body, /<html[^>]+lang="ko"/);
   assert.match(body, /href="#main"[^>]*>본문 바로가기/);
   assert.match(body, /<main[^>]+id="main"/);
-  assert.match(body, /aria-label="17개 시도별 등록 정책 수 격자 지도"/);
+  assert.match(body, /aria-labelledby="atlas-graph-title atlas-graph-desc"/);
+  assert.match(body, /대한민국 청년정책 분야 관계지도/);
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /prefers-reduced-motion/);
 });

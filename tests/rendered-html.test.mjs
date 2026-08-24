@@ -14,7 +14,8 @@ test("renders the Y-HUB dashboard with production metadata", async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /청년정책데이터허브 Y-HUB/);
-  assert.match(html, /POLICY DATA PULSE/);
+  assert.match(html, /YOUTH POLICY ATLAS/);
+  assert.match(html, /대한민국 청년정책 지도/);
   assert.doesNotMatch(html, /codex-preview/);
 });
 
