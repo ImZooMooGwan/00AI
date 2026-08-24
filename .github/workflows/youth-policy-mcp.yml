@@ -173,27 +173,43 @@ jobs:
 
           rpc() {
             local payload="$1"
-            local headers body code
+            local headers body code parsed
             headers="$(mktemp)"
             body="$(mktemp)"
-            code="$(curl -sS --max-time 30 \
-              -D "$headers" -o "$body" -w '%{http_code}' \
-              -X POST "$endpoint" \
-              -H 'Content-Type: application/json' \
-              -H 'Accept: application/json, text/event-stream' \
-              -H 'MCP-Protocol-Version: 2025-06-18' \
-              --data "$payload")"
-            if [[ "$code" != "200" ]]; then
-              cat "$body" >&2
-              rm -f "$headers" "$body"
-              return 1
-            fi
-            if grep -qi '^content-type:.*text/event-stream' "$headers"; then
-              awk '/^data:/ { sub(/^data:[[:space:]]*/, ""); print; exit }' "$body"
-            else
-              cat "$body"
-            fi
+
+            # Worker Routes propagate independently across Cloudflare PoPs. A
+            # health GET can reach the new route just before the first MCP POST,
+            # so retry the protocol request as well as the health request.
+            for _ in $(seq 1 12); do
+              code="$(curl -sS --max-time 30 \
+                -D "$headers" -o "$body" -w '%{http_code}' \
+                -X POST "$endpoint" \
+                -H 'Content-Type: application/json' \
+                -H 'Accept: application/json, text/event-stream' \
+                -H 'MCP-Protocol-Version: 2025-06-18' \
+                --data "$payload" || true)"
+              if [[ "$code" == "200" ]]; then
+                if grep -qi '^content-type:.*text/event-stream' "$headers"; then
+                  parsed="$(awk '/^data:/ { sub(/^data:[[:space:]]*/, ""); print; exit }' "$body")"
+                else
+                  parsed="$(cat "$body")"
+                fi
+                if jq -e '.jsonrpc == "2.0" and (.result != null or .error != null)' \
+                  <<<"$parsed" >/dev/null 2>&1; then
+                  printf '%s\n' "$parsed"
+                  rm -f "$headers" "$body"
+                  return 0
+                fi
+              fi
+              sleep 5
+            done
+
+            echo "MCP protocol request did not become ready (HTTP ${code:-curl_failed})." >&2
+            sed -n '1,40p' "$headers" >&2
+            head -c 4000 "$body" >&2
+            echo >&2
             rm -f "$headers" "$body"
+            return 1
           }
 
           initialize="$(rpc '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"00ai-ci","version":"1.0.0"}}}')"
