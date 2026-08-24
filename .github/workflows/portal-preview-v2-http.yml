@@ -1,0 +1,47 @@
+name: Inspect portal preview v2 HTTP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-preview-v2-http.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect preview responses
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import subprocess,json,pathlib,datetime
+          base='https://00ai-portal-preview-v2.able001.workers.dev'
+          out={'checked_at':datetime.datetime.utcnow().isoformat()+'Z'}
+          for name,path in [('root','/'),('api','/api/projects')]:
+              p=subprocess.run(['curl','-ksS','--max-time','30','-D','-',base+path],capture_output=True,text=True)
+              raw=p.stdout
+              sep='\r\n\r\n' if '\r\n\r\n' in raw else '\n\n'
+              parts=raw.split(sep)
+              out[name]={'exit':p.returncode,'headers':'\n\n'.join(parts[:-1])[-5000:],'body':parts[-1][:12000] if parts else ''}
+          f=pathlib.Path('.github/portal-preview-v2-http.json')
+          f.write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(f.read_text())
+          PY
+      - name: Persist result
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-preview-v2-http.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal preview v2 HTTP [skip ci]"
+            git push || true
+          fi
