@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 
 type ProjectEnv = {
-  DB?: D1Database;
-  BUCKET?: R2Bucket;
   GITHUB_OWNER?: string;
   GITHUB_TOKEN?: string;
   GITHUB_EXCLUDE_REPOS?: string;
@@ -14,7 +12,7 @@ type DropProject = {
   name: string;
   public_url: string;
   status: string;
-  created_at: number;
+  created_at: string;
   organization?: string | null;
   uploader_name?: string | null;
   description?: string | null;
@@ -60,6 +58,10 @@ const DEFAULT_EXCLUDED_REPOSITORIES = ["00ai", ".github"];
 const GITHUB_CACHE_SECONDS = 300;
 const SITE_MANIFEST_REPOSITORY = "ImZooMooGwan/00AI";
 const SITE_MANIFEST_PATH = "apps/portal/app/data/public-sites.json";
+const DROP_FUNCTION_URL =
+  "https://jbxmjsezaaqarheyjjte.supabase.co/functions/v1/zeroai-drop";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpieG1qc2V6YWFxYXJoZXlqanRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3Nzc2MzUsImV4cCI6MjEwMTM1MzYzNX0.ZEoudIFSGGFSVhXpNc4Vf_Obv884mQQLS_9qhaWzxHI";
 
 async function readRuntimeEnv(): Promise<ProjectEnv> {
   try {
@@ -70,55 +72,30 @@ async function readRuntimeEnv(): Promise<ProjectEnv> {
   }
 }
 
-async function ensureProfileTable(db: D1Database) {
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS project_profiles (
-        project_id TEXT PRIMARY KEY,
-        organization TEXT NOT NULL,
-        uploader_name TEXT NOT NULL,
-        description TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )`,
-    )
-    .run();
-}
-
-async function loadDropProjects(runtime: ProjectEnv): Promise<DropProject[]> {
-  if (!runtime.DB) return [];
-
+async function loadDropProjects(): Promise<{
+  projects: DropProject[];
+  available: boolean;
+}> {
   try {
-    await ensureProfileTable(runtime.DB);
-    const result = await runtime.DB.prepare(
-      `SELECT
-        p.slug,
-        p.name,
-        p.public_url,
-        p.status,
-        p.created_at,
-        pp.organization,
-        pp.uploader_name,
-        pp.description
-      FROM projects p
-      LEFT JOIN project_profiles pp ON pp.project_id = p.id
-      WHERE p.visibility = ?
-      ORDER BY p.created_at DESC
-      LIMIT 30`,
-    )
-      .bind("public")
-      .all<DropProject>();
-    return result.results ?? [];
+    const response = await fetch(DROP_FUNCTION_URL, {
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`DROP storage ${response.status}`);
+    const payload = (await response.json()) as {
+      projects?: DropProject[];
+      available?: boolean;
+    };
+    return {
+      projects: payload.projects ?? [],
+      available: payload.available !== false,
+    };
   } catch {
-    try {
-      const fallback = await runtime.DB.prepare(
-        "SELECT slug, name, public_url, status, created_at FROM projects WHERE visibility = ? ORDER BY created_at DESC LIMIT 30",
-      )
-        .bind("public")
-        .all<DropProject>();
-      return fallback.results ?? [];
-    } catch {
-      return [];
-    }
+    return { projects: [], available: false };
   }
 }
 
@@ -266,23 +243,22 @@ async function loadSiteProjects(runtime: ProjectEnv) {
 
 export async function GET() {
   const runtime = await readRuntimeEnv();
-  const [projects, github, sites] = await Promise.all([
-    loadDropProjects(runtime),
+  const [drop, github, sites] = await Promise.all([
+    loadDropProjects(),
     loadGitHubProjects(runtime),
     loadSiteProjects(runtime),
   ]);
 
   return NextResponse.json(
     {
-      projects,
+      projects: drop.projects,
       githubProjects: github.projects,
       siteProjects: sites.projects,
       sources: {
         drop: {
-          available: Boolean(runtime.DB && runtime.BUCKET),
-          d1: Boolean(runtime.DB),
-          r2: Boolean(runtime.BUCKET),
-          count: projects.length,
+          available: drop.available,
+          storage: "supabase",
+          count: drop.projects.length,
         },
         github: {
           available: github.available,
@@ -299,7 +275,7 @@ export async function GET() {
     {
       headers: {
         "Cache-Control":
-          "public, max-age=60, s-maxage=300, stale-while-revalidate=86400",
+          "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
       },
     },
   );
