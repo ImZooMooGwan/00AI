@@ -1,0 +1,61 @@
+name: Final 00AI browser check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/final-browser-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify hydrated portal and service pages in Chrome
+        shell: bash
+        run: |
+          set +e
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          mkdir -p .github /tmp/final-browser
+          sites=("00ai.kr" "policy.00ai.kr" "yhub.00ai.kr" "harness.00ai.kr")
+          for host in "${sites[@]}"; do
+            timeout 25s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-background-networking --virtual-time-budget=8000 --dump-dom "https://${host}/" > "/tmp/final-browser/${host}.html" 2> "/tmp/final-browser/${host}.log" || true
+          done
+          python3 - <<'PY'
+          import json,pathlib,datetime,re
+          def txt(p):
+            try:return pathlib.Path(p).read_text(errors='replace')
+            except:return ''
+          root=txt('/tmp/final-browser/00ai.kr.html')
+          policy=txt('/tmp/final-browser/policy.00ai.kr.html')
+          yhub=txt('/tmp/final-browser/yhub.00ai.kr.html')
+          harness=txt('/tmp/final-browser/harness.00ai.kr.html')
+          logs={h:txt(f'/tmp/final-browser/{h}.log') for h in ['00ai.kr','policy.00ai.kr','yhub.00ai.kr','harness.00ai.kr']}
+          out={
+            'checked_at':datetime.datetime.utcnow().isoformat()+'Z',
+            'root_bytes':len(root),'policy_bytes':len(policy),'yhub_bytes':len(yhub),'harness_bytes':len(harness),
+            'root_has_policy_link':'policy.00ai.kr' in root,
+            'root_has_yhub_link':'yhub.00ai.kr' in root,
+            'root_has_yhub_project':'청년정책데이터허브' in root,
+            'policy_rendered':len(policy)>5000,
+            'yhub_rendered':len(yhub)>5000,
+            'harness_rendered':len(harness)>5000,
+            'runtime_errors':{h:[x for x in l.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:10] for h,l in logs.items()},
+          }
+          out['healthy']=all([out['root_has_policy_link'],out['root_has_yhub_link'],out['root_has_yhub_project'],out['policy_rendered'],out['yhub_rendered'],out['harness_rendered']])
+          pathlib.Path('.github/final-browser-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist result
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/final-browser-health.json || true
+          if ! git diff --cached --quiet; then git commit -m "ci: update final browser health [skip ci]"; git push || true; fi
