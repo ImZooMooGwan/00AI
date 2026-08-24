@@ -1,0 +1,72 @@
+name: Diagnose root cutover precheck
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cutover-precheck-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture precheck values only
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github /tmp/cpc
+          token_present=false; token_ok=false
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] && token_present=true
+          VERIFY="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)"
+          [[ "$(jq -r '.success // false' <<<"$VERIFY")" == true ]] && token_ok=true
+          ZONES="$(curl -sS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode "name=00ai.kr" --data-urlencode "status=active" https://api.cloudflare.com/client/v4/zones)"
+          zid="$(jq -r '.result[0].id // empty' <<<"$ZONES")"
+          aid="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          PREVIEW="https://00ai-root-router-debug-v2.able001.workers.dev"
+          rc="$(curl -ksS --max-time 30 -o /tmp/cpc/root -w '%{http_code}' "$PREVIEW/" || true)"
+          ac="$(curl -ksS --max-time 30 -o /tmp/cpc/api -w '%{http_code}' "$PREVIEW/api/projects" || true)"
+          touch /tmp/cpc/root /tmp/cpc/api
+          domains='{}'; routes='{}'
+          if [[ -n "$aid" ]]; then domains="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$aid/workers/domains")"; fi
+          if [[ -n "$zid" ]]; then routes="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/zones/$zid/workers/routes")"; fi
+          python3 - <<PY
+          import json,pathlib,datetime
+          def parse(s):
+            try:return json.loads(s)
+            except:return {'raw':s[:3000]}
+          api=pathlib.Path('/tmp/cpc/api').read_text(errors='replace')
+          d=parse('''${domains//"/\\"}'''); r=parse('''${routes//"/\\"}''')
+          out={
+            'checked_at':datetime.datetime.utcnow().isoformat()+'Z',
+            'token_present':'$token_present'=='true','token_ok':'$token_ok'=='true',
+            'zone_id_present':bool('$zid'),'account_id_present':bool('$aid'),
+            'preview_root_code':'$rc','preview_api_code':'$ac',
+            'preview_api_policy':'policy.00ai.kr' in api,'preview_api_yhub':'yhub.00ai.kr' in api,
+            'preview_api_bytes':len(api),
+            'apex_domains':[x for x in (d.get('result') or []) if x.get('hostname')=='00ai.kr'],
+            'apex_routes':[x for x in (r.get('result') or []) if x.get('pattern')=='00ai.kr/*'],
+            'domain_api_success':d.get('success'),'route_api_success':r.get('success'),
+          }
+          pathlib.Path('.github/cutover-precheck-debug.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/cutover-precheck-debug.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update cutover precheck debug [skip ci]"
+            git push || true
+          fi
