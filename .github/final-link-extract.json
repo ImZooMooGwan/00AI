@@ -1,0 +1,178 @@
+{
+  "checked_at": "2026-08-24T13:27:24.410334Z",
+  "href_count": 45,
+  "custom_domain_hrefs": [],
+  "relevant_anchors": [
+    {
+      "href": "/policy",
+      "text": "상세 보기 →"
+    },
+    {
+      "href": "/harness",
+      "text": "상세 보기 →"
+    },
+    {
+      "href": "https://youth-policy-data-hub.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://oneul-daejeon.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://zeroai-platform.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://public-ai-gov.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://great-succession-era.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://clan-family-registry.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://coliving-fit-lab.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://telegrim-messenger-0728.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://panel-review-lab.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://careplan-family-action.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://fanline-fandom-network.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://dukjil-workstation.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://deok-calendar.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://ilgito-duel-20260720.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://daejeon-after-hours-2d.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    },
+    {
+      "href": "https://after-hours-dialogue.hayahoyeho.chatgpt.site/",
+      "text": "서비스 열기 →"
+    }
+  ],
+  "api_site_urls": [
+    {
+      "id": "youth-policy-data-hub",
+      "name": "청년정책데이터허브 Y-HUB",
+      "url": "https://youth-policy-data-hub.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "oneul-daejeon",
+      "name": "오늘대전",
+      "url": "https://oneul-daejeon.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "zeroai-platform",
+      "name": "00AI 공공AI 플랫폼",
+      "url": "https://zeroai-platform.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "public-ai-gov",
+      "name": "00AI GOV — AI 정책상황실",
+      "url": "https://public-ai-gov.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "great-succession-era",
+      "name": "대계승시대",
+      "url": "https://great-succession-era.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "clan-family-registry",
+      "name": "클랜은 가족입니다: 종말의 계승자들",
+      "url": "https://clan-family-registry.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "coliving-fit-lab",
+      "name": "코리빙핏 연구용 MVP",
+      "url": "https://coliving-fit-lab.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "telegrim-messenger-0728",
+      "name": "Telegrim",
+      "url": "https://telegrim-messenger-0728.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "panel-review-lab",
+      "name": "PANEL",
+      "url": "https://panel-review-lab.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "careplan-family-action",
+      "name": "CarePlan",
+      "url": "https://careplan-family-action.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "fanline-fandom-network",
+      "name": "FANLINE — 실시간 팬덤 사건 네트워크",
+      "url": "https://fanline-fandom-network.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "dukjil-workstation",
+      "name": "덕질 워크스테이션",
+      "url": "https://dukjil-workstation.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "deok-calendar",
+      "name": "덕캘린더",
+      "url": "https://deok-calendar.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "ilgito-duel-20260720",
+      "name": "RUMBLE WAVE",
+      "url": "https://ilgito-duel-20260720.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "daejeon-after-hours-2d",
+      "name": "대전 애프터 아워즈",
+      "url": "https://daejeon-after-hours-2d.hayahoyeho.chatgpt.site/"
+    },
+    {
+      "id": "after-hours-dialogue",
+      "name": "After Hours",
+      "url": "https://after-hours-dialogue.hayahoyeho.chatgpt.site/"
+    }
+  ],
+  "api_root_router": null,
+  "api_sources": {
+    "drop": {
+      "available": true,
+      "storage": "supabase",
+      "count": 0
+    },
+    "github": {
+      "available": true,
+      "owner": "ImZooMooGwan",
+      "count": 0
+    },
+    "sites": {
+      "available": true,
+      "count": 16
+    }
+  }
+}
