@@ -1,0 +1,199 @@
+name: Repair and cut over 00AI portal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/repair-and-cutover-portal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  repair-cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+          cache-dependency-path: apps/portal/package-lock.json
+
+      - name: Repair portal links and storage labels in workspace
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/portal/app/page.tsx')
+          s = p.read_text()
+          s = s.replace('href: "/policy"', 'href: "https://policy.00ai.kr"')
+          s = s.replace('href: "/harness"', 'href: "https://harness.00ai.kr/"')
+          s = s.replace('href="/harness"', 'href="https://harness.00ai.kr/"')
+          s = s.replace('D1 · R2 연결됨', 'Supabase Storage 연결됨')
+          s = s.replace('D1/R2 연결 필요', '배포 저장소 연결 필요')
+          p.write_text(s)
+          PY
+          grep -q 'href: "https://policy.00ai.kr"' apps/portal/app/page.tsx
+          grep -q 'href: "https://harness.00ai.kr/"' apps/portal/app/page.tsx
+          grep -q 'import localSiteManifest' apps/portal/app/api/projects/route.ts
+          grep -q 'https://youth-policy-data-hub.00ai.kr' apps/portal/app/data/public-sites.json
+
+      - name: Verify Cloudflare token and resolve account
+        id: cf
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          VERIFY="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)"
+          test "$(jq -r '.success' <<<"$VERIFY")" = "true"
+          ZONES="$(curl -fsS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode "name=00ai.kr" --data-urlencode "status=active" https://api.cloudflare.com/client/v4/zones)"
+          ZONE_ID="$(jq -r '.result[0].id // empty' <<<"$ZONES")"
+          ACCOUNT_ID="$(jq -r '.result[0].account.id // empty' <<<"$ZONES")"
+          test -n "$ZONE_ID" && test -n "$ACCOUNT_ID"
+          echo "zone_id=$ZONE_ID" >> "$GITHUB_OUTPUT"
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
+
+      - name: Install and build repaired portal
+        working-directory: apps/portal
+        env:
+          SITES_BUILD_TIMEOUT: 6m
+        run: |
+          npm ci --no-audit --no-fund
+          rm -rf dist .vite .next
+          npm run build
+
+      - name: Deploy isolated preview and functionally verify
+        id: preview
+        working-directory: apps/portal
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > wrangler.cutover-preview.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "00ai-portal-cutover-preview",
+            "main": "dist/server/index.js",
+            "assets": { "directory": "dist/client", "binding": "ASSETS" },
+            "compatibility_date": "2026-08-20",
+            "compatibility_flags": ["nodejs_compat"],
+            "workers_dev": true
+          }
+          EOF
+          npx wrangler deploy --config wrangler.cutover-preview.jsonc 2>&1 | tee /tmp/cutover-preview.log
+          PREVIEW_URL="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/cutover-preview.log | tail -n 1)"
+          test -n "$PREVIEW_URL"
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+
+          ROOT="$(curl -fsSL --max-time 30 "$PREVIEW_URL/")"
+          API="$(curl -fsSL --max-time 30 "$PREVIEW_URL/api/projects")"
+
+          grep -q 'https://policy.00ai.kr' <<<"$ROOT"
+          grep -q 'https://harness.00ai.kr/' <<<"$ROOT"
+          grep -q 'policy.00ai.kr' <<<"$API"
+          grep -q 'youth-policy-data-hub.00ai.kr' <<<"$API"
+
+          python3 - <<PY
+          import json
+          data=json.loads('''${API//"/\\"}''')
+          sites=data.get('siteProjects', [])
+          assert len(sites) >= 10, len(sites)
+          assert all('.00ai.kr' in x.get('public_url','') for x in sites), [x.get('public_url') for x in sites]
+          PY
+
+          POLICY="$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 30 https://policy.00ai.kr/api/hasa/health)"
+          YHUB="$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 30 https://yhub.00ai.kr/policies)"
+          HARNESS="$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 30 https://harness.00ai.kr/)"
+          test "$POLICY" = "200"
+          test "$YHUB" = "200"
+          test "$HARNESS" = "200"
+
+      - name: Remove stale apex web DNS only after preview passes
+        shell: bash
+        env:
+          ZONE_ID: ${{ steps.cf.outputs.zone_id }}
+        run: |
+          set -euo pipefail
+          RECORDS="$(curl -fsS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode "name=00ai.kr" https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records)"
+          jq -r '.result[] | select(.type=="A" or .type=="AAAA" or .type=="CNAME") | [.id,.type,.content] | @tsv' <<<"$RECORDS" | while IFS=$'\t' read -r id type content; do
+            [[ -n "$id" ]] || continue
+            echo "Removing stale apex web record: $type $content"
+            curl -fsS -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$id >/dev/null
+          done
+
+      - name: Deploy repaired portal to 00ai.kr
+        working-directory: apps/portal
+        run: npx wrangler deploy --config wrangler.jsonc
+
+      - name: Verify production from browser-facing endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 25
+          ROOT="$(curl -fsSL --max-time 30 https://00ai.kr/)"
+          API="$(curl -fsSL --max-time 30 https://00ai.kr/api/projects)"
+          grep -q 'https://policy.00ai.kr' <<<"$ROOT"
+          grep -q 'https://harness.00ai.kr/' <<<"$ROOT"
+          grep -q 'policy.00ai.kr' <<<"$API"
+          grep -q 'youth-policy-data-hub.00ai.kr' <<<"$API"
+          test "$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 30 https://policy.00ai.kr/api/hasa/health)" = "200"
+          test "$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 30 https://yhub.00ai.kr/policies)" = "200"
+          test "$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 30 https://harness.00ai.kr/)" = "200"
+          mkdir -p .github
+          cat > .github/portal-cutover-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployed": true,
+            "preview": "${{ steps.preview.outputs.preview_url }}",
+            "root_links_fixed": true,
+            "project_api_uses_custom_domains": true,
+            "policy_api": 200,
+            "yhub_page": 200,
+            "harness": 200,
+            "healthy": true
+          }
+          EOF
+
+      - name: Persist repaired source and health report
+        if: success()
+        shell: bash
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add apps/portal/app/page.tsx .github/portal-cutover-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: connect portal cards to live 00AI domains [skip ci]"
+            git push
+          fi
+
+      - name: Record safe failure without claiming success
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p .github
+          cat > .github/portal-cutover-health.json <<EOF
+          {
+            "checked_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployed": false,
+            "healthy": false,
+            "reason": "Safe cutover stopped before or during verification; inspect workflow logs"
+          }
+          EOF
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-cutover-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: record portal cutover failure [skip ci]"
+            git push || true
+          fi
