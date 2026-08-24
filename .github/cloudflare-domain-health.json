@@ -1,0 +1,6 @@
+{
+  "checked_at": "2026-08-24T10:41:18Z",
+  "authenticated": false,
+  "deployed": false,
+  "reason": "No CLOUDFLARE_API_TOKEN/CF_API_TOKEN secret is available to GitHub Actions"
+}
