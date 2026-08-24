@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-08-24T13:26:15.939048Z",
+  "root_bytes": 16743,
+  "policy_bytes": 15669,
+  "yhub_bytes": 67543,
+  "harness_bytes": 11438,
+  "root_has_policy_link": false,
+  "root_has_yhub_link": false,
+  "root_has_yhub_project": true,
+  "policy_rendered": true,
+  "yhub_rendered": true,
+  "harness_rendered": true,
+  "runtime_errors": {
+    "00ai.kr": [],
+    "policy.00ai.kr": [],
+    "yhub.00ai.kr": [],
+    "harness.00ai.kr": []
+  },
+  "healthy": false
+}
