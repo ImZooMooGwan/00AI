@@ -121,6 +121,40 @@ jobs:
           echo "CLOUDFLARE_API_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
 
+      - name: Provision portal ownership validation records
+        if: steps.cf.outputs.available == 'true'
+        shell: bash
+        env:
+          ZONE_ID: ${{ steps.cf.outputs.zone_id }}
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records"
+
+          ensure_txt() {
+            local name="$1"
+            local value="$2"
+            local records
+            records="$(curl -fsS -G \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              --data-urlencode "type=TXT" \
+              --data-urlencode "name=$name" \
+              "$api")"
+            if jq -e --arg value "$value" 'any(.result[]?; .content == $value)' <<<"$records" >/dev/null; then
+              return
+            fi
+            result="$(curl -fsS -X POST \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -nc --arg name "$name" --arg content "$value" '{type:"TXT", name:$name, content:$content, ttl:1}')" \
+              "$api")"
+            jq -e '.success == true' <<<"$result" >/dev/null
+          }
+
+          ensure_txt "_openai-site-verification.00ai.kr" "openai-site-verification=JUsI_AcUg2jHzra4NxtDix24qFh6ZwDuISeSGIccsfA"
+          ensure_txt "_cf-custom-hostname.00ai.kr" "39df0a72-3d03-4917-8e86-ef50205c51b1"
+          ensure_txt "_openai-site-verification.www.00ai.kr" "openai-site-verification=svtXswgtBIJ0f7aywCZ7q28eTGqm2xdAou2rnMrJJIM"
+          ensure_txt "_cf-custom-hostname.www.00ai.kr" "57e21012-bb39-480b-99b5-503fe6c9aad9"
+
       - name: Provision one proxied wildcard DNS record
         id: dns
         if: steps.cf.outputs.available == 'true'
@@ -274,7 +308,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add .github/cloudflare-domain-health.json apps/portal/app/data/public-sites.json
           if ! git diff --cached --quiet; then
-            git commit -m "ci: publish verified 00AI wildcard routes [skip ci]"
+            git commit -m "ci: update 00AI wildcard deployment state [skip ci]"
             git push || true
           fi
 
