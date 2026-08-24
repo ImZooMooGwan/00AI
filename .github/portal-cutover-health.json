@@ -1,0 +1,6 @@
+{
+  "checked_at": "2026-08-24T12:58:39Z",
+  "deployed": false,
+  "healthy": false,
+  "reason": "Safe cutover stopped before or during verification; inspect workflow logs"
+}
