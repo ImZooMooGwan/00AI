@@ -4,6 +4,11 @@
 
 Cloudflare Workers, D1, Custom Domain을 관리할 권한과 온통청년·국가법령정보 API 인증값이 필요합니다.
 
+`main`에 변경이 반영되면 GitHub Actions가 저장소의 Cloudflare API Token을
+사용해 D1 생성·마이그레이션·Worker 배포·`mcp.00ai.kr` 연결·MCP 프로토콜
+검증을 자동 수행합니다. D1은 `00ai-youth-policy`라는 고정 이름으로 재사용하므로
+재배포해도 기존 정책 데이터가 유지됩니다.
+
 ```bash
 cd apps/youth-policy-mcp
 npm ci
@@ -51,4 +56,6 @@ Workers 배포 이력에서 직전 버전으로 롤백합니다. 마이그레이
 
 ## 현재 외부 블로커
 
-저장소에는 배포 준비 코드만 포함됩니다. 실제 D1 ID, Cloudflare 계정·도메인 권한과 세 API Secret이 없으면 공개 URL 활성화와 실데이터 수집은 완료할 수 없습니다.
+Cloudflare API Token이 없으면 자동 배포할 수 없습니다. 온통청년·법령 API Secret이
+없어도 MCP 서버와 빈 D1은 배포되지만 실데이터 동기화는 건너뜁니다. 세 API Secret은
+GitHub Actions Secret 또는 `wrangler secret put`으로만 설정합니다.

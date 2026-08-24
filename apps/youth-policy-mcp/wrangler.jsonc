@@ -4,6 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-24",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    {
+      "pattern": "mcp.00ai.kr",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "YOUTH_POLICY_API_BASE_URL": "https://www.youthcenter.go.kr",
     "YOUTH_POLICY_API_PATH": "/go/ythip/getPlcy",
