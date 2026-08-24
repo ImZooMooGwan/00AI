@@ -1,0 +1,1 @@
+trigger Cloudflare subdomain router deployment after CLOUDFLARE_API_TOKEN was configured
