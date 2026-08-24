@@ -1,0 +1,88 @@
+name: Diagnose 00AI portal deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-deploy-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+      - name: Diagnose
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github
+          cd apps/portal
+          npm ci --no-audit --no-fund > /tmp/install.log 2>&1
+          install_status=$?
+          build_status=999
+          preview_status=999
+          preview_url=""
+          if [[ $install_status -eq 0 ]]; then
+            SITES_BUILD_TIMEOUT=6m npm run build > /tmp/build.log 2>&1
+            build_status=$?
+          else
+            echo "build skipped" > /tmp/build.log
+          fi
+          if [[ $build_status -eq 0 ]]; then
+            cat > wrangler.preview.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "00ai-portal-preview",
+            "main": "dist/server/index.js",
+            "assets": { "directory": "dist/client", "binding": "ASSETS" },
+            "compatibility_date": "2026-08-20",
+            "compatibility_flags": ["nodejs_compat"],
+            "workers_dev": true
+          }
+          EOF
+            npx wrangler deploy --config wrangler.preview.jsonc > /tmp/preview.log 2>&1
+            preview_status=$?
+            preview_url="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/preview.log | tail -n 1)"
+          else
+            echo "preview skipped" > /tmp/preview.log
+          fi
+          cd ../..
+          python3 - <<PY
+          import json, pathlib
+          def tail(path,n=12000):
+              try: return pathlib.Path(path).read_text(errors='replace')[-n:]
+              except: return ''
+          out={
+            'install_status': $install_status,
+            'build_status': $build_status,
+            'preview_status': $preview_status,
+            'preview_url': '''$preview_url''',
+            'install_log': tail('/tmp/install.log'),
+            'build_log': tail('/tmp/build.log'),
+            'preview_log': tail('/tmp/preview.log'),
+          }
+          pathlib.Path('.github/portal-deploy-debug.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          PY
+          cat .github/portal-deploy-debug.json
+      - name: Persist debug report
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-deploy-debug.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal deployment debug [skip ci]"
+            git push || true
+          fi
