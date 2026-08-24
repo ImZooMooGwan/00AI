@@ -1,7 +1,31 @@
 {
-  "checked_at": "2026-08-24T12:14:49Z",
-  "authenticated": false,
-  "deployed": false,
-  "wildcard_dns": false,
-  "reason": "GitHub Actions secret CLOUDFLARE_API_TOKEN is not configured"
+  "checked_at": "2026-08-24T12:22:26Z",
+  "authenticated": true,
+  "deployed": true,
+  "wildcard_dns": true,
+  "deploy_exit_code": "0",
+  "domains": {
+    "after-hours-dialogue.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "careplan-family-action.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "clan-family-registry.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "coliving-fit-lab.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "daejeon-after-hours-2d.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "deok-calendar.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "drop.00ai.kr": {"resolved": true, "http": "302", "routed": true, "healthy": true},
+    "dukjil-workstation.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "fanline-fandom-network.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "gov.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "great-succession-era.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "ilgito-duel-20260720.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "oneul-daejeon.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "panel-review-lab.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "policy.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "public-ai-gov.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "telegrim-messenger-0728.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "yhub.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "youth-policy.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "youth-policy-data-hub.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true},
+    "zeroai-platform.00ai.kr": {"resolved": true, "http": "200", "routed": true, "healthy": true}
+  },
+  "healthy": true
 }
