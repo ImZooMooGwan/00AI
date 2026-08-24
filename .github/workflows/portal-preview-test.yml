@@ -1,0 +1,51 @@
+name: Verify 00AI portal preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-preview-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test existing preview Worker
+        shell: bash
+        run: |
+          set +e
+          ROOT="$(curl -ksSL --max-time 30 https://00ai-portal-preview.able001.workers.dev/)"
+          API="$(curl -ksSL --max-time 30 https://00ai-portal-preview.able001.workers.dev/api/projects)"
+          python3 - <<PY
+          import json,pathlib
+          root='''${ROOT//"/\\"}'''
+          api='''${API//"/\\"}'''
+          out={
+            'root_bytes':len(root),
+            'api_bytes':len(api),
+            'root_has_00ai':'00AI' in root,
+            'api_has_policy_domain':'policy.00ai.kr' in api,
+            'api_has_yhub_domain':'youth-policy-data-hub.00ai.kr' in api,
+            'api_has_chatgpt_origin':'chatgpt.site' in api,
+            'api_prefix':api[:4000],
+          }
+          pathlib.Path('.github/portal-preview-test.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist preview result
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-preview-test.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal preview test [skip ci]"
+            git push || true
+          fi
