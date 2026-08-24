@@ -181,7 +181,7 @@ function projectLinkLabel(project: GalleryProject) {
 }
 
 export default function Home() {
-  const [tab, setTab] = useState<"services" | "projects">("services");
+  const [tab, setTab] = useState<"services" | "projects">("projects");
   const [query, setQuery] = useState("");
   const [dragging, setDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
