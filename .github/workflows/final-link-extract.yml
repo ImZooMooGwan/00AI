@@ -1,0 +1,50 @@
+name: Extract final 00AI project hrefs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/final-link-extract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract actual hydrated hrefs and live registry
+        shell: bash
+        run: |
+          set +e
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          timeout 25s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=10000 --dump-dom https://00ai.kr/ > /tmp/root.html 2>/tmp/root.log || true
+          curl -ksS --max-time 30 https://00ai.kr/api/projects > /tmp/api.json
+          python3 - <<'PY'
+          import json,re,pathlib,datetime
+          html=pathlib.Path('/tmp/root.html').read_text(errors='replace')
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I)
+          api_raw=pathlib.Path('/tmp/api.json').read_text(errors='replace')
+          try: api=json.loads(api_raw)
+          except: api={}
+          custom=[h for h in hrefs if '00ai.kr' in h]
+          site_urls=[{'id':x.get('id'),'name':x.get('name'),'url':x.get('public_url')} for x in api.get('siteProjects',[])[:20]]
+          anchors=[]
+          for m in re.finditer(r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',html,re.I|re.S):
+            text=re.sub(r'<[^>]+>',' ',m.group(2)); text=' '.join(text.split())
+            if any(k in text for k in ['청년정책','정책상황실','오늘대전','서비스 열기','상세 보기']): anchors.append({'href':m.group(1),'text':text[:200]})
+          out={'checked_at':datetime.datetime.utcnow().isoformat()+'Z','href_count':len(hrefs),'custom_domain_hrefs':custom,'relevant_anchors':anchors[:50],'api_site_urls':site_urls,'api_root_router':api.get('rootRouter'),'api_sources':api.get('sources')}
+          pathlib.Path('.github/final-link-extract.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/final-link-extract.json || true
+          if ! git diff --cached --quiet; then git commit -m "ci: update final portal href extraction [skip ci]"; git push || true; fi
