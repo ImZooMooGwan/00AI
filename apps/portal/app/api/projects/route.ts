@@ -63,18 +63,6 @@ const DROP_FUNCTION_URL =
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpieG1qc2V6YWFxYXJoZXlqanRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3Nzc2MzUsImV4cCI6MjEwMTM1MzYzNX0.ZEoudIFSGGFSVhXpNc4Vf_Obv884mQQLS_9qhaWzxHI";
 
-function subdomainSlug(value: string) {
-  let slug = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 55);
-  if (slug.length < 3) slug = `app-${slug || "site"}`;
-  return slug;
-}
-
 async function readRuntimeEnv(): Promise<ProjectEnv> {
   try {
     const { env } = await import("cloudflare:workers");
@@ -189,7 +177,7 @@ async function loadGitHubProjects(runtime: ProjectEnv) {
             repository.description || "GitHub에 공개된 00AI 프로젝트입니다.",
           repository_url: repository.html_url,
           homepage,
-          public_url: `https://${subdomainSlug(repository.name)}.00ai.kr`,
+          public_url: homepage || repository.html_url,
           owner: repository.owner.login,
           language: repository.language,
           topics: repository.topics ?? [],
@@ -252,7 +240,8 @@ async function loadSiteProjects(runtime: ProjectEnv) {
       })
       .map((project) => ({
         ...project,
-        public_url: `https://${subdomainSlug(project.id)}.00ai.kr`,
+        // The manifest keeps a working chatgpt.site URL until a custom domain is active.
+        public_url: validHomepage(project.public_url)!,
       }));
 
     return { projects, available: true };
