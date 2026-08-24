@@ -19,11 +19,8 @@ if [[ ! -x "${vinext}" ]]; then
   exit 69
 fi
 
-# Build 직전에 공개 Sites와 GitHub 저장소를 읽어 exact Custom Domain 목록을 만듭니다.
-# Cloudflare Custom Domain은 배포 시 DNS 레코드와 TLS 인증서를 함께 생성합니다.
-echo "Preparing 00AI service subdomains..."
-node "${script_dir}/generate-domain-routes.mjs"
-
+# Service subdomains are owned by the dedicated apps/subdomain-router Worker.
+# The portal build must never regenerate or claim those routes.
 echo "Running bounded vinext build..."
 timeout \
   --signal=TERM \
