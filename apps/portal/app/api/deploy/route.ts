@@ -18,7 +18,7 @@ const BLOCKED_EXTENSIONS = new Set([
 ]);
 const SAFE_SEGMENT = /^[a-zA-Z0-9가-힣._ -]+$/;
 
-type DropEnv = { DB: D1Database; BUCKET: R2Bucket };
+type DropEnv = { DB?: D1Database; BUCKET?: R2Bucket };
 type DeployFile = { name: string; bytes: Uint8Array; type: string };
 
 function safeSlug(value: string) {
@@ -99,8 +99,6 @@ function normalizeUpload(files: DeployFile[]) {
 
   if (!normalized.length) return normalized;
 
-  // ZIP을 폴더째 압축했을 때 project/index.html 형태가 되는 경우,
-  // 모든 파일이 하나의 공통 최상위 폴더 아래에 있으면 그 폴더를 자동 제거합니다.
   const parts = normalized.map((file) => file.name.split("/"));
   const commonRoot = parts[0][0];
   if (
@@ -114,7 +112,6 @@ function normalizeUpload(files: DeployFile[]) {
     }));
   }
 
-  // Index.html 같은 대소문자 차이도 정상적인 시작 파일로 취급합니다.
   const indexCandidates = normalized.filter(
     (file) => file.name.toLowerCase() === "index.html",
   );
@@ -131,8 +128,6 @@ function normalizeUpload(files: DeployFile[]) {
     return normalized;
   }
 
-  // 00MASKING.html처럼 루트에 HTML 파일이 하나뿐이면 사용자가 이름을
-  // 바꾸지 않아도 그 파일을 자동으로 서비스 시작점(index.html)으로 사용합니다.
   const topLevelHtml = normalized.filter(
     (file) =>
       !file.name.includes("/") &&
@@ -226,10 +221,48 @@ async function expandUpload(files: File[]): Promise<DeployFile[]> {
   return normalizeUpload(expanded);
 }
 
+async function readRuntime(): Promise<DropEnv> {
+  try {
+    const { env } = await import("cloudflare:workers");
+    return env as unknown as DropEnv;
+  } catch {
+    return {};
+  }
+}
+
+async function ensureProfileTable(db: D1Database) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS project_profiles (
+        project_id TEXT PRIMARY KEY,
+        organization TEXT NOT NULL,
+        uploader_name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )`,
+    )
+    .run();
+}
+
+export async function GET() {
+  const runtime = await readRuntime();
+  return NextResponse.json(
+    {
+      available: Boolean(runtime.DB && runtime.BUCKET),
+      d1: Boolean(runtime.DB),
+      r2: Boolean(runtime.BUCKET),
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const name = String(form.get("name") || "").trim();
+    const organization = String(form.get("organization") || "").trim();
+    const uploaderName = String(form.get("uploaderName") || "").trim();
+    const description = String(form.get("description") || "").trim();
     const visibility = form.get("visibility") === "public" ? "public" : "unlisted";
     const uploaded = form
       .getAll("files")
@@ -237,21 +270,44 @@ export async function POST(request: Request) {
 
     if (name.length < 2 || name.length > 80) {
       return NextResponse.json(
-        { error: "프로젝트 이름은 2~80자로 입력해 주세요." },
+        { error: "제목은 2~80자로 입력해 주세요." },
+        { status: 400 },
+      );
+    }
+    if (organization.length < 1 || organization.length > 80) {
+      return NextResponse.json(
+        { error: "소속은 1~80자로 입력해 주세요." },
+        { status: 400 },
+      );
+    }
+    if (uploaderName.length < 2 || uploaderName.length > 40) {
+      return NextResponse.json(
+        { error: "성명은 2~40자로 입력해 주세요." },
+        { status: 400 },
+      );
+    }
+    if (description.length < 5 || description.length > 600) {
+      return NextResponse.json(
+        { error: "내용은 5~600자로 입력해 주세요." },
         { status: 400 },
       );
     }
 
     const files = await expandUpload(uploaded);
     const totalSize = inspect(files);
-    const { env } = await import("cloudflare:workers");
-    const runtime = env as unknown as DropEnv;
+    const runtime = await readRuntime();
     if (!runtime.DB || !runtime.BUCKET) {
       return NextResponse.json(
-        { error: "배포 저장소가 아직 연결되지 않았습니다. 잠시 후 다시 시도해 주세요." },
+        {
+          error:
+            "00AI DROP 운영 저장소가 아직 연결되지 않았습니다. Sites 프로젝트에 D1(DB)과 R2(BUCKET) 바인딩을 프로비저닝한 뒤 다시 배포해야 합니다.",
+          storage: { d1: Boolean(runtime.DB), r2: Boolean(runtime.BUCKET) },
+        },
         { status: 503 },
       );
     }
+
+    await ensureProfileTable(runtime.DB);
 
     const now = Date.now();
     const projectId = id();
@@ -286,14 +342,22 @@ export async function POST(request: Request) {
         "stored",
         now,
       ),
+      runtime.DB.prepare(
+        "INSERT INTO project_profiles (project_id, organization, uploader_name, description, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).bind(projectId, organization, uploaderName, description, now),
     ]);
 
     try {
       await Promise.all(
         files.map((file) =>
-          runtime.BUCKET.put(`${storagePath}/${file.name}`, file.bytes, {
+          runtime.BUCKET!.put(`${storagePath}/${file.name}`, file.bytes, {
             httpMetadata: { contentType: file.type },
-            customMetadata: { originalName: file.name },
+            customMetadata: {
+              originalName: file.name,
+              projectTitle: name.slice(0, 80),
+              organization: organization.slice(0, 80),
+              uploaderName: uploaderName.slice(0, 40),
+            },
           }),
         ),
       );
@@ -310,6 +374,9 @@ export async function POST(request: Request) {
       {
         projectId,
         name,
+        organization,
+        uploaderName,
+        description,
         slug,
         publicUrl,
         status: "ready_for_domain",
