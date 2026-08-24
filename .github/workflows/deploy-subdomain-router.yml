@@ -7,6 +7,8 @@ on:
       - "apps/subdomain-router/**"
       - "apps/portal/app/data/public-sites.json"
       - ".github/workflows/deploy-subdomain-router.yml"
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -303,6 +305,20 @@ jobs:
             updated="$(mktemp)"
             jq 'map(.public_url = ("https://" + .id + ".00ai.kr"))' "$manifest" > "$updated"
             mv "$updated" "$manifest"
+          fi
+          previous="$(git show HEAD:.github/cloudflare-domain-health.json 2>/dev/null || true)"
+          if [[ -n "$previous" ]]; then
+            current_state="$(jq -cS 'del(.checked_at)' .github/cloudflare-domain-health.json 2>/dev/null || true)"
+            previous_state="$(jq -cS 'del(.checked_at)' <<<"$previous" 2>/dev/null || true)"
+            if [[ -n "$current_state" && "$current_state" == "$previous_state" ]]; then
+              previous_checked_at="$(jq -r '.checked_at // empty' <<<"$previous")"
+              if [[ -n "$previous_checked_at" ]]; then
+                unchanged="$(mktemp)"
+                jq --arg checked_at "$previous_checked_at" '.checked_at = $checked_at' \
+                  .github/cloudflare-domain-health.json > "$unchanged"
+                mv "$unchanged" .github/cloudflare-domain-health.json
+              fi
+            fi
           fi
           git config user.name "00AI Bot"
           git config user.email "actions@users.noreply.github.com"
