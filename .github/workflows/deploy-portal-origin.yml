@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "apps/portal/**"
       - ".github/workflows/deploy-portal-origin.yml"
   workflow_dispatch:
 
@@ -68,7 +69,7 @@ jobs:
           test "$(curl -ksS --max-time 30 -o /tmp/origin-root.html -w '%{http_code}' "$URL/")" = 200
           test "$(curl -ksS --max-time 30 -o /tmp/origin-api.json -w '%{http_code}' "$URL/api/projects")" = 200
           grep -q 'policy.00ai.kr' /tmp/origin-api.json
-          grep -q 'youth-policy-data-hub.00ai.kr' /tmp/origin-api.json
+          grep -q 'yhub.00ai.kr' /tmp/origin-api.json
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/origin-api.json'))
@@ -84,7 +85,7 @@ jobs:
           URL="${{ steps.deploy.outputs.origin_url }}"
           timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=12000 --dump-dom "$URL/" > /tmp/origin-dom.html 2>/tmp/origin-chrome.log || true
           python3 - <<'PY'
-          import json,pathlib,re,datetime
+          import json,pathlib,re
           html=pathlib.Path('/tmp/origin-dom.html').read_text(errors='replace')
           log=pathlib.Path('/tmp/origin-chrome.log').read_text(errors='replace')
           hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I)
