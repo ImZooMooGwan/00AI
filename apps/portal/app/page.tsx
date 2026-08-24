@@ -232,7 +232,7 @@ export default function Home() {
       .then((result) => {
         if (!active) return;
         setPublishedProjects(result.projects || []);
-        setGithubProjects(result.githubProjects || []);
+        setGitHubProjects(result.githubProjects || []);
         setGithubOwner(result.sources?.github?.owner || "ImZooMooGwan");
         setDropReady(Boolean(result.sources?.drop?.available));
         setSyncState(
