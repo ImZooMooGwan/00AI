@@ -1,0 +1,52 @@
+name: Youth Policy MCP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/youth-policy-mcp/**"
+      - ".github/workflows/youth-policy-mcp.yml"
+  pull_request:
+    paths:
+      - "apps/youth-policy-mcp/**"
+      - ".github/workflows/youth-policy-mcp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/youth-policy-mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/youth-policy-mcp/package-lock.json
+      - run: npm ci
+      - run: npm run types -- --check
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  portal-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/portal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/portal/package-lock.json
+      - run: npm ci
+      - run: npm test

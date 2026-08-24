@@ -52,3 +52,6 @@ git push -u origin main
 
 정적 데모의 상태 전환을 실제 내부 실행기로 교체할 때는 브라우저에 키를 넣지 말고, 행정망 내부 백엔드의 `/api/plan`, `/api/execute`, `/api/evidence` 같은 엔드포인트를 연결하세요.
 
+## Y-HUB 청년정책 MCP
+
+`apps/youth-policy-mcp`에는 온통청년 정책을 영속화하고 검색·상세·자격점검·비교·변경이력·근거 조회를 제공하는 읽기 전용 원격 MCP Worker가 있습니다. 목표 엔드포인트는 `https://mcp.00ai.kr/youth`이며 설치·마이그레이션·운영·배포 방법은 [앱 README](apps/youth-policy-mcp/README.md)를 참고하세요.

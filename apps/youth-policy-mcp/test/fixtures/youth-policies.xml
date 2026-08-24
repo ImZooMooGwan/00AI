@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <body>
+    <totalCount>1</totalCount>
+    <items>
+      <item>
+        <plcyNo>R202600002</plcyNo>
+        <plcyNm>세종 청년 창업 지원</plcyNm>
+        <plcyExplnCn>세종 청년 창업자의 사업화를 지원합니다.</plcyExplnCn>
+        <plcySprtCn>사업화 자금과 멘토링</plcySprtCn>
+        <zipCd>세종특별자치시</zipCd>
+        <sprtTrgtMinAge>19</sprtTrgtMinAge>
+        <sprtTrgtMaxAge>39</sprtTrgtMaxAge>
+      </item>
+    </items>
+  </body>
+</response>

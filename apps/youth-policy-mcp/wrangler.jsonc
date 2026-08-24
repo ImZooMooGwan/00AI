@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "00ai-youth-policy-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "YOUTH_POLICY_API_BASE_URL": "https://www.youthcenter.go.kr",
+    "YOUTH_POLICY_API_PATH": "/go/ythip/getPlcy",
+    "YOUTH_POLICY_API_FORMAT": "json",
+    "YOUTH_POLICY_MAX_PAGES": "100",
+    "LAW_API_BASE_URL": "https://www.law.go.kr",
+    "KOSIS_MCP_URL": "https://mcp.gomdori.app/stats",
+    "MCP_PUBLIC_BASE_URL": "https://mcp.00ai.kr/youth",
+    "MCP_ALLOWED_HOSTS": "mcp.00ai.kr,localhost,127.0.0.1",
+    "MCP_ALLOWED_ORIGINS": "https://mcp.00ai.kr,http://localhost:5173,http://localhost:6274",
+    "SYNC_CRON_KST": "30 3 * * *",
+    "TZ": "Asia/Seoul"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "00ai-youth-policy",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "MCP_RATE_LIMITER",
+      "namespace_id": "22001",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    }
+  ],
+  "triggers": {
+    "crons": ["30 18 * * *"]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1
+    }
+  }
+}

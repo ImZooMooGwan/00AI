@@ -1,0 +1,24 @@
+{
+  "result": {
+    "pageInfo": { "totalCount": 1 },
+    "youthPolicyList": [
+      {
+        "plcyNo": "R202600001",
+        "plcyNm": "대전 청년 주거비 지원",
+        "plcyExplnCn": "대전 거주 청년의 주거비를 지원합니다.",
+        "plcySprtCn": "월 최대 20만원 지원",
+        "lclsfNm": "주거",
+        "mclsfNm": "주거비 지원",
+        "zipCd": "대전광역시",
+        "sprtTrgtMinAge": "19",
+        "sprtTrgtMaxAge": "39",
+        "aplyBgngYmd": "2026-08-01",
+        "aplyEndYmd": "2026-08-31",
+        "empmSttsCn": "미취업, 재직자",
+        "earnCndSeCd": "기준중위소득 150% 이하",
+        "aplyUrlAddr": "https://www.youthcenter.go.kr/example/apply",
+        "refUrlAddr1": "https://www.youthcenter.go.kr/example/policy"
+      }
+    ]
+  }
+}
