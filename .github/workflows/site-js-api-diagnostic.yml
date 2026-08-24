@@ -1,0 +1,60 @@
+name: 00AI site JS API diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/site-js-api-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect JS bundles for runtime network calls
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json,re,subprocess,datetime,pathlib,urllib.parse
+          hosts=['policy.00ai.kr','yhub.00ai.kr','oneul-daejeon.00ai.kr']
+          report={'checked_at':datetime.datetime.utcnow().isoformat()+'Z','sites':{}}
+          for host in hosts:
+              html=subprocess.run(['curl','-ksSL','--max-time','25',f'https://{host}/'],capture_output=True,text=True).stdout
+              refs=[]
+              for r in re.findall(r'''(?:src|href)=["']([^"']+\.js(?:\?[^"']*)?)["']''',html,re.I):
+                  if r not in refs: refs.append(r)
+              bundles=[]
+              for ref in refs[:12]:
+                  url=urllib.parse.urljoin(f'https://{host}/',ref)
+                  js=subprocess.run(['curl','-ksSL','--max-time','25',url],capture_output=True,text=True).stdout
+                  snippets=[]
+                  patterns=[r'fetch\([^)]{0,300}\)',r'WebSocket\([^)]{0,300}\)',r'EventSource\([^)]{0,300}\)',r'[/][aA][pP][iI][/][A-Za-z0-9_./?=&${}-]{1,200}',r'https?://[^"\'` )]{1,250}',r'location\.origin.{0,200}']
+                  for pat in patterns:
+                      for m in re.finditer(pat,js):
+                          s=m.group(0)
+                          if s not in snippets: snippets.append(s[:400])
+                          if len(snippets)>=30: break
+                      if len(snippets)>=30: break
+                  bundles.append({'ref':ref,'bytes':len(js),'network_snippets':snippets})
+              report['sites'][host]={'bundle_count':len(bundles),'bundles':bundles}
+          p=pathlib.Path('.github/site-js-api-diagnostic.json')
+          p.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+          print(p.read_text())
+          PY
+      - name: Persist JS API diagnostic
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/site-js-api-diagnostic.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update site JS API diagnostic [skip ci]"
+            git push || true
+          fi
