@@ -118,7 +118,7 @@ jobs:
              | .vars.POLICY_STORAGE_BACKEND = "durable_object"' \
             wrangler.jsonc > wrangler.deploy.jsonc
 
-      - name: Deploy the MCP Worker and custom domain
+      - name: Deploy the MCP Worker, custom domain, and exact route
         run: >-
           ./node_modules/.bin/wrangler deploy
           --config wrangler.deploy.jsonc --minify
@@ -146,12 +146,17 @@ jobs:
           set -euo pipefail
           endpoint="https://mcp.00ai.kr/youth"
           health="${endpoint}/health"
+          response="$(mktemp)"
+          headers="$(mktemp)"
+          trap 'rm -f "$response" "$headers"' EXIT
 
           healthy=false
           for _ in $(seq 1 12); do
-            if body="$(curl -fsS --max-time 20 "$health" 2>/dev/null)" \
+            code="$(curl -sS --max-time 20 \
+              -D "$headers" -o "$response" -w '%{http_code}' "$health" || true)"
+            if [[ "$code" == "200" ]] \
               && jq -e '.ok == true and .database.connected == true and .storage_backend == "durable_object" and .tools == 6' \
-                <<<"$body" >/dev/null; then
+                "$response" >/dev/null; then
               healthy=true
               break
             fi
@@ -159,6 +164,10 @@ jobs:
           done
           if [[ "$healthy" != "true" ]]; then
             echo "The deployed MCP health endpoint did not become ready." >&2
+            echo "HTTP status: ${code:-curl_failed}" >&2
+            sed -n '1,40p' "$headers" >&2
+            head -c 4000 "$response" >&2
+            echo >&2
             exit 1
           fi
 

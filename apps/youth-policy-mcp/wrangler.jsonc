@@ -8,6 +8,10 @@
     {
       "pattern": "mcp.00ai.kr",
       "custom_domain": true
+    },
+    {
+      "pattern": "mcp.00ai.kr/*",
+      "zone_name": "00ai.kr"
     }
   ],
   "vars": {
