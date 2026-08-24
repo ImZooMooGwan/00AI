@@ -1,0 +1,61 @@
+name: Recheck 00AI portal origin after URL migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/portal-origin-debug-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect current portal origin
+        shell: bash
+        run: |
+          set +e
+          URL="https://00ai-portal-origin.able001.workers.dev"
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          curl -ksS --max-time 30 -D /tmp/oapi.h -o /tmp/oapi.b "$URL/api/projects"
+          curl -ksS --max-time 30 -D /tmp/oroot.h -o /tmp/oroot.b "$URL/"
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=12000 --dump-dom "$URL/" > /tmp/odom 2>/tmp/olog || true
+          python3 - <<'PY'
+          import json,re,pathlib,datetime
+          def t(p):
+            try:return pathlib.Path(p).read_text(errors='replace')
+            except:return ''
+          raw=t('/tmp/oapi.b'); html=t('/tmp/odom'); log=t('/tmp/olog')
+          try: api=json.loads(raw)
+          except Exception as e: api={'parse_error':str(e)}
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I)
+          urls=[x.get('public_url') for x in api.get('siteProjects',[])] if isinstance(api,dict) else []
+          out={
+            'checked_at':datetime.datetime.utcnow().isoformat()+'Z',
+            'api_site_count':len(urls),
+            'api_urls':urls,
+            'api_custom_count':sum(1 for x in urls if isinstance(x,str) and '.00ai.kr' in x),
+            'api_chatgpt_count':sum(1 for x in urls if isinstance(x,str) and 'chatgpt.site' in x),
+            'dom_bytes':len(html),
+            'dom_yhub':'청년정책데이터허브' in html,
+            'dom_custom_hrefs':[x for x in hrefs if '.00ai.kr' in x],
+            'dom_chatgpt_hrefs':[x for x in hrefs if 'chatgpt.site' in x],
+            'runtime_network_errors':[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:30]
+          }
+          out['healthy']=out['api_custom_count']>=10 and out['dom_yhub'] and len(out['dom_custom_hrefs'])>=10 and not out['runtime_network_errors']
+          pathlib.Path('.github/portal-origin-debug-v2.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist
+        if: always()
+        run: |
+          git config user.name "00AI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase || true
+          git add .github/portal-origin-debug-v2.json || true
+          if ! git diff --cached --quiet; then git commit -m "ci: update portal origin debug v2 [skip ci]"; git push || true; fi
