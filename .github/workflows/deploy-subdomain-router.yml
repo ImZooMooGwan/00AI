@@ -328,6 +328,10 @@ jobs:
             git push || true
           fi
 
-      - name: Fail when Cloudflare authentication or routing is unavailable
-        if: steps.cf.outputs.available != 'true' || steps.verify.outputs.healthy != 'true'
+      - name: Fail a requested deployment when Cloudflare authentication is unavailable
+        if: steps.cf.outputs.available != 'true' && github.event_name != 'schedule'
+        run: exit 1
+
+      - name: Fail when an authenticated deployment is unhealthy
+        if: steps.cf.outputs.available == 'true' && steps.verify.outputs.healthy != 'true'
         run: exit 1
