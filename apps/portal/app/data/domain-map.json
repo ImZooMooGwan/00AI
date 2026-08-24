@@ -1,0 +1,20 @@
+{
+  "policy.00ai.kr": { "target": "https://public-ai-gov.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "public-ai-gov.00ai.kr": { "target": "https://public-ai-gov.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "yhub.00ai.kr": { "target": "https://youth-policy-data-hub.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "youth-policy-data-hub.00ai.kr": { "target": "https://youth-policy-data-hub.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "oneul-daejeon.00ai.kr": { "target": "https://oneul-daejeon.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "great-succession-era.00ai.kr": { "target": "https://great-succession-era.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "clan-family-registry.00ai.kr": { "target": "https://clan-family-registry.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "coliving-fit-lab.00ai.kr": { "target": "https://coliving-fit-lab.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "telegrim-messenger-0728.00ai.kr": { "target": "https://telegrim-messenger-0728.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "panel-review-lab.00ai.kr": { "target": "https://panel-review-lab.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "careplan-family-action.00ai.kr": { "target": "https://careplan-family-action.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "fanline-fandom-network.00ai.kr": { "target": "https://fanline-fandom-network.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "dukjil-workstation.00ai.kr": { "target": "https://dukjil-workstation.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "deok-calendar.00ai.kr": { "target": "https://deok-calendar.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "ilgito-duel-20260720.00ai.kr": { "target": "https://ilgito-duel-20260720.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "daejeon-after-hours-2d.00ai.kr": { "target": "https://daejeon-after-hours-2d.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "after-hours-dialogue.00ai.kr": { "target": "https://after-hours-dialogue.hayahoyeho.chatgpt.site", "mode": "proxy" },
+  "drop.00ai.kr": { "target": "drop", "mode": "drop" }
+}
