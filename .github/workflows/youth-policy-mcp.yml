@@ -128,10 +128,11 @@ jobs:
         env:
           YOUTH_POLICY_API_KEY: ${{ secrets.YOUTH_POLICY_API_KEY }}
           LAW_API_OC: ${{ secrets.LAW_API_OC }}
+          HASA_API_KEY: ${{ secrets.HASA_API_KEY }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
         run: |
           set -euo pipefail
-          for name in YOUTH_POLICY_API_KEY LAW_API_OC SYNC_SECRET; do
+          for name in YOUTH_POLICY_API_KEY LAW_API_OC HASA_API_KEY SYNC_SECRET; do
             value="${!name:-}"
             if [[ -n "$value" ]]; then
               printf '%s' "$value" \
@@ -150,12 +151,31 @@ jobs:
           headers="$(mktemp)"
           trap 'rm -f "$response" "$headers"' EXIT
 
+          bootstrapped=false
+          for _ in $(seq 1 12); do
+            bootstrap_code="$(curl -sS --max-time 60 \
+              -o "$response" -w '%{http_code}' \
+              -X POST "https://mcp.00ai.kr/admin/bootstrap" || true)"
+            if [[ "$bootstrap_code" == "200" ]] \
+              && jq -e '.ok == true and .policy_count > 0' "$response" >/dev/null; then
+              bootstrapped=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$bootstrapped" != "true" ]]; then
+            echo "The MCP policy store could not be initialized." >&2
+            head -c 4000 "$response" >&2
+            echo >&2
+            exit 1
+          fi
+
           healthy=false
           for _ in $(seq 1 12); do
             code="$(curl -sS --max-time 20 \
               -D "$headers" -o "$response" -w '%{http_code}' "$health" || true)"
             if [[ "$code" == "200" ]] \
-              && jq -e '.ok == true and .database.connected == true and .storage_backend == "durable_object" and .tools == 6' \
+              && jq -e '.ok == true and .database.connected == true and .database.policy_count > 0 and .storage_backend == "durable_object" and .tools == 7' \
                 "$response" >/dev/null; then
               healthy=true
               break
@@ -218,5 +238,5 @@ jobs:
 
           tools="$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
           jq -e \
-            '.result.tools | length == 6 and all(.[]; .annotations.readOnlyHint == true)' \
+            '.result.tools | length == 7 and all(.[]; .annotations.readOnlyHint == true)' \
             <<<"$tools" >/dev/null

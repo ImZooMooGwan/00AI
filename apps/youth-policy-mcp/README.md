@@ -6,14 +6,15 @@
 - 헬스체크: `https://mcp.00ai.kr/youth/health`
 - 전송 방식: stateless Streamable HTTP
 - 런타임: TypeScript + Cloudflare Workers + Durable Objects SQLite (운영) / D1 (로컬 회귀)
-- 정상 정책 질의 중 LLM API 호출: 없음
+- 검색·상세·자격·비교·변경·근거 조회 중 LLM 호출: 없음
+- 선택형 AI 분석: HASA Open AI Service Hub(OpenAI 호환 API)
 
 ## 구조
 
 ```text
-온통청년 API ─┐
-국가법령 API ─┼─ ingestion/validation/normalization ─ Durable Object SQLite
-공식 공고 ────┘                                      │
+온통청년 API ────────┐
+Y-HUB 검증 스냅샷 ──┼─ ingestion/validation/normalization ─ Durable Object SQLite
+국가법령 API ────────┘                                      │
                                                        ▼
                                        deterministic domain service
                                                        │
@@ -22,6 +23,7 @@
                          Y-HUB MCP                 공개 API       Y-HUB 웹
 
 KOSIS MCP ── 별도 통계 계층 (도구를 이 서버에 복제하지 않음)
+HASA API ─── 검색된 정책 근거만 전달받는 선택형 해석 계층
 ```
 
 MCP 핸들러는 `YouthPolicyService`를 호출하는 얇은 어댑터입니다. 저장소 인터페이스는 운영 Durable Object SQLite, 로컬 D1, 테스트용 메모리 구현을 분리합니다. 운영 저장소는 Worker 배포와 함께 생성되어 별도의 D1·KV API 권한이 필요하지 않으며 정책 원천 단위의 강한 일관성을 제공합니다. 공개 서버는 테스트 데이터를 실데이터 폴백으로 반환하지 않습니다.
@@ -36,8 +38,9 @@ MCP 핸들러는 `YouthPolicyService`를 호출하는 얇은 어댑터입니다.
 | `compare_youth_policies` | 최대 10개 정책 또는 지역·분류 비교 |
 | `get_policy_changes` | 버전 간 필드별 변경이력 조회 |
 | `get_policy_evidence` | 필드별 출처·해시·법적 근거 조회 |
+| `analyze_youth_policy_question` | 검색된 정책만 근거로 HASA 모델이 질문 분석 |
 
-모든 도구는 read-only, non-destructive, idempotent annotation을 가집니다. 자세한 스키마는 [docs/mcp-tools.md](docs/mcp-tools.md)를 참고하세요.
+모든 도구는 read-only, non-destructive입니다. 결정론적 6개 도구는 idempotent이며 HASA 분석 도구는 외부 AI를 호출하므로 non-idempotent·open-world로 표시합니다. 자세한 스키마는 [docs/mcp-tools.md](docs/mcp-tools.md)를 참고하세요.
 
 ## 로컬 실행
 
@@ -51,7 +54,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-로컬 MCP 주소는 `http://localhost:8787/youth`, 헬스체크는 `http://localhost:8787/youth/health`입니다. 실제 API 키 없이도 서버, 테스트, 빌드가 동작하며 동기화만 `skipped`로 기록됩니다.
+로컬 MCP 주소는 `http://localhost:8787/youth`, 헬스체크는 `http://localhost:8787/youth/health`입니다. 온통청년 키가 없으면 공개 Y-HUB 검증 스냅샷을 영속 저장소에 채우며, HASA 키가 없으면 결정론적 6개 도구만 동작합니다.
 
 ## 로컬 데이터베이스 마이그레이션
 
@@ -72,6 +75,7 @@ npm run db:migrate:remote
 ```bash
 npx wrangler secret put YOUTH_POLICY_API_KEY
 npx wrangler secret put LAW_API_OC
+npx wrangler secret put HASA_API_KEY
 npx wrangler secret put SYNC_SECRET
 ```
 
@@ -79,9 +83,12 @@ npx wrangler secret put SYNC_SECRET
 
 - `YOUTH_POLICY_API_KEY`: 온통청년 API 인증키
 - `LAW_API_OC`: 국가법령정보 공동활용 OC
+- `HASA_API_KEY`: HASA 개발키(`sk-dev-*`, PoC) 또는 운영키(`sk-ops-*`, 실서비스)
 - `SYNC_SECRET`: `/admin/sync` Bearer 인증값
 - `YOUTH_POLICY_API_BASE_URL`, `YOUTH_POLICY_API_PATH`: 공식 온통청년 원천
 - `KOSIS_MCP_URL`: 별도 국가통계 MCP 주소
+- `YHUB_SNAPSHOT_API_URL`: 온통청년 키 미설정 시 사용하는 공개 검증 스냅샷 API
+- `HASA_API_BASE_URL`, `HASA_MODEL`: HASA 공식 OpenAI 호환 주소와 모델
 - `MCP_PUBLIC_BASE_URL`: 공개 MCP 기준 URL
 
 운영 배포 워크플로는 `YouthPolicyStore` SQLite Durable Object를 Worker와 함께 선언하고 배포 전용 설정을 자동 생성합니다. Git에 있는 D1 ID는 로컬 검증용 placeholder이며 `.env.example`에는 실제 비밀값이 없습니다.
@@ -95,7 +102,7 @@ curl -X POST http://localhost:8787/admin/sync \
   -H "Authorization: Bearer $SYNC_SECRET"
 ```
 
-동기화는 최대 3회 지수 백오프, 10초 타임아웃, 2 MiB 응답 제한, 공식 호스트 허용목록을 적용합니다. 동일 원문 해시는 새 버전을 만들지 않습니다. 원천에서 사라진 정책은 성공한 전체 동기화에서 3회 연속 확인된 뒤 `source_missing`으로 변경합니다.
+동기화는 온통청년 운영키가 있으면 공식 API를 우선 사용하고, 키가 없으면 Y-HUB 검증 스냅샷을 사용합니다. 최대 3회 지수 백오프, 10초 타임아웃, 2 MiB 응답 제한, 수집 호스트 허용목록을 적용합니다. 동일 원문 해시는 새 버전을 만들지 않습니다. 원천에서 사라진 정책은 성공한 전체 동기화에서 3회 연속 확인된 뒤 `source_missing`으로 변경합니다.
 
 ## 테스트와 빌드
 
@@ -129,7 +136,7 @@ MCP Inspector에서 `http://localhost:8787/youth` 또는 배포 후 `https://mcp
 1. GitHub Actions에 Workers·DNS 권한이 있는 Cloudflare API Token을 설정합니다.
 2. 온통청년·법령 API와 수동 동기화 Secret을 설정합니다.
 3. `main` 반영 시 워크플로가 SQLite Durable Object 생성, Worker 배포와 Custom Domain 연결을 함께 수행합니다.
-4. 워크플로가 `/youth/health`, MCP 초기화와 6개 도구 목록을 실호출로 검증합니다.
+4. 워크플로가 빈 저장소를 공개 검증 스냅샷으로 초기화한 뒤 `/youth/health`, MCP 초기화와 7개 도구 목록을 실호출로 검증합니다.
 
 세부 절차와 롤백은 [docs/deployment.md](docs/deployment.md), 일상 운영은 [docs/operations.md](docs/operations.md)를 참고하세요.
 

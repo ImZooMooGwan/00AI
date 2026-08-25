@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
+import { analyzeWithHasa } from "../ai/hasa-client";
 import { createPolicyRepository } from "../db/repository";
 import { currentKoreanDate } from "../domain/date";
 import { YouthPolicyService } from "../domain/service";
@@ -8,6 +9,7 @@ import { DomainError } from "../domain/types";
 import type { RuntimeEnv } from "../env";
 import { policyResources } from "./resources";
 import {
+  aiAnalysisInputSchema,
   changesInputSchema,
   commonOutputSchema,
   compareInputSchema,
@@ -23,6 +25,12 @@ const annotations = {
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: false,
+};
+const aiAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
 };
 
 interface Envelope extends Record<string, unknown> {
@@ -272,6 +280,49 @@ export function createYouthPolicyMcpServer(env: RuntimeEnv): McpServer {
       annotations,
     },
     async (input) => execute(() => service.getEvidence(input.policy_id, input.fields)),
+  );
+
+  server.registerTool(
+    "analyze_youth_policy_question",
+    {
+      title: "HASA 근거 기반 청년정책 분석",
+      description:
+        "Y-HUB에서 먼저 찾은 정책만 근거로 HASA Open AI Service Hub 모델이 질문을 분석합니다. HASA 키가 없으면 명시적 설정 오류를 반환합니다.",
+      inputSchema: aiAnalysisInputSchema,
+      outputSchema: commonOutputSchema,
+      annotations: aiAnnotations,
+    },
+    async (input) => {
+      const asOf = input.as_of ?? currentKoreanDate();
+      return execute(async () => {
+        const search = await service.search({
+          ...(input.query ? { query: input.query } : {}),
+          ...(input.region_codes ? { regionCodes: input.region_codes } : {}),
+          ...(input.large_categories ? { largeCategories: input.large_categories } : {}),
+          ...(input.age !== undefined ? { age: input.age } : {}),
+          asOf,
+          page: 1,
+          pageSize: input.policy_limit,
+        });
+        const result = await analyzeWithHasa(env, {
+          question: input.question,
+          asOf,
+          policies: search.items,
+        });
+        return {
+          question: input.question,
+          asOf,
+          ...result,
+          policies: search.items.map((item) => ({
+            policyId: item.policyId,
+            title: item.title,
+            source: item.source,
+          })),
+          disclaimer:
+            "HASA의 해석은 제공된 정책 스냅샷에 근거한 참고정보이며 신청 전 공식 원문 확인이 필요합니다.",
+        };
+      }, asOf);
+    },
   );
 
   for (const resource of policyResources(env)) {

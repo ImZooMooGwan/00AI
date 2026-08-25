@@ -79,7 +79,8 @@ describe("Worker HTTP surface", () => {
       expect.objectContaining({
         ok: true,
         service: "00AI Youth Policy MCP",
-        tools: 6,
+        tools: 7,
+        hasa: expect.objectContaining({ state: "key_required" }),
       }),
     );
     expect(JSON.stringify(body)).not.toContain("test-sync-secret");
@@ -111,7 +112,7 @@ describe("Worker HTTP surface", () => {
     );
   });
 
-  it("lists exactly the six public read-only tools", async () => {
+  it("lists the six deterministic tools and the HASA read-only analysis tool", async () => {
     const response = await exports.default.fetch(
       mcpRequest({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }),
     );
@@ -125,11 +126,12 @@ describe("Worker HTTP surface", () => {
       "compare_youth_policies",
       "get_policy_changes",
       "get_policy_evidence",
+      "analyze_youth_policy_question",
     ]);
     expect(result.tools?.every((tool) => tool.annotations?.readOnlyHint === true)).toBe(true);
   });
 
-  it("executes all six tools through the MCP protocol", async () => {
+  it("executes all six deterministic tools through the MCP protocol", async () => {
     const calls: Array<[string, Record<string, unknown>]> = [
       [
         "search_youth_policies",

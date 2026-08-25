@@ -5,6 +5,7 @@ export const TOOL_NAMES = [
   "compare_youth_policies",
   "get_policy_changes",
   "get_policy_evidence",
+  "analyze_youth_policy_question",
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

@@ -3,8 +3,10 @@ import { DomainError, type SyncSummary } from "../domain/types";
 import type { RuntimeEnv } from "../env";
 import { normalizeYouthPolicy } from "./normalize";
 import { YouthPolicyApiClient, youthApiConfigurationFromEnv } from "./youth-client";
+import { fetchYHubSnapshotPolicies } from "./yhub-snapshot-client";
 
-const SOURCE = "youth_center";
+const OFFICIAL_SOURCE = "youth_center";
+const SNAPSHOT_SOURCE = "yhub_verified_snapshot";
 const PAGE_SIZE = 100;
 const MISSING_CONFIRMATION_RUNS = 3;
 
@@ -22,10 +24,11 @@ function safeErrorSummary(error: unknown): string {
 export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSummary> {
   const repository = createPolicyRepository(env);
   const startedAt = new Date().toISOString();
-  const id = await repository.startSync(SOURCE, startedAt);
+  const source = env.YOUTH_POLICY_API_KEY ? OFFICIAL_SOURCE : SNAPSHOT_SOURCE;
+  const id = await repository.startSync(source, startedAt);
   const base = {
     id,
-    source: SOURCE,
+    source,
     startedAt,
     finishedAt: null,
     success: null,
@@ -40,16 +43,49 @@ export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSum
   };
 
   if (!env.YOUTH_POLICY_API_KEY) {
-    const finished: SyncSummary = {
-      ...base,
-      finishedAt: new Date().toISOString(),
-      success: false,
-      status: "skipped",
-      errorCount: 1,
-      errorSummary: "YOUTH_POLICY_API_KEY가 설정되지 않아 동기화를 건너뛰었습니다.",
-    };
-    await repository.finishSync(id, omitIdentity(finished));
-    return finished;
+    try {
+      const snapshot = await fetchYHubSnapshotPolicies(env, startedAt);
+      let newCount = 0;
+      let updatedCount = 0;
+      let unchangedCount = 0;
+      for (const policy of snapshot.policies) {
+        const result = await repository.upsertPolicy(policy, startedAt);
+        if (result.state === "new") newCount += 1;
+        else if (result.state === "updated") updatedCount += 1;
+        else unchangedCount += 1;
+      }
+      const inactiveCount = await repository.markMissing(
+        SNAPSHOT_SOURCE,
+        startedAt,
+        MISSING_CONFIRMATION_RUNS,
+      );
+      const finished: SyncSummary = {
+        ...base,
+        finishedAt: new Date().toISOString(),
+        success: true,
+        status: "succeeded",
+        fetchedCount: snapshot.policies.length,
+        newCount,
+        updatedCount,
+        unchangedCount,
+        inactiveCount,
+        errorCount: 0,
+        errorSummary: null,
+      };
+      await repository.finishSync(id, omitIdentity(finished));
+      return finished;
+    } catch (error) {
+      const finished: SyncSummary = {
+        ...base,
+        finishedAt: new Date().toISOString(),
+        success: false,
+        status: "failed",
+        errorCount: 1,
+        errorSummary: safeErrorSummary(error),
+      };
+      await repository.finishSync(id, omitIdentity(finished));
+      return finished;
+    }
   }
 
   let fetchedCount = 0;
@@ -101,14 +137,18 @@ export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSum
     }
 
     if (reachedEnd && errorCount === 0) {
-      inactiveCount = await repository.markMissing(SOURCE, startedAt, MISSING_CONFIRMATION_RUNS);
+      inactiveCount = await repository.markMissing(
+        OFFICIAL_SOURCE,
+        startedAt,
+        MISSING_CONFIRMATION_RUNS,
+      );
     }
 
     const finishedAt = new Date().toISOString();
     const status: SyncSummary["status"] = errorCount > 0 || !reachedEnd ? "partial" : "succeeded";
     const summary: SyncSummary = {
       id,
-      source: SOURCE,
+      source: OFFICIAL_SOURCE,
       startedAt,
       finishedAt,
       success: status === "succeeded",
@@ -140,7 +180,14 @@ export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSum
       errorSummary: safeErrorSummary(error),
     };
     await repository.finishSync(id, omitIdentity(summary));
-    return summary;
+    console.warn(
+      JSON.stringify({
+        event: "official_youth_policy_sync_failed",
+        fallback: SNAPSHOT_SOURCE,
+      }),
+    );
+    const { YOUTH_POLICY_API_KEY: _officialApiKey, ...snapshotEnv } = env;
+    return synchronizeYouthPolicies(snapshotEnv);
   }
 }
 

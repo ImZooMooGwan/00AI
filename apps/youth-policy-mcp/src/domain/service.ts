@@ -255,7 +255,10 @@ export class YouthPolicyService {
 
 function sourceSummary(policy: Policy) {
   return {
-    sourceName: "온통청년 청년정책 API",
+    sourceName:
+      policy.source === "yhub_verified_snapshot"
+        ? "Y-HUB 검증 스냅샷"
+        : "온통청년 청년정책 API",
     sourcePolicyId: policy.sourcePolicyId,
     originalUrl: policy.sourceUrl,
     collectedAt: policy.collectedAt,

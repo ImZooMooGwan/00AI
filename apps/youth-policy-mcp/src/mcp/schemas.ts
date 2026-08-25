@@ -85,3 +85,13 @@ export const evidenceInputSchema = z.object({
   policy_id: z.string().trim().min(1).max(200),
   fields: z.array(z.string().trim().min(1).max(100)).max(30).optional(),
 });
+
+export const aiAnalysisInputSchema = z.object({
+  question: z.string().trim().min(3).max(1_000),
+  query: z.string().trim().min(1).max(200).optional(),
+  region_codes: z.array(z.string().trim().min(1).max(30)).max(20).optional(),
+  large_categories: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  age: z.number().int().min(0).max(120).optional(),
+  as_of: isoDate.optional(),
+  policy_limit: z.number().int().min(1).max(10).default(6),
+});

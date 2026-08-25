@@ -2,13 +2,14 @@
 
 ## 일일 확인
 
-1. `/youth/health`의 `database.connected`, `storage_backend`, `last_sync_at`, `last_sync_status`를 봅니다.
+1. `/youth/health`의 `database.connected`, `database.policy_count`, `data_source`, `hasa.state`, `last_sync_at`, `last_sync_status`를 봅니다.
 2. Workers Logs에서 `youth_policy_sync` 구조화 이벤트를 확인합니다.
 3. `failed` 또는 `partial`이면 `sync_runs.error_summary`의 안정적인 오류 코드를 확인합니다.
 
 ## 장애별 대응
 
-- `YOUTH_POLICY_API_KEY` 미설정: 동기화가 `skipped`입니다. Secret을 설정하고 수동 동기화를 실행합니다.
+- `YOUTH_POLICY_API_KEY` 미설정: `yhub_verified_snapshot`으로 수집합니다. 공식 실시간 수집이 필요하면 Secret을 설정하고 수동 동기화를 실행합니다.
+- `HASA_API_KEY_REQUIRED`: 결정론적 6개 도구는 정상입니다. HASA 개발키 또는 운영키를 Secret에 넣은 뒤 AI 분석 도구만 다시 확인합니다.
 - `UPSTREAM_SCHEMA_MISMATCH`: 원문을 정책으로 저장하지 않습니다. 공식 응답 변경을 확인하고 버전별 파서를 추가합니다.
 - `UPSTREAM_TEMPORARY_ERROR`: 자동 재시도 후 실패합니다. 원천 상태를 확인하고 수동 재실행합니다.
 - 저장소 연결 실패: 운영 환경은 Durable Object RPC binding `POLICY_STORE_DO`, `YouthPolicyStore` export와 `storage=sqlite` 선언을 확인합니다. 로컬 D1 회귀 환경은 binding `DB`와 마이그레이션 적용 여부를 확인합니다.

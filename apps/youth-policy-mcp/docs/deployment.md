@@ -24,6 +24,7 @@ npx wrangler deploy --config wrangler.deploy.jsonc
 ```bash
 npx wrangler secret put YOUTH_POLICY_API_KEY
 npx wrangler secret put LAW_API_OC
+npx wrangler secret put HASA_API_KEY
 npx wrangler secret put SYNC_SECRET
 ```
 
@@ -43,7 +44,7 @@ curl -fsS https://<worker>.workers.dev/youth/health
 
 - `GET https://mcp.00ai.kr/youth/health`
 - MCP Inspector로 `https://mcp.00ai.kr/youth` 초기화
-- 도구 수 6개와 annotation
+- 도구 수 7개와 annotation
 - API 키를 설정한 뒤 수동 동기화 1회
 - 검색 결과의 원천 ID·URL·기준일
 
@@ -57,6 +58,4 @@ Workers 배포 이력에서 직전 버전으로 롤백합니다. Durable Object 
 
 ## 현재 외부 블로커
 
-Cloudflare API Token이 없으면 자동 배포할 수 없습니다. 온통청년·법령 API Secret이
-없어도 MCP 서버와 빈 Durable Object 저장소는 배포되지만 실데이터 동기화는 건너뜁니다. 세 API Secret은
-GitHub Actions Secret 또는 `wrangler secret put`으로만 설정합니다.
+Cloudflare API Token이 없으면 자동 배포할 수 없습니다. 온통청년 키가 없으면 Y-HUB 검증 스냅샷으로 저장소를 초기화하므로 검색은 동작하지만 공식 실시간 수집은 활성화되지 않습니다. HASA 키가 없으면 선택형 AI 분석 도구만 `HASA_API_KEY_REQUIRED`를 반환합니다. Secret은 GitHub Actions Secret 또는 `wrangler secret put`으로만 설정합니다.

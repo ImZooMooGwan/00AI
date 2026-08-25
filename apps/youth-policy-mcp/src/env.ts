@@ -11,6 +11,10 @@ export type RuntimeEnv = Omit<Env, "DB" | "POLICY_STORE_DO" | "POLICY_STORAGE_BA
   readonly POLICY_STORAGE_BACKEND?: "d1" | "durable_object";
   readonly YOUTH_POLICY_API_KEY?: string;
   readonly YOUTH_POLICY_LEGACY_ENABLED?: string;
+  readonly YHUB_SNAPSHOT_API_URL?: string;
   readonly LAW_API_OC?: string;
+  readonly HASA_API_KEY?: string;
+  readonly HASA_API_BASE_URL?: string;
+  readonly HASA_MODEL?: string;
   readonly SYNC_SECRET?: string;
 };

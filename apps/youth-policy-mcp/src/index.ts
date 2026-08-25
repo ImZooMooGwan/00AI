@@ -2,6 +2,7 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 
 export { YouthPolicyStore } from "./db/policy-store-do";
 
+import { getHasaConfiguration } from "./ai/hasa-client";
 import { createPolicyRepository, policyStorageBackend } from "./db/repository";
 import { TOOL_NAMES } from "./domain/types";
 import type { RuntimeEnv } from "./env";
@@ -146,6 +147,7 @@ async function secureEquals(left: string, right: string): Promise<boolean> {
 async function health(env: RuntimeEnv): Promise<Response> {
   const state = await createPolicyRepository(env).health();
   const backend = policyStorageBackend(env);
+  const hasa = getHasaConfiguration(env);
   return json(
     {
       ok: state.connected,
@@ -155,6 +157,15 @@ async function health(env: RuntimeEnv): Promise<Response> {
       tools: TOOL_NAMES.length,
       database: { connected: state.connected, policy_count: state.policyCount, backend },
       storage_backend: backend,
+      data_source: state.lastSync?.source ?? null,
+      official_api_key_configured: Boolean(env.YOUTH_POLICY_API_KEY),
+      hasa: {
+        provider: "HASA Open AI Service Hub",
+        configured: hasa.configured,
+        state: hasa.configured ? "configured" : "key_required",
+        base_url: hasa.baseUrl,
+        model: hasa.model,
+      },
       last_sync_at: state.lastSync?.finishedAt ?? state.lastSync?.startedAt ?? null,
       last_sync_status: state.lastSync?.status ?? null,
       timestamp: new Date().toISOString(),
@@ -193,6 +204,27 @@ async function handleAdminSync(request: Request, env: RuntimeEnv): Promise<Respo
   return json(await synchronizeYouthPolicies(env));
 }
 
+async function handleBootstrap(request: Request, env: RuntimeEnv): Promise<Response> {
+  if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, { Allow: "POST" });
+  const before = await createPolicyRepository(env).health();
+  if (before.policyCount > 0) {
+    return json({ ok: true, state: "already_initialized", policy_count: before.policyCount });
+  }
+  const limited = await rateLimit(request, env);
+  if (limited) return limited;
+  const summary = await synchronizeYouthPolicies(env);
+  const after = await createPolicyRepository(env).health();
+  return json(
+    {
+      ok: summary.status === "succeeded" && after.policyCount > 0,
+      state: summary.status,
+      policy_count: after.policyCount,
+      source: summary.source,
+    },
+    summary.status === "succeeded" && after.policyCount > 0 ? 200 : 503,
+  );
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const runtimeEnv: RuntimeEnv = env;
@@ -200,6 +232,7 @@ export default {
     try {
       if (HEALTH_PATHS.has(url.pathname)) return health(runtimeEnv);
       if (url.pathname === "/admin/sync") return handleAdminSync(request, runtimeEnv);
+      if (url.pathname === "/admin/bootstrap") return handleBootstrap(request, runtimeEnv);
       if (MCP_PATHS.has(url.pathname)) return handleMcp(request, runtimeEnv);
       if (url.pathname === "/" && request.method === "GET") {
         return json({
@@ -227,6 +260,14 @@ export default {
             inserted: summary.newCount,
             updated: summary.updatedCount,
             errors: summary.errorCount,
+          }),
+        );
+      }).catch(() => {
+        console.error(
+          JSON.stringify({
+            event: "youth_policy_sync",
+            status: "failed",
+            message: "Scheduled policy synchronization failed before a summary was produced.",
           }),
         );
       }),

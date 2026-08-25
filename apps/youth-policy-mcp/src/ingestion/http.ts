@@ -6,6 +6,8 @@ const ALLOWED_SOURCE_HOSTS = new Set([
   "youthcenter.go.kr",
   "www.law.go.kr",
   "law.go.kr",
+  "yhub.00ai.kr",
+  "youth-policy-data-hub.hayahoyeho.chatgpt.site",
 ]);
 
 export function assertAllowedSourceUrl(value: string): URL {
@@ -69,13 +71,14 @@ export async function fetchWithRetry(
   init: RequestInit,
   attempts = 3,
   timeoutMilliseconds = 10_000,
+  fetcher: typeof fetch = fetch,
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMilliseconds);
     try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
+      const response = await fetcher(url, { ...init, signal: controller.signal });
       if (response.ok) return response;
       if (response.status < 500 && response.status !== 429) {
         throw new DomainError(

@@ -28,6 +28,10 @@
 
 입력: `policy_id`, 선택적 `fields`. 원천 ID·URL·기준일·수집일·해시·인용문과 법령 연결, 충돌·불확실성을 반환합니다.
 
+## `analyze_youth_policy_question`
+
+입력: `question`, 선택적 `query`, `region_codes`, `large_categories`, `age`, `as_of`, `policy_limit`. 먼저 영속 저장소에서 최대 10개 정책을 검색한 뒤 정책 ID·요약·지역·신청상태·공식 URL만 HASA Open AI Service Hub에 전달합니다. 결과는 사용 모델, 분석문, 근거 정책과 공식 원문 확인 면책을 포함합니다. `HASA_API_KEY`가 없으면 다른 도구에 영향을 주지 않고 `HASA_API_KEY_REQUIRED`를 반환합니다.
+
 ## 리소스와 프롬프트
 
 리소스는 `youth-policy://taxonomy`, `code-reference`, `methodology`, `data-sources`, `eligibility-rules`, `citation-guide`입니다. `analyze_youth_policy_region` 프롬프트는 국가통계 MCP와 정책 MCP의 조합 절차를 제공합니다.
