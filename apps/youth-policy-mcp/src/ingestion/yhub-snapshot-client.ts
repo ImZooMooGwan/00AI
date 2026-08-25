@@ -3,7 +3,8 @@ import type { RuntimeEnv } from "../env";
 import { assertAllowedSourceUrl, fetchWithRetry, readLimitedText } from "./http";
 import { normalizeYouthPolicy } from "./normalize";
 
-const DEFAULT_SNAPSHOT_API_URL = "https://yhub.00ai.kr/api/v1";
+const DEFAULT_SNAPSHOT_API_URL =
+  "https://youth-policy-data-hub.hayahoyeho.chatgpt.site/api/v1";
 const MAX_SNAPSHOT_RECORDS = 500;
 
 interface SnapshotEnvelope {
@@ -61,7 +62,7 @@ async function fetchEnvelope(url: URL, fetcher: typeof fetch): Promise<SnapshotE
   const response = await fetchWithRetry(url, {
     method: "GET",
     headers: { Accept: "application/json", "User-Agent": "00AI-Youth-Policy-MCP/0.1" },
-  }, 3, 10_000, fetcher);
+  }, 2, 20_000, fetcher);
   return JSON.parse(await readLimitedText(response)) as SnapshotEnvelope;
 }
 
