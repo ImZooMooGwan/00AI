@@ -258,6 +258,15 @@ export class D1PolicyRepository implements PolicyRepository {
     return { state: existing ? "updated" : "new", changes };
   }
 
+  async upsertPolicies(
+    inputs: UpsertPolicyInput[],
+    observedAt: string,
+  ): Promise<UpsertPolicyResult[]> {
+    const results: UpsertPolicyResult[] = [];
+    for (const input of inputs) results.push(await this.upsertPolicy(input, observedAt));
+    return results;
+  }
+
   async markMissing(source: string, observedBefore: string, threshold: number): Promise<number> {
     await this.database
       .prepare(

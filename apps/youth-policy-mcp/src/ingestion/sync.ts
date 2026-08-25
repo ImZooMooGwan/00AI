@@ -1,5 +1,10 @@
 import { createPolicyRepository } from "../db/repository";
-import { DomainError, type SyncSummary } from "../domain/types";
+import {
+  DomainError,
+  type NormalizedPolicyRecord,
+  type PolicyRepository,
+  type SyncSummary,
+} from "../domain/types";
 import type { RuntimeEnv } from "../env";
 import { normalizeYouthPolicy } from "./normalize";
 import { YouthPolicyApiClient, youthApiConfigurationFromEnv } from "./youth-client";
@@ -8,6 +13,7 @@ import { fetchYHubSnapshotPolicies } from "./yhub-snapshot-client";
 const OFFICIAL_SOURCE = "youth_center";
 const SNAPSHOT_SOURCE = "yhub_verified_snapshot";
 const PAGE_SIZE = 100;
+const UPSERT_BATCH_SIZE = 500;
 const MISSING_CONFIRMATION_RUNS = 3;
 
 function boundedInteger(value: string | undefined, fallback: number, maximum: number): number {
@@ -19,6 +25,28 @@ function boundedInteger(value: string | undefined, fallback: number, maximum: nu
 function safeErrorSummary(error: unknown): string {
   if (error instanceof DomainError) return `${error.code}: ${error.message}`.slice(0, 500);
   return "INTERNAL_SYNC_ERROR: 동기화 처리 중 내부 오류가 발생했습니다.";
+}
+
+async function upsertPolicies(
+  repository: PolicyRepository,
+  policies: NormalizedPolicyRecord[],
+  observedAt: string,
+): Promise<{ newCount: number; updatedCount: number; unchangedCount: number }> {
+  let newCount = 0;
+  let updatedCount = 0;
+  let unchangedCount = 0;
+  for (let offset = 0; offset < policies.length; offset += UPSERT_BATCH_SIZE) {
+    const results = await repository.upsertPolicies(
+      policies.slice(offset, offset + UPSERT_BATCH_SIZE),
+      observedAt,
+    );
+    for (const result of results) {
+      if (result.state === "new") newCount += 1;
+      else if (result.state === "updated") updatedCount += 1;
+      else unchangedCount += 1;
+    }
+  }
+  return { newCount, updatedCount, unchangedCount };
 }
 
 export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSummary> {
@@ -45,15 +73,11 @@ export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSum
   if (!env.YOUTH_POLICY_API_KEY) {
     try {
       const snapshot = await fetchYHubSnapshotPolicies(env, startedAt);
-      let newCount = 0;
-      let updatedCount = 0;
-      let unchangedCount = 0;
-      for (const policy of snapshot.policies) {
-        const result = await repository.upsertPolicy(policy, startedAt);
-        if (result.state === "new") newCount += 1;
-        else if (result.state === "updated") updatedCount += 1;
-        else unchangedCount += 1;
-      }
+      const { newCount, updatedCount, unchangedCount } = await upsertPolicies(
+        repository,
+        snapshot.policies,
+        startedAt,
+      );
       const inactiveCount = await repository.markMissing(
         SNAPSHOT_SOURCE,
         startedAt,
@@ -123,18 +147,19 @@ export async function synchronizeYouthPolicies(env: RuntimeEnv): Promise<SyncSum
       }
     }
 
+    const normalizedPolicies: NormalizedPolicyRecord[] = [];
     for (const record of deduplicated.values()) {
       try {
-        const normalized = await normalizeYouthPolicy(record, startedAt);
-        const result = await repository.upsertPolicy(normalized, startedAt);
-        if (result.state === "new") newCount += 1;
-        else if (result.state === "updated") updatedCount += 1;
-        else unchangedCount += 1;
+        normalizedPolicies.push(await normalizeYouthPolicy(record, startedAt));
       } catch {
         errorCount += 1;
         errors.push("필수 필드가 없거나 유효하지 않은 정책 레코드를 제외했습니다.");
       }
     }
+    const counts = await upsertPolicies(repository, normalizedPolicies, startedAt);
+    newCount = counts.newCount;
+    updatedCount = counts.updatedCount;
+    unchangedCount = counts.unchangedCount;
 
     if (reachedEnd && errorCount === 0) {
       inactiveCount = await repository.markMissing(

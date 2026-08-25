@@ -44,6 +44,10 @@ export class DurableObjectPolicyRepository implements PolicyRepository {
     return this.stub.upsertPolicy(input, observedAt);
   }
 
+  upsertPolicies(inputs: UpsertPolicyInput[], observedAt: string): Promise<UpsertPolicyResult[]> {
+    return this.stub.upsertPolicies(inputs, observedAt);
+  }
+
   markMissing(source: string, observedBefore: string, threshold: number): Promise<number> {
     return this.stub.markMissing(source, observedBefore, threshold);
   }

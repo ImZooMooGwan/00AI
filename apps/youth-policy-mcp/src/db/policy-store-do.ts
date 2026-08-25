@@ -192,6 +192,15 @@ export class YouthPolicyStore extends DurableObject<Env> implements PolicyReposi
     return { state: existing ? "updated" : "new", changes };
   }
 
+  async upsertPolicies(
+    inputs: UpsertPolicyInput[],
+    observedAt: string,
+  ): Promise<UpsertPolicyResult[]> {
+    const results: UpsertPolicyResult[] = [];
+    for (const input of inputs) results.push(await this.upsertPolicy(input, observedAt));
+    return results;
+  }
+
   private readVersions(policyId: string, from?: string, to?: string): PolicyVersion[] {
     const clauses = ["policy_id = ?"];
     const values: string[] = [policyId];

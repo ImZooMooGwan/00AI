@@ -266,6 +266,7 @@ export interface PolicyRepository {
   getBundles(policyIds: string[], asOf?: string): Promise<PolicyBundle[]>;
   getVersions(policyId: string, from?: string, to?: string): Promise<PolicyVersion[]>;
   upsertPolicy(input: UpsertPolicyInput, observedAt: string): Promise<UpsertPolicyResult>;
+  upsertPolicies(inputs: UpsertPolicyInput[], observedAt: string): Promise<UpsertPolicyResult[]>;
   markMissing(source: string, observedBefore: string, threshold: number): Promise<number>;
   startSync(source: string, startedAt: string): Promise<string>;
   finishSync(id: string, summary: Omit<SyncSummary, "id" | "source" | "startedAt">): Promise<void>;

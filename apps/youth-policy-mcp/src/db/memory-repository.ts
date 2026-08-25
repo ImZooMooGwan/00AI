@@ -170,6 +170,15 @@ export class MemoryPolicyRepository implements PolicyRepository {
     return { state: existing ? "updated" : "new", changes };
   }
 
+  async upsertPolicies(
+    inputs: UpsertPolicyInput[],
+    observedAt: string,
+  ): Promise<UpsertPolicyResult[]> {
+    const results: UpsertPolicyResult[] = [];
+    for (const input of inputs) results.push(await this.upsertPolicy(input, observedAt));
+    return results;
+  }
+
   async markMissing(source: string, observedBefore: string, threshold: number): Promise<number> {
     let count = 0;
     for (const bundle of this.bundles.values()) {
