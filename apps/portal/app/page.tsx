@@ -800,8 +800,6 @@ export default function Home() {
                   key={project.id}
                   className={`project-card project-source-${project.source}`}
                   href={project.href}
-                  target="_blank"
-                  rel="noreferrer"
                   aria-label={`${project.name} — ${projectLinkLabel(project).replace(" →", "")}`}
                 >
                   <article>
