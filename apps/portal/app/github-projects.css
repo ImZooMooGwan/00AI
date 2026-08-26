@@ -51,16 +51,47 @@
   display: inline-block;
 }
 
-.project-list article {
-  grid-template-columns: 66px minmax(0, 1.2fr) minmax(180px, 1fr) 104px;
+.project-list > .project-card {
+  display: block;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(49, 92, 255, 0.12);
 }
 
-.project-list article.project-source-github {
+.project-list > .project-card article {
+  grid-template-columns: 66px minmax(0, 1.2fr) minmax(180px, 1fr) 104px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.project-list > .project-card:last-child article {
+  border-bottom: 0;
+}
+
+.project-list > .project-card:hover article {
+  box-shadow: inset 4px 0 0 var(--blue);
+}
+
+.project-list > .project-card:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid var(--blue);
+  outline-offset: -3px;
+}
+
+.project-list > .project-card.project-source-github article {
   background: linear-gradient(90deg, #fff 0, #fff 72%, #f8f9ff 100%);
 }
 
-.project-list article.project-source-site {
+.project-list > .project-card.project-source-site article {
   background: linear-gradient(90deg, #fff 0, #fff 72%, #f4fbf7 100%);
+}
+
+.project-list > .project-card:active article {
+  box-shadow: inset 4px 0 0 var(--blue), inset 0 0 0 999px rgba(49, 92, 255, 0.06);
 }
 
 .project-source-github .project-mark {
@@ -84,6 +115,13 @@
   overflow-wrap: anywhere;
 }
 
+.project-card-action {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 @keyframes sync-pulse {
   50% {
     opacity: 0.35;
@@ -96,8 +134,19 @@
     justify-items: start;
   }
 
-  .project-list article {
+  .project-list > .project-card article {
     grid-template-columns: 48px 1fr;
+    min-height: 144px;
+    padding: 22px 20px;
+    touch-action: manipulation;
+  }
+
+  .project-card-action {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 5px;
+    color: var(--blue);
+    font-size: 13px;
   }
 }
 
