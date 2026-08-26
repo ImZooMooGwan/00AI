@@ -796,38 +796,44 @@ export default function Home() {
           ) : (
             <div className="project-list">
               {filteredProjects.map((project) => (
-                <article
+                <a
                   key={project.id}
-                  className={`project-source-${project.source}`}
+                  className={`project-card project-source-${project.source}`}
+                  href={project.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${project.name} — ${projectLinkLabel(project).replace(" →", "")}`}
                 >
-                  <div className="project-mark">
-                    {project.source === "github"
-                      ? "GH"
-                      : project.source === "site"
-                        ? "WEB"
-                        : "00"}
-                  </div>
-                  <div>
-                    <p>
-                      {project.field} · {project.status}
-                    </p>
-                    <h3>{project.name}</h3>
-                    <span>{project.problem}</span>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>제작</dt>
-                      <dd>{project.maker}</dd>
+                  <article>
+                    <div className="project-mark">
+                      {project.source === "github"
+                        ? "GH"
+                        : project.source === "site"
+                          ? "WEB"
+                          : "00"}
                     </div>
                     <div>
-                      <dt>기술</dt>
-                      <dd>{project.stack}</dd>
+                      <p>
+                        {project.field} · {project.status}
+                      </p>
+                      <h3>{project.name}</h3>
+                      <span>{project.problem}</span>
                     </div>
-                  </dl>
-                  <a href={project.href} target="_blank" rel="noreferrer">
-                    {projectLinkLabel(project)}
-                  </a>
-                </article>
+                    <dl>
+                      <div>
+                        <dt>제작</dt>
+                        <dd>{project.maker}</dd>
+                      </div>
+                      <div>
+                        <dt>기술</dt>
+                        <dd>{project.stack}</dd>
+                      </div>
+                    </dl>
+                    <span className="project-card-action">
+                      {projectLinkLabel(project)}
+                    </span>
+                  </article>
+                </a>
               ))}
               {filteredProjects.length === 0 && (
                 <p className="empty">검색 결과가 없습니다.</p>
