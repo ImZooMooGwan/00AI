@@ -1,63 +1,55 @@
 # 00AI Harness · Local-First Government AI
 
-행정망 안의 파일·문서·데이터·도구를 안전하게 연결하기 위한 00AI Harness의 브라우저 로컬 실행 MVP입니다.
+행정망 안의 파일·문서·데이터·도구를 안전하게 연결하기 위한 00AI Harness입니다.
 
-이 버전은 별도 설치나 API 키 없이 TXT·Markdown·CSV·JSON·HTML 문서를 브라우저 메모리에서 읽고, 업무 요청어와 일치하는 근거 문장을 추출해 실제 Markdown 결과 파일을 생성합니다.
+웹 Harness는 요청, 실행 대상 선택, 진행상태, 결과 확인을 담당합니다. 실제 처리는 업무 경계에 따라 세 가지 실행기 중 하나에서 수행합니다.
+
+1. **브라우저 로컬** — 설치 없이 텍스트 문서를 읽고 근거와 SHA-256을 생성합니다.
+2. **PC 에이전트** — 사용자 PC의 별도 Python 실행기가 문서를 처리하고 HASA 추론을 선택적으로 사용합니다.
+3. **기관 내부 서버** — 같은 실행기 계약을 기관 서버에 배치해 내부 시스템과 확장 연결합니다.
 
 ## 핵심 원칙
 
-- 내부 데이터는 외부 생성형 AI로 전송하지 않습니다.
-- 외부 모델은 필요할 때 추론 계획만 제안하고, 실제 데이터 조회와 문서 처리는 내부 실행기가 담당합니다.
-- 모든 결과는 `FACT · CALCULATED · INFERRED · PROPOSED` 근거 유형으로 구분합니다.
-- API 키와 개인정보는 저장소에 넣지 않습니다.
+- API Key와 접근 토큰을 공개 웹사이트나 GitHub에 저장하지 않습니다.
+- 원본 문서의 읽기, 근거 추출, 해시는 PC 또는 내부 서버에서 수행합니다.
+- HASA에는 원본 전체가 아니라 이메일·전화번호·주민등록번호 패턴을 가린 근거 문장만 전달합니다.
+- 실행기 연결 확인이 성공해야 PC 에이전트와 내부 서버 RUN 버튼이 활성화됩니다.
+- 문서나 실행기가 없으면 가짜 결과를 만들지 않습니다.
 
-## 로컬 실행
+## PC 에이전트 설치
 
-1. 압축을 해제합니다.
-2. `index.html`을 브라우저로 엽니다.
-3. 또는 폴더에서 다음 명령으로 정적 서버를 실행합니다.
+설치·실행 파일은 [`apps/harness-agent`](apps/harness-agent)에 있습니다.
+
+Windows에서는 Python 3.10 이상을 설치한 뒤 `start-windows.ps1`을 실행합니다. HASA API Key는 화면에 표시되지 않는 입력창으로 받고 해당 실행 프로세스의 환경변수에만 둡니다.
+
+## HASA 연결
+
+HASA Open AI Service Hub의 OpenAI 호환 API를 사용합니다.
+
+- Base URL: `https://open.hasa.re.kr/v1`
+- Chat endpoint: `POST /v1/chat/completions`
+- 기본 모델: `exaone-4.0-32b`
+
+실행기는 `HASA_API_KEY`, `HASA_BASE_URL`, `HASA_MODEL` 환경변수를 읽습니다. 키가 없거나 HASA가 응답하지 않으면 로컬 근거 추출 결과는 유지하고 오류 상태를 명시합니다.
+
+## 브라우저 로컬 실행
+
+1. `https://harness.00ai.kr`을 엽니다.
+2. `브라우저`를 선택합니다.
+3. 업무 요청과 TXT·Markdown·CSV·JSON·HTML 문서를 입력합니다.
+4. `RUN BROWSER LOCAL`을 누릅니다.
+5. 근거, 파일 해시, Markdown 결과를 확인합니다.
+
+## 기관 내부 서버
 
 ```bash
-python -m http.server 4173
+export HASA_API_KEY="발급받은 키"
+export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
+./apps/harness-agent/start-server.sh --origin https://harness.00ai.kr
 ```
 
-브라우저에서 `http://localhost:4173`을 엽니다.
-
-## GitHub 업로드
-
-압축 해제 후 해당 폴더에서 실행합니다.
-
-```bash
-git init
-git branch -M main
-git add .
-git commit -m "Build 00AI Harness local-first prototype"
-git remote add origin https://github.com/ImZooMooGwan/00AI.git
-git push -u origin main
-```
-
-기존 저장소에 파일이 이미 있다면 먼저 `git pull --rebase origin main`을 실행한 뒤 커밋하세요.
-
-## 배포
-
-- GitHub Pages: 저장소 Settings → Pages → `main` / root 선택
-- Netlify: `index.html`이 있는 폴더를 드래그 앤 드롭
-- Vercel: 프로젝트 Import 후 Framework Preset을 `Other`로 선택
-
-## 화면 흐름
-
-1. 업무 요청을 입력합니다.
-2. `문서 선택`에서 로컬 문서를 선택합니다.
-3. `RUN LOCAL HARNESS`를 누르면 브라우저가 실제 파일을 읽고 SHA-256을 계산합니다.
-4. 요청어와 일치하는 근거 문장을 추출한 뒤 결과 화면으로 이동합니다.
-5. `결과 파일 다운로드`를 누르면 실행 요약, 근거, 파일 해시가 포함된 Markdown 파일을 받습니다.
-
-문서 내용은 서버나 외부 AI로 전송하지 않습니다. 문서가 없으면 실행할 수 없으며, 화면에 가짜 실행 결과를 표시하지 않습니다.
-
-## 다음 구현 단계
-
-현재 구현은 로컬 텍스트 근거 추출까지 실제로 동작합니다. HWPX 파싱·생성, 의미 기반 AI 분석, 행정망 파일 검색, 내부 MCP 도구 실행은 아직 연결되지 않았습니다. 이 기능을 확장할 때는 브라우저에 키를 넣지 말고 행정망 내부 백엔드의 `/api/plan`, `/api/execute`, `/api/evidence` 같은 엔드포인트를 연결하세요.
+내부 서버는 방화벽·접근통제·HTTPS 리버스 프록시 뒤에 배치하세요. 현재 공개 MVP는 텍스트 문서 근거 추출과 HASA 분석까지 지원합니다. HWPX 파싱·생성, 행정망 파일 검색, 전자결재 등은 내부 실행기의 승인형 도구로 추가해야 합니다.
 
 ## Y-HUB 청년정책 MCP
 
-`apps/youth-policy-mcp`에는 온통청년 정책을 영속화하고 검색·상세·자격점검·비교·변경이력·근거 조회를 제공하는 읽기 전용 원격 MCP Worker가 있습니다. 목표 엔드포인트는 `https://mcp.00ai.kr/youth`이며 설치·마이그레이션·운영·배포 방법은 [앱 README](apps/youth-policy-mcp/README.md)를 참고하세요.
+`apps/youth-policy-mcp`에는 온통청년 정책을 영속화하고 검색·상세·자격점검·비교·변경이력·근거 조회를 제공하는 읽기 전용 원격 MCP Worker가 있습니다. 목표 엔드포인트는 `https://mcp.00ai.kr/youth`입니다.
