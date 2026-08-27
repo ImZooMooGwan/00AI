@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07111d" />
-    <meta name="description" content="00AI Harness — 브라우저 로컬 문서 검토 실행기" />
-    <title>00AI Harness · Local Document Runner</title>
+    <meta name="description" content="00AI Harness — 브라우저, PC 에이전트, 기관 내부 서버를 연결하는 공공AI 실행 허브" />
+    <title>00AI Harness · Execution Hub</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="harness-functional.css" />
   </head>
@@ -17,25 +17,25 @@
       <aside class="sidebar" aria-label="주요 메뉴">
         <div class="brand-lockup">
           <div class="brand-mark">00</div>
-          <div><strong>00AI HARNESS</strong><span>LOCAL DOCUMENT RUNNER</span></div>
+          <div><strong>00AI HARNESS</strong><span>EXECUTION HUB</span></div>
         </div>
         <nav class="primary-nav">
           <button class="nav-item is-selected" data-nav="ready"><span class="nav-glyph">⌂</span>HOME</button>
           <div class="nav-label">WORKSPACE</div>
           <button class="nav-item" data-nav="active"><span class="nav-glyph">▶</span>RUN</button>
           <button class="nav-item" data-action="documents"><span class="nav-glyph">▤</span>DOCUMENTS</button>
-          <button class="nav-item" data-action="mcp"><span class="nav-glyph">◌</span>MCP HUB</button>
+          <button class="nav-item" data-action="connection"><span class="nav-glyph">◌</span>CONNECTION</button>
           <button class="nav-item" data-nav="verified"><span class="nav-glyph">◇</span>RESULT</button>
           <button class="nav-item" data-action="audit"><span class="nav-glyph">≡</span>AUDIT</button>
         </nav>
-        <div class="sidebar-footer"><span class="live-dot"></span><div><strong>LOCAL EXECUTION</strong><small>BROWSER · READY</small></div></div>
+        <div class="sidebar-footer"><span class="live-dot" id="footerDot"></span><div><strong id="footerRunner">BROWSER LOCAL</strong><small id="footerState">READY</small></div></div>
       </aside>
 
       <div class="workspace">
         <header class="topbar">
-          <div class="breadcrumb" id="breadcrumb">00AI HARNESS / LOCAL RUNNER</div>
+          <div class="breadcrumb" id="breadcrumb">00AI HARNESS / EXECUTION HUB</div>
           <div class="topbar-actions">
-            <span class="policy-pill"><span class="live-dot"></span>FILE EGRESS · 0 B</span>
+            <span class="policy-pill" id="egressPill"><span class="live-dot"></span>DOCUMENT EGRESS · 0 B</span>
             <button class="network-pill" type="button" id="resetButton">NEW RUN</button>
           </div>
         </header>
@@ -44,29 +44,49 @@
           <section class="state-view ready-view" data-view="ready" aria-labelledby="readyTitle">
             <div class="hero-grid">
               <div class="hero-copy">
-                <div class="eyebrow">WORKING LOCAL-FIRST MVP</div>
-                <h1 id="readyTitle">내 문서를 실제로 검토합니다.</h1>
-                <p>선택한 문서는 이 브라우저 안에서만 읽습니다. 요청어와 문서 내용을 대조해 근거 문장을 추출하고, 검토 결과를 Markdown 파일로 만듭니다.</p>
+                <div class="eyebrow">REAL EXECUTION · THREE BOUNDARIES</div>
+                <h1 id="readyTitle">업무에 맞는 실행기를 선택합니다.</h1>
+                <p>가벼운 검토는 브라우저에서, PC 파일·도구는 로컬 에이전트에서, 기관 시스템은 내부 서버에서 실행합니다. HASA는 에이전트 안에서 비식별 근거만 분석합니다.</p>
               </div>
               <div class="trust-spine panel-glass">
-                <div class="panel-heading"><span>EXECUTION BOUNDARY</span><span class="status-chip mint"><i></i>LOCAL</span></div>
+                <div class="panel-heading"><span>EXECUTION ROUTE</span><span class="status-chip mint" id="routeStatus"><i></i>READY</span></div>
                 <div class="spine-nodes">
-                  <div class="spine-node internal"><span>01 · BROWSER</span><strong>LOCAL READER</strong><small>선택 문서 읽기 · 근거 추출</small></div>
-                  <div class="spine-node external"><span>02 · NETWORK</span><strong>NOT USED</strong><small>문서 원문 전송 없음</small></div>
+                  <div class="spine-node internal"><span>01 · CONTROL</span><strong>WEB HARNESS</strong><small>요청 · 실행 대상 · 결과</small></div>
+                  <div class="spine-node internal"><span>02 · EXECUTE</span><strong id="routeExecutor">BROWSER LOCAL</strong><small id="routeExecutorNote">원문이 이 탭을 벗어나지 않음</small></div>
+                  <div class="spine-node external"><span>03 · INFERENCE</span><strong id="routeInference">NOT USED</strong><small>에이전트 연결 시 HASA 선택 사용</small></div>
                 </div>
-                <div class="zero-egress"><span>DOCUMENT DATA SENT</span><strong>0 B · LOCAL ONLY</strong></div>
               </div>
             </div>
 
             <div class="metric-grid">
-              <article class="metric-card"><span>LOCAL FILES</span><strong id="fileMetric">0</strong><small id="fileMetricNote">문서를 선택하세요</small></article>
-              <article class="metric-card"><span>LOCAL TOOLKIT</span><strong>READY</strong><small>텍스트 · CSV · JSON · Markdown</small></article>
-              <article class="metric-card accent"><span>MCP CONNECTION</span><strong>OFF</strong><small>별도 내부 커넥터 필요</small></article>
+              <article class="metric-card accent"><span>EXECUTOR</span><strong id="executorMetric">BROWSER</strong><small id="executorMetricNote">연결 없이 즉시 실행</small></article>
+              <article class="metric-card"><span>HASA</span><strong id="hasaMetric">OFF</strong><small id="hasaMetricNote">에이전트에서만 호출</small></article>
+              <article class="metric-card"><span>ORIGINAL FILES</span><strong>LOCAL</strong><small>HASA로 원문 전송 안 함</small></article>
             </div>
 
             <div class="ready-grid">
               <section class="run-panel panel-glass">
                 <div class="panel-heading"><span class="eyebrow">NEW HARNESS RUN</span><kbd>CTRL + ENTER</kbd></div>
+
+                <div class="runner-switch" role="tablist" aria-label="실행 대상">
+                  <button type="button" class="runner-option is-active" data-runner="browser" role="tab" aria-selected="true"><b>브라우저</b><small>설치 없음</small></button>
+                  <button type="button" class="runner-option" data-runner="agent" role="tab" aria-selected="false"><b>PC 에이전트</b><small>HASA 연계</small></button>
+                  <button type="button" class="runner-option" data-runner="server" role="tab" aria-selected="false"><b>내부 서버</b><small>기관용</small></button>
+                </div>
+
+                <div class="connection-box" id="connectionBox">
+                  <div class="connection-copy"><span class="connection-dot is-ready" id="connectionDot"></span><div><strong id="connectionTitle">브라우저 로컬 실행 준비됨</strong><small id="connectionNote">문서 원문은 브라우저 메모리에서만 처리됩니다.</small></div></div>
+                  <div class="endpoint-form" id="endpointForm" hidden>
+                    <label><span>실행기 주소</span><input id="runnerEndpoint" type="url" inputmode="url" autocomplete="off" placeholder="http://127.0.0.1:43120" /></label>
+                    <label><span>접근 토큰 · 선택</span><input id="runnerToken" type="password" autocomplete="off" placeholder="브라우저에 저장하지 않음" /></label>
+                    <button type="button" id="connectRunner">연결 확인</button>
+                  </div>
+                  <div class="agent-install" id="agentInstall" hidden>
+                    <a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">GitHub에서 PC 에이전트 설치 →</a>
+                    <span>Python 3.10+ · Windows PowerShell 지원</span>
+                  </div>
+                </div>
+
                 <label class="field-label" for="taskInput">업무 요청</label>
                 <textarea class="task-input" id="taskInput" rows="4">최근 사업계획과 결과보고를 비교해서 핵심 차이, 확인이 필요한 수치, 예상질문 초안을 근거와 함께 정리해줘.</textarea>
                 <div class="example-row">
@@ -80,44 +100,44 @@
                   <div><strong id="fileSummary">선택된 문서 없음</strong><small>TXT · MD · CSV · JSON · HTML, 합계 10MB 이하</small></div>
                 </div>
                 <div class="file-list" id="fileList" aria-live="polite"></div>
-                <button class="primary-action" id="runButton" type="button" disabled>RUN LOCAL HARNESS <span>→</span></button>
+                <button class="primary-action" id="runButton" type="button" disabled>RUN BROWSER LOCAL <span>→</span></button>
               </section>
 
               <section class="security-panel panel-glass">
-                <div class="panel-heading"><span>SECURITY STATUS</span><span class="status-chip safe"><i></i>ACTUAL</span></div>
+                <div class="panel-heading"><span>BOUNDARY STATUS</span><span class="status-chip safe"><i></i>ACTUAL</span></div>
                 <dl class="security-list">
-                  <div><dt>PROCESSING</dt><dd>IN BROWSER</dd></div>
-                  <div><dt>DOCUMENT EGRESS</dt><dd>0 B</dd></div>
-                  <div><dt>ORIGINAL FILES</dt><dd>READ ONLY</dd></div>
-                  <div><dt>RESULT FORMAT</dt><dd>MARKDOWN</dd></div>
-                  <div><dt>HWPX / INTERNAL MCP</dt><dd class="status-off">NOT CONNECTED</dd></div>
+                  <div><dt>PROCESSING</dt><dd id="securityProcessing">IN BROWSER</dd></div>
+                  <div><dt>ORIGINAL FILE EGRESS</dt><dd id="securityEgress">0 B</dd></div>
+                  <div><dt>HASA INPUT</dt><dd id="securityHasa">NOT USED</dd></div>
+                  <div><dt>API KEY LOCATION</dt><dd id="securityKey">NOT REQUIRED</dd></div>
+                  <div><dt>CONNECTION</dt><dd id="securityConnection">READY</dd></div>
                 </dl>
-                <div class="secure-seal"><b>✓</b><span><strong>LOCAL FILE API</strong><small>선택한 문서만 브라우저 메모리에서 처리합니다.</small></span></div>
+                <div class="secure-seal"><b>✓</b><span><strong id="sealTitle">BROWSER LOCAL</strong><small id="sealNote">선택한 문서만 이 탭에서 처리합니다.</small></span></div>
               </section>
             </div>
           </section>
 
           <section class="state-view active-view" data-view="active" aria-labelledby="activeTitle" hidden>
             <div class="state-header">
-              <div><div class="eyebrow" id="runLabel">HARNESS RUN</div><h1 id="activeTitle">문서를 분석하고 있습니다.</h1><p id="activeDescription">실제 파일을 읽고 요청어와 일치하는 근거를 추출합니다.</p></div>
+              <div><div class="eyebrow" id="runLabel">HARNESS RUN</div><h1 id="activeTitle">선택한 실행기에서 처리 중입니다.</h1><p id="activeDescription">파일 해시와 근거를 생성합니다.</p></div>
               <span class="status-chip mint live" id="runStatus"><i></i>RUNNING</span>
             </div>
             <div class="active-grid">
               <section class="trace-panel panel-glass">
-                <div class="panel-heading"><span class="eyebrow">LOCAL EXECUTION TRACE</span><span class="muted" id="elapsed">00:00</span></div>
+                <div class="panel-heading"><span class="eyebrow">EXECUTION TRACE</span><span class="muted" id="elapsed">00:00</span></div>
                 <div class="request-preview"><span>REQUEST</span><strong id="requestText"></strong></div>
                 <div class="step-list" id="stepList"></div>
               </section>
               <aside class="active-side">
                 <section class="plan-panel panel-glass">
-                  <div class="panel-heading"><span class="eyebrow">EXECUTION PLAN</span><span class="muted">LOCAL JSON</span></div>
+                  <div class="panel-heading"><span class="eyebrow">EXECUTION PLAN</span><span class="muted">LIVE JSON</span></div>
                   <pre id="planOutput"></pre>
-                  <div class="policy-check">✓ FILE CONTENT STAYS LOCAL</div>
+                  <div class="policy-check" id="policyCheck">✓ ORIGINAL FILES STAY LOCAL</div>
                 </section>
                 <section class="evidence-panel panel-glass">
-                  <div class="panel-heading"><span class="eyebrow">EVIDENCE STREAM</span><span class="status-chip mint live"><i></i>EXTRACTING</span></div>
-                  <div class="evidence-row"><span>FILES<small>실제 읽은 문서</small></span><strong id="evidenceFiles">0</strong></div>
-                  <div class="evidence-row"><span>MATCHED<small>요청어 일치 근거</small></span><strong id="evidenceMatched">0</strong></div>
+                  <div class="panel-heading"><span class="eyebrow">EVIDENCE STREAM</span><span class="status-chip mint live"><i></i>PROCESSING</span></div>
+                  <div class="evidence-row"><span>FILES<small>읽은 문서</small></span><strong id="evidenceFiles">0</strong></div>
+                  <div class="evidence-row"><span>MATCHED<small>근거 문장</small></span><strong id="evidenceMatched">0</strong></div>
                   <div class="evidence-row"><span>HASHED<small>무결성 해시</small></span><strong id="evidenceHashed">0</strong></div>
                 </section>
               </aside>
@@ -126,24 +146,25 @@
 
           <section class="state-view verified-view" data-view="verified" aria-labelledby="verifiedTitle" hidden>
             <div class="state-header">
-              <div><div class="eyebrow" id="verifiedRunLabel">LOCAL RUN RESULT</div><h1 id="verifiedTitle">실제 문서 검토 결과가 생성됐습니다.</h1><p>추출된 근거와 파일 해시를 결과 파일에서 확인할 수 있습니다.</p></div>
+              <div><div class="eyebrow" id="verifiedRunLabel">RUN RESULT</div><h1 id="verifiedTitle">실행 결과가 생성됐습니다.</h1><p id="resultDescription">추출 근거와 실행 경계를 확인할 수 있습니다.</p></div>
               <span class="status-chip safe"><i></i>COMPLETED</span>
             </div>
             <div class="metric-grid four">
-              <article class="metric-card accent"><span>DOCUMENT EGRESS</span><strong>0 B</strong><small>외부 전송량</small></article>
+              <article class="metric-card accent"><span>EXECUTOR</span><strong id="resultRunner">LOCAL</strong><small>실행 위치</small></article>
               <article class="metric-card"><span>FILES</span><strong id="resultFiles">0</strong><small>처리 완료</small></article>
               <article class="metric-card"><span>EVIDENCE</span><strong id="resultEvidence">0</strong><small>근거 문장</small></article>
-              <article class="metric-card"><span>OUTPUT</span><strong>MD</strong><small>다운로드 가능</small></article>
+              <article class="metric-card"><span>HASA</span><strong id="resultHasa">OFF</strong><small id="resultHasaNote">추론 사용 여부</small></article>
             </div>
             <div class="verified-grid">
               <section class="boundary-panel panel-glass">
-                <div class="panel-heading"><div><strong>실행 요약</strong><small>가짜 수치가 아닌 이번 실행의 실제 값입니다.</small></div><span class="status-chip safe"><i></i>LOCAL</span></div>
+                <div class="panel-heading"><div><strong>실행 요약</strong><small>이번 실행에서 생성된 실제 값입니다.</small></div><span class="status-chip safe"><i></i>VERIFIED</span></div>
                 <div class="result-preview" id="resultPreview"></div>
+                <div class="ai-summary" id="aiSummary" hidden><span>HASA ANALYSIS</span><p id="aiSummaryText"></p></div>
               </section>
               <section class="result-panel panel-glass">
                 <div class="panel-heading"><strong>결과물</strong><span class="result-ready">READY</span></div>
                 <div class="file-card"><b>↗</b><strong id="resultFileName">00AI-Harness-result.md</strong><small id="resultFileMeta">생성 대기</small></div>
-                <ul class="result-checks"><li>✓ 원본 파일 변경 없음</li><li>✓ 문서 원문 외부 전송 0 B</li><li>✓ 파일별 SHA-256 기록</li></ul>
+                <ul class="result-checks"><li>✓ 원본 파일 변경 없음</li><li>✓ 파일별 SHA-256 기록</li><li id="resultPrivacyCheck">✓ 원문 외부 전송 0 B</li></ul>
                 <button class="secondary-action" type="button" id="downloadResult">결과 파일 다운로드</button>
               </section>
             </div>
