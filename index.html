@@ -7,7 +7,7 @@
     <meta name="description" content="00AI Harness — 브라우저, PC 에이전트, 기관 내부 서버를 연결하는 공공AI 실행 허브" />
     <title>00AI Harness · Execution Hub</title>
     <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="harness-runner-v3.css" />
+    <link rel="stylesheet" href="harness-runner-v4.css" />
   </head>
   <body data-state="ready">
     <div class="aurora aurora-a" aria-hidden="true"></div>
@@ -24,6 +24,7 @@
           <div class="nav-label">WORKSPACE</div>
           <button class="nav-item" data-nav="active"><span class="nav-glyph">▶</span>RUN</button>
           <button class="nav-item" data-action="documents"><span class="nav-glyph">▤</span>DOCUMENTS</button>
+          <button class="nav-item" data-action="install"><span class="nav-glyph">↓</span>INSTALL</button>
           <button class="nav-item" data-action="connection"><span class="nav-glyph">◌</span>CONNECTION</button>
           <button class="nav-item" data-nav="verified"><span class="nav-glyph">◇</span>RESULT</button>
           <button class="nav-item" data-action="audit"><span class="nav-glyph">≡</span>AUDIT</button>
@@ -88,6 +89,34 @@
                 </article>
               </div>
               <div class="boundary-rule"><strong>외부 송신 원칙</strong><span>원본 파일 ✕</span><span>API Key ✕</span><span>비식별 근거 문장 ✓</span><small>현재 자동 마스킹은 이메일·휴대전화·주민등록번호 패턴을 대상으로 합니다. 최종 반출 기준은 기관 보안정책으로 추가 통제해야 합니다.</small></div>
+            </section>
+
+            <section class="quickstart panel-glass" id="installGuide" aria-labelledby="installGuideTitle">
+              <div class="quickstart-head">
+                <div><span class="eyebrow">DOWNLOAD & RUN</span><h2 id="installGuideTitle">PC 에이전트, 한 번만 설치하면 됩니다.</h2><p>Windows 설치 파일을 실행하면 키 보관·자동 시작·사이트 연결까지 설정됩니다.</p></div>
+                <a class="quickstart-download" href="apps/harness-agent/install-windows.ps1" download><b>↓</b><span><strong>Windows 자동 설치</strong><small>install-windows.ps1</small></span></a>
+              </div>
+              <ol class="setup-steps">
+                <li><b>01</b><span><strong>설치 파일 다운로드</strong><small>Python 3.10 이상이 설치된 Windows PC에서 위 버튼을 누릅니다.</small></span></li>
+                <li><b>02</b><span><strong>PowerShell로 최초 실행</strong><small>다운로드한 파일을 우클릭해 PowerShell로 실행합니다. 최초 1회만 새 HASA 키를 입력합니다.</small></span></li>
+                <li><b>03</b><span><strong>자동 시작 등록</strong><small>키는 Windows DPAPI로 암호화되고, 로그인 시 로컬 실행기가 자동으로 시작됩니다.</small></span></li>
+                <li><b>04</b><span><strong>사이트 자동 연결</strong><small>이 화면에서 PC 에이전트를 선택하면 127.0.0.1:43120 연결을 자동 확인합니다.</small></span></li>
+                <li><b>05</b><span><strong>문서 실행·결과 저장</strong><small>문서를 선택해 실행하고 근거·SHA-256·HASA 분석이 포함된 Markdown 결과를 내려받습니다.</small></span></li>
+              </ol>
+              <div class="setup-command">
+                <div><span>실행이 차단될 때</span><code id="installCommand">powershell -ExecutionPolicy Bypass -File .\install-windows.ps1</code></div>
+                <button type="button" id="copyInstallCommand">명령어 복사</button>
+              </div>
+              <div class="setup-notes">
+                <p><strong>중요</strong> 설치 파일은 관리자 권한 없이 현재 사용자 계정에만 등록됩니다. 이 사이트나 GitHub에는 API Key가 저장되지 않습니다.</p>
+                <a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">전체 설치 소스·제거 방법 보기 →</a>
+              </div>
+              <details class="server-setup">
+                <summary><span><strong>행정망 내부 서버로 설치하려면</strong><small>Linux 서버 · HTTPS · 접근 토큰</small></span><b>+</b></summary>
+                <div><p>내부 서버는 실행기를 방화벽 안에 배치하고 HTTPS 리버스 프록시와 접근 토큰을 적용합니다.</p><pre><code>export HASA_API_KEY="발급받은 새 키"
+export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
+./start-server.sh --origin https://harness.00ai.kr</code></pre><a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">내부 서버 실행 파일 보기 →</a></div>
+              </details>
             </section>
 
             <div class="ready-grid">
@@ -207,6 +236,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="harness-app-v3.js"></script>
+    <script src="harness-app-v4.js"></script>
   </body>
 </html>
