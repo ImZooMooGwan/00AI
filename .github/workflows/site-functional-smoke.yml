@@ -27,7 +27,7 @@ jobs:
       - name: Check real browser rendering
         shell: bash
         run: |
-          cat > /tmp/check-sites.mjs <<'EOF'
+          cat > check-sites.mjs <<'EOF'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
 
@@ -107,7 +107,8 @@ jobs:
           fs.writeFileSync('.github/site-functional-health.json', JSON.stringify(report, null, 2) + '\n');
           console.log(JSON.stringify(report, null, 2));
           EOF
-          node /tmp/check-sites.mjs
+          node check-sites.mjs
+          rm -f check-sites.mjs
 
       - name: Persist browser health report
         if: always()

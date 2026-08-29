@@ -73,7 +73,7 @@ jobs:
             "name": "00ai-portal-origin",
             "main": "dist/server/index.js",
             "assets": { "directory": "dist/client", "binding": "ASSETS" },
-            "compatibility_date": "2026-08-20",
+            "compatibility_date": "2026-08-29",
             "compatibility_flags": ["nodejs_compat"],
             "workers_dev": true
           }
@@ -95,6 +95,29 @@ jobs:
           assert len(d.get('siteProjects',[])) >= 10
           assert all('.00ai.kr' in x.get('public_url','') for x in d.get('siteProjects',[]))
           PY
+
+      - name: Verify live root edge cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in {1..8}; do
+            first_headers="$(mktemp)"
+            second_headers="$(mktemp)"
+            first_code="$(curl -ksS --max-time 15 -o /dev/null -D "$first_headers" -w '%{http_code}' https://00ai.kr/ || true)"
+            sleep 2
+            second_code="$(curl -ksS --max-time 15 -o /dev/null -D "$second_headers" -w '%{http_code}' https://00ai.kr/ || true)"
+            if [[ "$first_code" == "200" && "$second_code" == "200" ]] && \
+              grep -qi '^x-00ai-portal: fast-cache-v1' "$second_headers" && \
+              grep -qi '^x-00ai-cache: HIT' "$second_headers"; then
+              healthy=true
+              rm -f "$first_headers" "$second_headers"
+              break
+            fi
+            rm -f "$first_headers" "$second_headers"
+            sleep 3
+          done
+          [[ "$healthy" == "true" ]]
 
       - name: Verify real Chrome hydration on origin
         shell: bash

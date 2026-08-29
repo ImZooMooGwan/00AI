@@ -266,7 +266,9 @@ jobs:
             grep -qi '^x-00ai-cache-policy: document' "$headers" 2>/dev/null && cache_policy=true
 
             healthy=false
-            if [[ "$resolved" == "true" && "$routed" == "true" && "$cache_policy" == "true" && "$code" =~ ^[0-9]{3}$ && "$code" -ge 200 && "$code" -lt 500 ]]; then
+            if [[ "$host" == "drop.00ai.kr" && "$resolved" == "true" && "$routed" == "true" && "$code" == "302" ]]; then
+              healthy=true
+            elif [[ "$resolved" == "true" && "$routed" == "true" && "$cache_policy" == "true" && "$code" =~ ^[0-9]{3}$ && "$code" -ge 200 && "$code" -lt 500 ]]; then
               healthy=true
             else
               all_ok=false

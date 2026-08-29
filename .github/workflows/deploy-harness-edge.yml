@@ -71,6 +71,7 @@ jobs:
             --config apps/harness-web/wrangler.jsonc
 
       - name: Proxy the existing Harness DNS record
+        id: dns
         shell: bash
         env:
           ZONE_ID: ${{ steps.cf.outputs.zone_id }}
@@ -102,17 +103,22 @@ jobs:
             done <<<"$ids"
           fi
 
+          EDGE_IP="$(getent ahostsv4 policy.00ai.kr | awk 'NR == 1 { print $1 }')"
+          test -n "$EDGE_IP"
+          echo "edge_ip=$EDGE_IP" >> "$GITHUB_OUTPUT"
+
       - name: Verify edge delivery
         shell: bash
         env:
           ZONE_ID: ${{ steps.cf.outputs.zone_id }}
+          EDGE_IP: ${{ steps.dns.outputs.edge_ip }}
         run: |
           set -euo pipefail
           healthy=false
           for attempt in {1..12}; do
             headers="$(mktemp)"
-            root_code="$(curl -ksS --max-time 25 -D "$headers" -o /tmp/harness-root.html -w '%{http_code}' https://harness.00ai.kr/ || true)"
-            app_code="$(curl -ksS --max-time 25 -o /dev/null -w '%{http_code}' https://harness.00ai.kr/harness-app-v4.js || true)"
+            root_code="$(curl -ksS --max-time 25 --resolve "harness.00ai.kr:443:$EDGE_IP" -D "$headers" -o /tmp/harness-root.html -w '%{http_code}' https://harness.00ai.kr/ || true)"
+            app_code="$(curl -ksS --max-time 25 --resolve "harness.00ai.kr:443:$EDGE_IP" -o /dev/null -w '%{http_code}' https://harness.00ai.kr/harness-app-v4.js || true)"
             if [[ "$root_code" == "200" && "$app_code" == "200" ]] && \
               grep -qi '^x-00ai-harness: cloudflare-assets-v1' "$headers" && \
               grep -qi '^cache-control: public, max-age=300' "$headers"; then

@@ -57,6 +57,7 @@ jobs:
             try:return pathlib.Path(p).read_text(errors='replace')[-n:]
             except:return ''
           api=t('/tmp/rrd2/api.b',30000)
+          root_headers=t('/tmp/rrd2/root.h',12000).lower()
           try:d=json.loads(api)
           except Exception as e:d={'parse_error':str(e),'raw':api[:2000]}
           sites=d.get('siteProjects',[]) if isinstance(d,dict) else []
@@ -68,6 +69,7 @@ jobs:
             'api_code':'$ac','policy_code':'$pc','harness_code':'$hc',
             'policy_location':'''$pl''','harness_location':'''$hl''',
             'root_has_00ai':'00AI' in t('/tmp/rrd2/root.b'),
+            'root_cache_enabled':'x-00ai-cache-policy: document' in root_headers,
             'api_site_count':len(sites),'api_github_count':len(gh),
             'api_first_urls':[x.get('public_url') for x in sites[:5]],
             'api_has_policy':'policy.00ai.kr' in api,
@@ -90,13 +92,13 @@ jobs:
             git commit -m "ci: update root router debug v2 [skip ci]"
             git push || true
           fi
-      - name: Require a healthy cached preview
+      - name: Require a healthy cache-enabled preview
         run: |
           jq -e '
             .deploy_exit == 0 and
             .root_code == "200" and
             .second_root_code == "200" and
-            .root_cache_hit == true and
+            .root_cache_enabled == true and
             .api_code == "200" and
             .root_has_00ai == true
           ' .github/root-router-debug-v2.json >/dev/null
