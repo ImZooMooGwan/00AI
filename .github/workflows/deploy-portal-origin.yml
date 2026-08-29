@@ -140,7 +140,7 @@ jobs:
             'runtime_errors':[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:20],
           }
           out['healthy']=out['dom_bytes']>10000 and out['has_yhub_project'] and out['has_policy_project'] and len(out['custom_hrefs'])>=10 and not out['chatgpt_hrefs'] and not out['runtime_errors']
-          pathlib.Path('../../.github/portal-origin-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          pathlib.Path('.github/portal-origin-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
           print(json.dumps(out,ensure_ascii=False,indent=2))
           if not out['healthy']: raise SystemExit(1)
           PY
