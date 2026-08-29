@@ -1,0 +1,62 @@
+{
+  "checked_at": "2026-08-29T14:09:21.966Z",
+  "healthy": true,
+  "sites": {
+    "policy.00ai.kr": {
+      "navigationStatus": 200,
+      "title": "00AI GOV — AI 정책상황실",
+      "textLength": 1599,
+      "htmlLength": 15660,
+      "interactive": true,
+      "bodySnippet": "00\nAI GOV\n정책상황실\n분석결과\n모델실험실\n프로젝트\nPUBLIC AI\nEXPERIMENT\nv0.1\n\nPUBLIC DATA\n×\nAI AGENT\n×\nGOVERNMENT\n\nAI가 정책을\n조사하고 설계합니다.\n\n흩어진 공공정보를 AI가 연결하여\n정책의 발견부터 검증·예산·보고까지.\n\nAI 정책상황실 시작\n↘\n00AI / HARNESS CONSOLE\nSEOUL / KST\nORCHESTRATOR\n00\nREADY\nDATA\nPOLICY\nLAW\nBUDGET\nAI ENGINE\nADAPTER READY\nEVIDENCE MODE\nON\nPUBLIC TOOLS\n03\n01\nAI POLICY SITUATION ROOM\n\n00AI HARNESS\n\n무엇을 해결할까요?\n빠른 분석\n정밀 분석\n한국어 우선\nAI ENGINE\nHASA CONNECTED\nAVAILABLE MODELS\n35\nACTIVE AGENTS\n0\nPUBLIC DATA TOOLS\n03\nEVIDENCE MODE\nON\n AI 모델 자동선택 · 정밀 분석",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "badResponses": [],
+      "error": null,
+      "healthy": true
+    },
+    "yhub.00ai.kr": {
+      "navigationStatus": 200,
+      "title": "청년정책데이터허브 Y-HUB",
+      "textLength": 4104,
+      "htmlLength": 67542,
+      "interactive": true,
+      "bodySnippet": "본문 바로가기\nY-HUB\n청년정책 데이터 지도\n정책 대장\n변화 추적\n지역 지도\n관계 지도\n청년 지표\nOpen API\n기준일 2026.08.24\n✓\n데이터 받기\nYOUTH POLICY DATA INFRASTRUCTURE\n데이터 기준 2026-08-24\nAI로 시각화한\n대한민국 청년정책\n\n대한민국 청년정책의 현재와 변화를 한곳에서.\n\n중앙정부와 지방정부의 정책을 수집·표준화하고 대상, 혜택, 절차, 기관, 법적 근거와 변경 이력을 공식 출처까지 연결합니다.\n\n정책 또는 필요한 도움 검색\n⌕\n정책 찾기 →\n오늘 바뀐 정책\n↗\n정책 데이터 탐색\n지속 수집\n32\n등록 정책\n9\n공식 출처\n기준일\n2026.08.24\n\n신청 가능 여부와 자격조건은 연결된 공식 원문에서 최종 확인하세요.\n\n대한민국 청년정책 은하 관계지도\n분야는 행성, 정책은 입자 무리, 공식 출처는 성좌로 표현됩니다. 드래그로 회전하고 휠이나 손가락으로 확대하며 노드를 선택해 세부 내용을 볼 수 있습니다.\n청년정책 은하 · Y-H",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "badResponses": [],
+      "error": null,
+      "healthy": true
+    },
+    "oneul-daejeon.00ai.kr": {
+      "navigationStatus": 200,
+      "title": "오늘대전",
+      "textLength": 1250,
+      "htmlLength": 23111,
+      "interactive": true,
+      "bodySnippet": "시범판 · 2026년 8월\n\n대전을 더 잘 알고, 더 잘 누리는 방법\n\n오\n오늘대전\n오늘\n이번 주말\n동네\n사람\n도시\n검색\n뉴스레터\n생활 알림\n\n이번 주말 행사 정보는 금요일 오후 6시까지 변경될 수 있습니다.\n\n최신 정보 보기 ↗\nTHU\n20\n2026. 08\n\n오늘 대전 5\n\n오늘, 대전에서\n놓치지 말아야 할 것\n\n긴 뉴스 대신 지금 내 생활에 필요한 다섯 가지를 골랐습니다. 장소·일정·가격·이동 방법까지 바로 확인하세요.\n\n편\n편집자의 한마디\n\n오늘은 원도심에서 시작해 봅니다. 해가 기울면 골목의 표정이 조금 달라집니다.\n\n01\n대전역\n중앙로\n은행동\n\n도시 · 중구\n\n대전역에서 중앙로까지, 저녁 산책 동선이 달라지는 이유\n\n공사 구간과 보행 동선을 한눈에 정리했습니다. 오늘 지나갈 길과 잠시 들를 곳까지 3분 안에 확인하세요.\n\n5분 읽기 · 현장 확인\n기사 읽기 ↗\n02\n\n이번 주말\n\n비가 와도 괜찮은 대전 실내 나들이 6곳\n\n아이와, 혼자, 부모님과 갈 곳을 비용과 주차 기준으",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "badResponses": [],
+      "error": null,
+      "healthy": true
+    },
+    "public-ai-gov.00ai.kr": {
+      "navigationStatus": 200,
+      "title": "00AI GOV — AI 정책상황실",
+      "textLength": 1599,
+      "htmlLength": 15660,
+      "interactive": true,
+      "bodySnippet": "00\nAI GOV\n정책상황실\n분석결과\n모델실험실\n프로젝트\nPUBLIC AI\nEXPERIMENT\nv0.1\n\nPUBLIC DATA\n×\nAI AGENT\n×\nGOVERNMENT\n\nAI가 정책을\n조사하고 설계합니다.\n\n흩어진 공공정보를 AI가 연결하여\n정책의 발견부터 검증·예산·보고까지.\n\nAI 정책상황실 시작\n↘\n00AI / HARNESS CONSOLE\nSEOUL / KST\nORCHESTRATOR\n00\nREADY\nDATA\nPOLICY\nLAW\nBUDGET\nAI ENGINE\nADAPTER READY\nEVIDENCE MODE\nON\nPUBLIC TOOLS\n03\n01\nAI POLICY SITUATION ROOM\n\n00AI HARNESS\n\n무엇을 해결할까요?\n빠른 분석\n정밀 분석\n한국어 우선\nAI ENGINE\nHASA CONNECTED\nAVAILABLE MODELS\n35\nACTIVE AGENTS\n0\nPUBLIC DATA TOOLS\n03\nEVIDENCE MODE\nON\n AI 모델 자동선택 · 정밀 분석",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "badResponses": [],
+      "error": null,
+      "healthy": true
+    }
+  }
+}
