@@ -37,6 +37,130 @@ const ALLOWED_UPSTREAM_SUFFIXES = [
   "github.io",
 ];
 
+type CachePolicy = {
+  browser: string;
+  edge: string;
+  edgeTtl: number;
+  label: "document" | "static" | "immutable";
+};
+
+const RSC_REQUEST_HEADERS = [
+  "rsc",
+  "next-router-state-tree",
+  "next-router-prefetch",
+  "next-router-segment-prefetch",
+  "next-url",
+  "x-vinext-interception-context",
+  "x-vinext-mounted-slots",
+  "x-vinext-rsc-render-mode",
+];
+
+const STATIC_FILE =
+  /\.(?:avif|bmp|css|gif|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|pdf|png|svg|txt|wasm|webmanifest|webp|woff2?)$/i;
+
+function cachePolicyFor(request: Request, incoming: URL): CachePolicy | null {
+  if (!["GET", "HEAD"].includes(request.method)) return null;
+  if (request.headers.has("Authorization") || request.headers.has("Range")) return null;
+  if (RSC_REQUEST_HEADERS.some((header) => request.headers.has(header))) return null;
+  if (incoming.searchParams.has("_rsc")) return null;
+  if (incoming.pathname === "/api" || incoming.pathname.startsWith("/api/")) return null;
+
+  const requestCacheControl = request.headers.get("Cache-Control") || "";
+  if (/\b(?:no-cache|no-store)\b/i.test(requestCacheControl)) return null;
+
+  if (
+    incoming.pathname.startsWith("/assets/") ||
+    incoming.pathname.startsWith("/_next/static/")
+  ) {
+    return {
+      browser: "public, max-age=31536000, immutable",
+      edge: "public, max-age=31536000, stale-if-error=604800",
+      edgeTtl: 31536000,
+      label: "immutable",
+    };
+  }
+
+  if (STATIC_FILE.test(incoming.pathname)) {
+    return {
+      browser: "public, max-age=3600, stale-while-revalidate=86400",
+      edge: "public, max-age=86400, stale-while-revalidate=86400, stale-if-error=604800",
+      edgeTtl: 86400,
+      label: "static",
+    };
+  }
+
+  return {
+    browser: "public, max-age=60, stale-while-revalidate=300",
+    edge: "public, max-age=300, stale-while-revalidate=86400, stale-if-error=604800",
+    edgeTtl: 300,
+    label: "document",
+  };
+}
+
+function applyCacheHeaders(
+  headers: Headers,
+  policy: CachePolicy | null,
+  upstreamDurationMs: number,
+) {
+  headers.set("Server-Timing", `00ai-upstream;dur=${upstreamDurationMs}`);
+  if (!policy) {
+    headers.set("X-00AI-Cache", "BYPASS");
+    headers.set("X-00AI-Cache-Policy", "bypass");
+    return;
+  }
+  headers.set("Cache-Control", policy.browser);
+  headers.set("X-00AI-Cache", "MISS");
+  headers.set("X-00AI-Cache-Policy", policy.label);
+}
+
+function cacheKeyFor(incoming: URL) {
+  return new Request(incoming.toString(), { method: "GET" });
+}
+
+async function matchCache(
+  request: Request,
+  cacheKey: Request,
+  policy: CachePolicy,
+) {
+  const cached = await caches.default.match(cacheKey);
+  if (!cached) return null;
+
+  const headers = new Headers(cached.headers);
+  headers.set("Cache-Control", policy.browser);
+  headers.set("X-00AI-Cache", "HIT");
+  headers.set("X-00AI-Cache-Policy", policy.label);
+  headers.set("Server-Timing", "00ai-cache;dur=0");
+  return withSecurity(
+    new Response(request.method === "HEAD" ? null : cached.body, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers,
+    }),
+  );
+}
+
+function storeInCache(
+  ctx: ExecutionContext,
+  cacheKey: Request,
+  response: Response,
+  policy: CachePolicy,
+) {
+  const stored = response.clone();
+  stored.headers.set("Cache-Control", policy.edge);
+  stored.headers.set("X-00AI-Cache", "STORED");
+  ctx.waitUntil(
+    caches.default.put(cacheKey, stored).catch((error) => {
+      console.error(
+        JSON.stringify({
+          event: "subdomain_cache_put_failed",
+          error: error instanceof Error ? error.message : "unknown",
+          url: cacheKey.url,
+        }),
+      );
+    }),
+  );
+}
+
 const SITE_BY_SLUG = new Map<string, PublicSite>();
 
 function registerSlug(slug: string, site: PublicSite) {
@@ -159,6 +283,7 @@ async function resolveRoute(hostname: string): Promise<Route | null> {
 
 async function proxyExternal(request: Request, route: Route, incoming: URL) {
   const target = buildTarget(route.target, incoming);
+  const cachePolicy = cachePolicyFor(request, incoming);
   const upstreamHeaders = new Headers(request.headers);
   upstreamHeaders.delete("authorization");
   upstreamHeaders.delete("cookie");
@@ -175,10 +300,25 @@ async function proxyExternal(request: Request, route: Route, incoming: URL) {
     if (request.method !== "GET" && request.method !== "HEAD") {
       init.body = request.body;
     }
-    const response = await fetch(new Request(target, init));
+    if (cachePolicy) {
+      init.cf = {
+        cacheEverything: true,
+        cacheControl: cachePolicy.edge,
+        cacheTtlByStatus: {
+          "200-399": cachePolicy.edgeTtl,
+          "404": 30,
+          "500-599": 0,
+        },
+        cacheDeceptionArmor: true,
+      };
+    }
+
+    const startedAt = Date.now();
+    const response = await fetch(target.toString(), init);
 
     const headers = new Headers(response.headers);
     headers.delete("set-cookie");
+    applyCacheHeaders(headers, cachePolicy, Date.now() - startedAt);
 
     const location = headers.get("Location");
     if (location) {
@@ -233,15 +373,32 @@ async function serveDrop(request: Request, incoming: URL) {
   const range = request.headers.get("Range");
   if (range) headers.set("Range", range);
 
-  const response = await fetch(target, {
+  const cachePolicy = cachePolicyFor(request, incoming);
+  const init: RequestInit = {
     method: request.method === "HEAD" ? "HEAD" : "GET",
     headers,
     redirect: "manual",
-  });
+  };
+  if (cachePolicy) {
+    init.cf = {
+      cacheEverything: true,
+      cacheControl: cachePolicy.edge,
+      cacheTtlByStatus: {
+        "200-399": cachePolicy.edgeTtl,
+        "404": 30,
+        "500-599": 0,
+      },
+      cacheDeceptionArmor: true,
+    };
+  }
+
+  const startedAt = Date.now();
+  const response = await fetch(target.toString(), init);
 
   const outgoing = new Headers(response.headers);
   outgoing.delete("set-cookie");
   outgoing.set("X-00AI-Upstream", "DROP");
+  applyCacheHeaders(outgoing, cachePolicy, Date.now() - startedAt);
   return withSecurity(
     new Response(request.method === "HEAD" ? null : response.body, {
       status: response.status,
@@ -252,7 +409,11 @@ async function serveDrop(request: Request, incoming: URL) {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(
+    request: Request,
+    _env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const incoming = new URL(request.url);
     const route = await resolveRoute(incoming.hostname.toLowerCase());
 
@@ -264,7 +425,25 @@ export default {
     if (!["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].includes(request.method)) {
       return withSecurity(new Response("Method Not Allowed", { status: 405 }));
     }
-    if (route.mode === "drop") return serveDrop(request, incoming);
-    return proxyExternal(request, route, incoming);
+    const cachePolicy = cachePolicyFor(request, incoming);
+    const cacheKey = cachePolicy ? cacheKeyFor(incoming) : null;
+    if (cachePolicy && cacheKey) {
+      const cached = await matchCache(request, cacheKey, cachePolicy);
+      if (cached) return cached;
+    }
+
+    const response = route.mode === "drop"
+      ? await serveDrop(request, incoming)
+      : await proxyExternal(request, route, incoming);
+    if (
+      request.method === "GET" &&
+      cachePolicy &&
+      cacheKey &&
+      response.status >= 200 &&
+      response.status < 400
+    ) {
+      storeInCache(ctx, cacheKey, response, cachePolicy);
+    }
+    return response;
   },
-} satisfies ExportedHandler;
+} satisfies ExportedHandler<Env>;

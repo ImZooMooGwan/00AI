@@ -7,8 +7,6 @@ on:
       - "apps/subdomain-router/**"
       - "apps/portal/app/data/public-sites.json"
       - ".github/workflows/deploy-subdomain-router.yml"
-  schedule:
-    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -264,23 +262,39 @@ jobs:
             fi
             routed=false
             grep -qi '^x-00ai-router: subdomain-router-v2' "$headers" 2>/dev/null && routed=true
+            cache_policy=false
+            grep -qi '^x-00ai-cache-policy: document' "$headers" 2>/dev/null && cache_policy=true
 
             healthy=false
-            if [[ "$resolved" == "true" && "$routed" == "true" && "$code" =~ ^[0-9]{3}$ && "$code" -ge 200 && "$code" -lt 500 ]]; then
+            if [[ "$resolved" == "true" && "$routed" == "true" && "$cache_policy" == "true" && "$code" =~ ^[0-9]{3}$ && "$code" -ge 200 && "$code" -lt 500 ]]; then
               healthy=true
             else
               all_ok=false
             fi
-            echo "$host resolved=$resolved http=$code routed=$routed healthy=$healthy"
+            echo "$host resolved=$resolved http=$code routed=$routed cache_policy=$cache_policy healthy=$healthy"
 
             if [[ "$first" != "true" ]]; then printf ',\n' >> "$tmp"; fi
             first=false
-            printf '    "%s": {"resolved": %s, "http": "%s", "routed": %s, "healthy": %s}' \
-              "$host" "$resolved" "$code" "$routed" "$healthy" >> "$tmp"
+            printf '    "%s": {"resolved": %s, "http": "%s", "routed": %s, "cache_policy": %s, "healthy": %s}' \
+              "$host" "$resolved" "$code" "$routed" "$cache_policy" "$healthy" >> "$tmp"
             rm -f "$headers"
           done < /tmp/00ai-hosts.txt
 
-          printf '\n  },\n  "healthy": %s\n}\n' "$all_ok" >> "$tmp"
+          edge_cache_hit=false
+          for attempt in 1 2 3; do
+            cache_headers="$(mktemp)"
+            curl -ksS --max-time 20 -o /dev/null -D "$cache_headers" https://policy.00ai.kr/ || true
+            if grep -qi '^x-00ai-cache: HIT' "$cache_headers"; then
+              edge_cache_hit=true
+              rm -f "$cache_headers"
+              break
+            fi
+            rm -f "$cache_headers"
+            sleep 2
+          done
+          if [[ "$edge_cache_hit" != "true" ]]; then all_ok=false; fi
+
+          printf '\n  },\n  "edge_cache_hit": %s,\n  "healthy": %s\n}\n' "$edge_cache_hit" "$all_ok" >> "$tmp"
           mv "$tmp" .github/cloudflare-domain-health.json
           echo "healthy=$all_ok" >> "$GITHUB_OUTPUT"
           cat .github/cloudflare-domain-health.json

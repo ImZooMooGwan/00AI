@@ -2,9 +2,20 @@
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "00ai-root-router",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-24",
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
+  "services": [
+    {
+      "binding": "PORTAL",
+      "service": "00ai-portal-origin"
+    }
+  ],
   "routes": [
     { "pattern": "00ai.kr", "custom_domain": true }
-  ]
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  }
 }

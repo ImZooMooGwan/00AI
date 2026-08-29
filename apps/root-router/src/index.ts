@@ -41,13 +41,95 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
+type CachePolicy = {
+  browser: string;
+  edgeTtl: number;
+  label: "document" | "static" | "immutable";
+};
+
+const RSC_REQUEST_HEADERS = [
+  "rsc",
+  "next-router-state-tree",
+  "next-router-prefetch",
+  "next-router-segment-prefetch",
+  "next-url",
+  "x-vinext-interception-context",
+  "x-vinext-mounted-slots",
+  "x-vinext-rsc-render-mode",
+];
+
+const STATIC_FILE =
+  /\.(?:avif|bmp|css|gif|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|pdf|png|svg|txt|wasm|webmanifest|webp|woff2?)$/i;
+
+function cachePolicyFor(request: Request, incoming: URL): CachePolicy | null {
+  if (!["GET", "HEAD"].includes(request.method)) return null;
+  if (request.headers.has("Authorization") || request.headers.has("Range")) return null;
+  if (RSC_REQUEST_HEADERS.some((header) => request.headers.has(header))) return null;
+  if (incoming.searchParams.has("_rsc")) return null;
+  if (incoming.pathname === "/api" || incoming.pathname.startsWith("/api/")) return null;
+
+  const requestCacheControl = request.headers.get("Cache-Control") || "";
+  if (/\b(?:no-cache|no-store)\b/i.test(requestCacheControl)) return null;
+
+  if (
+    incoming.pathname.startsWith("/assets/") ||
+    incoming.pathname.startsWith("/_next/static/")
+  ) {
+    return {
+      browser: "public, max-age=31536000, immutable",
+      edgeTtl: 31536000,
+      label: "immutable",
+    };
+  }
+
+  if (STATIC_FILE.test(incoming.pathname)) {
+    return {
+      browser: "public, max-age=3600, stale-while-revalidate=86400",
+      edgeTtl: 86400,
+      label: "static",
+    };
+  }
+
+  return {
+    browser: "public, max-age=60, stale-while-revalidate=300",
+    edgeTtl: 300,
+    label: "document",
+  };
+}
+
+function cacheKeyFor(incoming: URL) {
+  return new Request(incoming.toString(), { method: "GET" });
+}
+
+function storeInCache(
+  ctx: ExecutionContext,
+  cacheKey: Request,
+  response: Response,
+  policy: CachePolicy,
+) {
+  const stored = response.clone();
+  stored.headers.set("Cache-Control", `public, max-age=${policy.edgeTtl}`);
+  stored.headers.set("X-00AI-Cache", "STORED");
+  ctx.waitUntil(
+    caches.default.put(cacheKey, stored).catch((error) => {
+      console.error(
+        JSON.stringify({
+          event: "root_cache_put_failed",
+          error: error instanceof Error ? error.message : "unknown",
+          url: cacheKey.url,
+        }),
+      );
+    }),
+  );
+}
+
 function finish(response: Response) {
   const headers = new Headers(response.headers);
   headers.delete("set-cookie");
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     if (!headers.has(key)) headers.set(key, value);
   }
-  headers.set("X-00AI-Root-Router", "v3");
+  headers.set("X-00AI-Root-Router", "v2-fast-cache");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -126,12 +208,11 @@ async function loadGitHubProjects() {
   }
 }
 
-async function loadDropProjects() {
+async function loadDropProjects(env: Env) {
   try {
-    const upstream = await fetch(`${ORIGIN}/api/projects`, {
+    const upstream = await env.PORTAL.fetch(`${ORIGIN}/api/projects`, {
       headers: { Accept: "application/json" },
-      cf: { cacheEverything: false },
-    } as RequestInit & { cf?: { cacheEverything: boolean } });
+    });
     if (!upstream.ok) return { projects: [], available: false };
     const data = (await upstream.json()) as {
       projects?: Array<Record<string, unknown>>;
@@ -152,17 +233,27 @@ async function loadDropProjects() {
   }
 }
 
-async function projectRegistry() {
+async function projectRegistry(env: Env, ctx: ExecutionContext) {
+  const cacheKey = new Request("https://00ai.kr/api/projects", { method: "GET" });
+  const cached = await caches.default.match(cacheKey);
+  if (cached) {
+    const headers = new Headers(cached.headers);
+    headers.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    headers.set("X-00AI-Cache", "HIT");
+    headers.set("Server-Timing", "00ai-cache;dur=0");
+    return finish(new Response(cached.body, { status: cached.status, headers }));
+  }
+
   const siteProjects = (publicSites as SiteProject[]).map((project) => ({
     ...project,
     public_url: customUrlForSite(project) || project.public_url,
   }));
   const [github, drop] = await Promise.all([
     loadGitHubProjects(),
-    loadDropProjects(),
+    loadDropProjects(env),
   ]);
 
-  return finish(
+  const response = finish(
     Response.json(
       {
         projects: drop.projects,
@@ -186,12 +277,56 @@ async function projectRegistry() {
         refreshedAt: new Date().toISOString(),
         rootRouter: true,
       },
-      { headers: { "Cache-Control": "no-store" } },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+          "X-00AI-Cache": "MISS",
+        },
+      },
     ),
   );
+  const stored = response.clone();
+  stored.headers.set("Cache-Control", "public, max-age=60");
+  stored.headers.set("X-00AI-Cache", "STORED");
+  ctx.waitUntil(
+    caches.default.put(cacheKey, stored).catch((error) => {
+      console.error(
+        JSON.stringify({
+          event: "project_registry_cache_put_failed",
+          error: error instanceof Error ? error.message : "unknown",
+        }),
+      );
+    }),
+  );
+  return response;
 }
 
-async function proxy(request: Request, incoming: URL) {
+async function proxy(
+  request: Request,
+  incoming: URL,
+  env: Env,
+  ctx: ExecutionContext,
+) {
+  const cachePolicy = cachePolicyFor(request, incoming);
+  const cacheKey = cachePolicy ? cacheKeyFor(incoming) : null;
+  if (cachePolicy && cacheKey) {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set("Cache-Control", cachePolicy.browser);
+      headers.set("X-00AI-Cache", "HIT");
+      headers.set("X-00AI-Cache-Policy", cachePolicy.label);
+      headers.set("Server-Timing", "00ai-cache;dur=0");
+      return finish(
+        new Response(request.method === "HEAD" ? null : cached.body, {
+          status: cached.status,
+          statusText: cached.statusText,
+          headers,
+        }),
+      );
+    }
+  }
+
   const target = new URL(ORIGIN);
   target.pathname = incoming.pathname;
   target.search = incoming.search;
@@ -210,9 +345,20 @@ async function proxy(request: Request, incoming: URL) {
   };
   if (!["GET", "HEAD"].includes(request.method)) init.body = request.body;
 
-  const upstream = await fetch(new Request(target, init));
+  const startedAt = Date.now();
+  const upstream = await env.PORTAL.fetch(new Request(target, init));
   const outgoing = new Headers(upstream.headers);
   outgoing.delete("set-cookie");
+  outgoing.set("X-00AI-Origin", "service-binding");
+  outgoing.set("Server-Timing", `00ai-origin;dur=${Date.now() - startedAt}`);
+  if (cachePolicy) {
+    outgoing.set("Cache-Control", cachePolicy.browser);
+    outgoing.set("X-00AI-Cache", "MISS");
+    outgoing.set("X-00AI-Cache-Policy", cachePolicy.label);
+  } else {
+    outgoing.set("X-00AI-Cache", "BYPASS");
+    outgoing.set("X-00AI-Cache-Policy", "bypass");
+  }
 
   const location = outgoing.get("Location");
   if (location) {
@@ -226,17 +372,31 @@ async function proxy(request: Request, incoming: URL) {
     } catch {}
   }
 
-  return finish(
+  const response = finish(
     new Response(request.method === "HEAD" ? null : upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
       headers: outgoing,
     }),
   );
+  if (
+    request.method === "GET" &&
+    cachePolicy &&
+    cacheKey &&
+    response.status >= 200 &&
+    response.status < 400
+  ) {
+    storeInCache(ctx, cacheKey, response, cachePolicy);
+  }
+  return response;
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const incoming = new URL(request.url);
 
     if (incoming.pathname === "/policy" || incoming.pathname.startsWith("/policy/")) {
@@ -246,9 +406,9 @@ export default {
       return redirectTo("harness.00ai.kr", incoming, "/harness");
     }
     if (incoming.pathname === "/api/projects" && request.method === "GET") {
-      return projectRegistry();
+      return projectRegistry(env, ctx);
     }
 
-    return proxy(request, incoming);
+    return proxy(request, incoming, env, ctx);
   },
-} satisfies ExportedHandler;
+} satisfies ExportedHandler<Env>;

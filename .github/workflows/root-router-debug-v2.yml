@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - "apps/root-router/**"
+      - "apps/portal/app/data/public-sites.json"
       - ".github/workflows/root-router-debug-v2.yml"
   workflow_dispatch:
 
@@ -35,17 +37,20 @@ jobs:
           npx --yes wrangler@4 deploy --config apps/root-router/wrangler.debug-v2.jsonc > /tmp/rrd2/deploy.log 2>&1
           dep=$?
           preview="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/rrd2/deploy.log | tail -n1)"
-          rc=000; ac=000; pc=000; hc=000; pl=''; hl=''
+          rc=000; r2c=000; ac=000; pc=000; hc=000; pl=''; hl=''; cache_hit=false
           if [[ $dep -eq 0 && -n "$preview" ]]; then
             sleep 5
             rc="$(curl -ksS --max-time 30 -D /tmp/rrd2/root.h -o /tmp/rrd2/root.b -w '%{http_code}' "$preview/")"
+            sleep 1
+            r2c="$(curl -ksS --max-time 30 -D /tmp/rrd2/root2.h -o /dev/null -w '%{http_code}' "$preview/")"
+            grep -qi '^x-00ai-cache: HIT' /tmp/rrd2/root2.h && cache_hit=true
             ac="$(curl -ksS --max-time 30 -D /tmp/rrd2/api.h -o /tmp/rrd2/api.b -w '%{http_code}' "$preview/api/projects")"
             pc="$(curl -ksS --max-time 20 -D /tmp/rrd2/p.h -o /dev/null -w '%{http_code}' "$preview/policy")"
             hc="$(curl -ksS --max-time 20 -D /tmp/rrd2/h.h -o /dev/null -w '%{http_code}' "$preview/harness")"
             pl="$(tr -d '\r' < /tmp/rrd2/p.h | grep -i '^location:' | head -n1 | cut -d' ' -f2- || true)"
             hl="$(tr -d '\r' < /tmp/rrd2/h.h | grep -i '^location:' | head -n1 | cut -d' ' -f2- || true)"
           fi
-          touch /tmp/rrd2/{root.h,root.b,api.h,api.b,p.h,h.h}
+          touch /tmp/rrd2/{root.h,root.b,root2.h,api.h,api.b,p.h,h.h}
           python3 - <<PY
           import json,pathlib
           def t(p,n=12000):
@@ -59,7 +64,8 @@ jobs:
           out={
             'deploy_exit':$dep,
             'preview_url':'''$preview''',
-            'root_code':'$rc','api_code':'$ac','policy_code':'$pc','harness_code':'$hc',
+            'root_code':'$rc','second_root_code':'$r2c','root_cache_hit':'$cache_hit' == 'true',
+            'api_code':'$ac','policy_code':'$pc','harness_code':'$hc',
             'policy_location':'''$pl''','harness_location':'''$hl''',
             'root_has_00ai':'00AI' in t('/tmp/rrd2/root.b'),
             'api_site_count':len(sites),'api_github_count':len(gh),
@@ -84,3 +90,13 @@ jobs:
             git commit -m "ci: update root router debug v2 [skip ci]"
             git push || true
           fi
+      - name: Require a healthy cached preview
+        run: |
+          jq -e '
+            .deploy_exit == 0 and
+            .root_code == "200" and
+            .second_root_code == "200" and
+            .root_cache_hit == true and
+            .api_code == "200" and
+            .root_has_00ai == true
+          ' .github/root-router-debug-v2.json >/dev/null
