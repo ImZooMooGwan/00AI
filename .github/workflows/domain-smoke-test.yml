@@ -84,7 +84,12 @@ jobs:
           git add .github/domain-health.json
           if ! git diff --cached --quiet; then
             git commit -m "ci: update domain health [skip ci]"
-            git push
+            for attempt in 1 2 3; do
+              if git pull --rebase && git push; then exit 0; fi
+              git rebase --abort 2>/dev/null || true
+              sleep 2
+            done
+            echo "Warning: domains are healthy, but the diagnostic file raced with another workflow." >&2
           fi
 
       - name: Fail if any domain is unhealthy

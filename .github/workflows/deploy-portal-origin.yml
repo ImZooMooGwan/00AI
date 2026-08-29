@@ -85,8 +85,8 @@ jobs:
           sleep 5
           test "$(curl -ksS --max-time 30 -o /tmp/origin-root.html -w '%{http_code}' "$URL/")" = 200
           test "$(curl -ksS --max-time 30 -o /tmp/origin-api.json -w '%{http_code}' "$URL/api/projects")" = 200
-          grep -q 'policy.00ai.kr' /tmp/origin-api.json
-          grep -q 'yhub.00ai.kr' /tmp/origin-api.json
+          grep -Eq '(policy|public-ai-gov)\.00ai\.kr' /tmp/origin-api.json
+          grep -Eq '(yhub|youth-policy-data-hub)\.00ai\.kr' /tmp/origin-api.json
           grep -q 'https://policy.00ai.kr' /tmp/origin-root.html
           grep -q 'https://harness.00ai.kr/' /tmp/origin-root.html
           python3 - <<'PY'
@@ -152,6 +152,13 @@ jobs:
           if [[ ! -f .github/portal-origin-health.json ]]; then mkdir -p .github; printf '{"healthy":false,"reason":"portal origin deployment or hydration failed"}\n' > .github/portal-origin-health.json; fi
           git config user.name "00AI Bot"
           git config user.email "actions@users.noreply.github.com"
-          git pull --rebase || true
           git add .github/portal-origin-health.json
-          if ! git diff --cached --quiet; then git commit -m "ci: update portal origin health [skip ci]"; git push || true; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update portal origin health [skip ci]"
+            for attempt in 1 2 3; do
+              if git pull --rebase --autostash && git push; then exit 0; fi
+              git rebase --abort 2>/dev/null || true
+              sleep 2
+            done
+            echo "Warning: deployment succeeded, but the diagnostic health file raced with another workflow." >&2
+          fi
