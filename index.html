@@ -3,130 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#07111d" />
+    <meta name="theme-color" content="#143af5" />
     <meta name="description" content="00AI Harness — 브라우저, PC 에이전트, 기관 내부 서버를 연결하는 공공AI 실행 허브" />
-    <title>00AI Harness · Execution Hub</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="harness-runner-v4.css" />
+    <title>00AI Harness — 문서 검토 작업실</title>
+    <link rel="stylesheet" href="harness-workspace.css" />
   </head>
-  <body data-state="ready">
-    <div class="aurora aurora-a" aria-hidden="true"></div>
-    <div class="aurora aurora-b" aria-hidden="true"></div>
+  <body data-state="ready"><a class="skip-link" href="#mainContent">작업 영역으로 이동</a>
 
     <div class="app-shell">
       <aside class="sidebar" aria-label="주요 메뉴">
         <div class="brand-lockup">
           <div class="brand-mark">00</div>
-          <div><strong>00AI HARNESS</strong><span>EXECUTION HUB</span></div>
+          <div><strong>00AI HARNESS</strong><span>문서 검토 · 실행 허브</span></div>
         </div>
         <nav class="primary-nav">
-          <button class="nav-item is-selected" data-nav="ready"><span class="nav-glyph">⌂</span>HOME</button>
-          <div class="nav-label">WORKSPACE</div>
-          <button class="nav-item" data-nav="active"><span class="nav-glyph">▶</span>RUN</button>
-          <button class="nav-item" data-action="documents"><span class="nav-glyph">▤</span>DOCUMENTS</button>
-          <button class="nav-item" data-action="install"><span class="nav-glyph">↓</span>INSTALL</button>
-          <button class="nav-item" data-action="connection"><span class="nav-glyph">◌</span>CONNECTION</button>
-          <button class="nav-item" data-nav="verified"><span class="nav-glyph">◇</span>RESULT</button>
-          <button class="nav-item" data-action="audit"><span class="nav-glyph">≡</span>AUDIT</button>
+          <button class="nav-item is-selected" data-nav="ready"><span class="nav-glyph">⌂</span>새 작업</button>
+          <div class="nav-label">작업실</div>
+          <button class="nav-item" data-nav="active"><span class="nav-glyph">▶</span>실행 내역</button>
+          <button class="nav-item" data-action="documents"><span class="nav-glyph">▤</span>문서 선택</button>
+          <button class="nav-item" data-action="install"><span class="nav-glyph">↓</span>설치 안내</button>
+          <button class="nav-item" data-action="connection"><span class="nav-glyph">◌</span>연결 설정</button>
+          <button class="nav-item" data-nav="verified"><span class="nav-glyph">◇</span>검토 결과</button>
+          <button class="nav-item" data-action="audit"><span class="nav-glyph">≡</span>실행 요약</button>
         </nav>
-        <div class="sidebar-footer"><span class="live-dot" id="footerDot"></span><div><strong id="footerRunner">BROWSER LOCAL</strong><small id="footerState">READY</small></div></div>
+        <a class="portal-link" href="https://00ai.kr">00AI 홈페이지 <span>↗</span></a><div class="sidebar-footer"><span class="live-dot" id="footerDot"></span><div><strong id="footerRunner">BROWSER LOCAL</strong><small id="footerState">READY</small></div></div>
       </aside>
 
       <div class="workspace">
         <header class="topbar">
-          <div class="breadcrumb" id="breadcrumb">00AI HARNESS / EXECUTION HUB</div>
+          <div class="breadcrumb" id="breadcrumb">문서 검토 작업실</div>
           <div class="topbar-actions">
             <span class="policy-pill" id="egressPill"><span class="live-dot"></span>DOCUMENT EGRESS · 0 B</span>
-            <button class="network-pill" type="button" id="resetButton">NEW RUN</button>
+            <button class="network-pill" type="button" id="resetButton">새 작업</button>
           </div>
         </header>
 
         <main class="content" id="mainContent">
           <section class="state-view ready-view" data-view="ready" aria-labelledby="readyTitle">
-            <div class="hero-grid">
-              <div class="hero-copy">
-                <div class="eyebrow">REAL EXECUTION · THREE BOUNDARIES</div>
-                <h1 id="readyTitle">업무에 맞는 실행기를 선택합니다.</h1>
-                <p>가벼운 검토는 브라우저에서, PC 파일·도구는 로컬 에이전트에서, 기관 시스템은 내부 서버에서 실행합니다. HASA는 에이전트 안에서 비식별 근거만 분석합니다.</p>
-              </div>
-              <div class="trust-spine panel-glass">
-                <div class="panel-heading"><span>EXECUTION ROUTE</span><span class="status-chip mint" id="routeStatus"><i></i>READY</span></div>
-                <div class="spine-nodes">
-                  <div class="spine-node internal"><span>01 · CONTROL</span><strong>WEB HARNESS</strong><small>요청 · 실행 대상 · 결과</small></div>
-                  <div class="spine-node internal"><span>02 · EXECUTE</span><strong id="routeExecutor">BROWSER LOCAL</strong><small id="routeExecutorNote">원문이 이 탭을 벗어나지 않음</small></div>
-                  <div class="spine-node external"><span>03 · INFERENCE</span><strong id="routeInference">NOT USED</strong><small>에이전트 연결 시 HASA 선택 사용</small></div>
-                </div>
-              </div>
-            </div>
+  <div class="workspace-heading"><p class="eyebrow">00AI HARNESS / 문서 검토 작업실</p><h1 id="readyTitle">문서는 가까이,<br class="mobile-break" /> <em>근거는 명확히.</em></h1><p>실행 위치를 고르고, 문서를 선택하고, 검토 근거를 결과로 남기세요.</p></div>
+  <div class="ready-grid"><section class="run-panel panel-glass">
+                <div class="panel-heading"><span class="eyebrow">01 / 문서 검토</span><kbd>CTRL + ENTER</kbd></div>
 
-            <div class="metric-grid">
-              <article class="metric-card accent"><span>EXECUTOR</span><strong id="executorMetric">BROWSER</strong><small id="executorMetricNote">연결 없이 즉시 실행</small></article>
-              <article class="metric-card"><span>HASA</span><strong id="hasaMetric">OFF</strong><small id="hasaMetricNote">에이전트에서만 호출</small></article>
-              <article class="metric-card"><span>ORIGINAL FILES</span><strong>LOCAL</strong><small>HASA로 원문 전송 안 함</small></article>
-            </div>
-
-            <section class="boundary-map panel-glass" aria-labelledby="boundaryTitle">
-              <div class="boundary-intro">
-                <div><span class="eyebrow">HOW HARNESS WORKS</span><h2 id="boundaryTitle">파일의 이동 경로를 먼저 고정합니다.</h2></div>
-                <p>웹 화면은 요청과 결과만 조정합니다. 원문을 처리할 위치를 고른 뒤, 외부 LLM에는 허용된 최소 근거만 보냅니다.</p>
-              </div>
-              <div class="boundary-paths">
-                <article class="boundary-path is-browser">
-                  <div class="path-head"><b>01</b><span><strong>브라우저 로컬</strong><small>가벼운 검토 · 설치 없음</small></span></div>
-                  <div class="path-flow"><span>선택한 문서</span><i>→</i><span>브라우저 메모리</span><i>→</i><span>결과 다운로드</span></div>
-                  <ul><li>원문과 해시는 현재 탭에서 처리</li><li>HASA 및 다른 서버 전송 0 B</li><li>탭을 닫으면 메모리 작업 상태 종료</li></ul>
-                </article>
-                <article class="boundary-path is-agent">
-                  <div class="path-head"><b>02</b><span><strong>PC 에이전트</strong><small>선택 문서 · HASA 선택 분석</small></span></div>
-                  <div class="path-flow"><span>웹</span><i>→</i><span>127.0.0.1</span><i>→</i><span>근거 추출</span><i>→</i><span>HASA</span></div>
-                  <ul><li>원문 처리·SHA-256은 이 PC에서 수행</li><li>HASA에는 이메일·전화·주민번호를 가린 근거 문장만 전송</li><li>키는 Windows DPAPI 암호화, 웹에는 미노출</li></ul>
-                  <a class="inline-install" href="apps/harness-agent/install-windows.ps1" download>Windows 자동 설치 ↓</a>
-                </article>
-                <article class="boundary-path is-server">
-                  <div class="path-head"><b>03</b><span><strong>행정망 내부 서버</strong><small>기관 시스템 · 통제형 실행</small></span></div>
-                  <div class="path-flow"><span>업무 PC</span><i>→</i><span>HTTPS + Token</span><i>→</i><span>내부 실행기</span><i>→</i><span>HASA</span></div>
-                  <ul><li>선택 원문은 지정한 내부 서버까지만 이동</li><li>방화벽·접근 토큰·허용 Origin으로 실행기 접근 제한</li><li>외부 HASA 송신은 비식별 근거 문장으로 제한</li></ul>
-                </article>
-              </div>
-              <div class="boundary-rule"><strong>외부 송신 원칙</strong><span>원본 파일 ✕</span><span>API Key ✕</span><span>비식별 근거 문장 ✓</span><small>현재 자동 마스킹은 이메일·휴대전화·주민등록번호 패턴을 대상으로 합니다. 최종 반출 기준은 기관 보안정책으로 추가 통제해야 합니다.</small></div>
-            </section>
-
-            <section class="quickstart panel-glass" id="installGuide" aria-labelledby="installGuideTitle">
-              <div class="quickstart-head">
-                <div><span class="eyebrow">DOWNLOAD & RUN</span><h2 id="installGuideTitle">PC 에이전트, 한 번만 설치하면 됩니다.</h2><p>Windows 설치 파일을 실행하면 키 보관·자동 시작·사이트 연결까지 설정됩니다.</p></div>
-                <a class="quickstart-download" href="apps/harness-agent/install-windows.ps1" download><b>↓</b><span><strong>Windows 자동 설치</strong><small>install-windows.ps1</small></span></a>
-              </div>
-              <ol class="setup-steps">
-                <li><b>01</b><span><strong>설치 파일 다운로드</strong><small>Python 3.10 이상이 설치된 Windows PC에서 위 버튼을 누릅니다.</small></span></li>
-                <li><b>02</b><span><strong>PowerShell로 최초 실행</strong><small>다운로드한 파일을 우클릭해 PowerShell로 실행합니다. 최초 1회만 새 HASA 키를 입력합니다.</small></span></li>
-                <li><b>03</b><span><strong>자동 시작 등록</strong><small>키는 Windows DPAPI로 암호화되고, 로그인 시 로컬 실행기가 자동으로 시작됩니다.</small></span></li>
-                <li><b>04</b><span><strong>사이트 자동 연결</strong><small>이 화면에서 PC 에이전트를 선택하면 127.0.0.1:43120 연결을 자동 확인합니다.</small></span></li>
-                <li><b>05</b><span><strong>문서 실행·결과 저장</strong><small>문서를 선택해 실행하고 근거·SHA-256·HASA 분석이 포함된 Markdown 결과를 내려받습니다.</small></span></li>
-              </ol>
-              <div class="setup-command">
-                <div><span>실행이 차단될 때</span><code id="installCommand">powershell -ExecutionPolicy Bypass -File .\install-windows.ps1</code></div>
-                <button type="button" id="copyInstallCommand">명령어 복사</button>
-              </div>
-              <div class="setup-notes">
-                <p><strong>중요</strong> 설치 파일은 관리자 권한 없이 현재 사용자 계정에만 등록됩니다. 이 사이트나 GitHub에는 API Key가 저장되지 않습니다.</p>
-                <a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">전체 설치 소스·제거 방법 보기 →</a>
-              </div>
-              <details class="server-setup">
-                <summary><span><strong>행정망 내부 서버로 설치하려면</strong><small>Linux 서버 · HTTPS · 접근 토큰</small></span><b>+</b></summary>
-                <div><p>내부 서버는 실행기를 방화벽 안에 배치하고 HTTPS 리버스 프록시와 접근 토큰을 적용합니다.</p><pre><code>export HASA_API_KEY="발급받은 새 키"
-export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
-./start-server.sh --origin https://harness.00ai.kr</code></pre><a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">내부 서버 실행 파일 보기 →</a></div>
-              </details>
-            </section>
-
-            <div class="ready-grid">
-              <section class="run-panel panel-glass">
-                <div class="panel-heading"><span class="eyebrow">NEW HARNESS RUN</span><kbd>CTRL + ENTER</kbd></div>
-
-                <div class="runner-switch" role="tablist" aria-label="실행 대상">
-                  <button type="button" class="runner-option is-active" data-runner="browser" role="tab" aria-selected="true"><b>브라우저</b><small>설치 없음</small></button>
-                  <button type="button" class="runner-option" data-runner="agent" role="tab" aria-selected="false"><b>PC 에이전트</b><small>HASA 연계</small></button>
-                  <button type="button" class="runner-option" data-runner="server" role="tab" aria-selected="false"><b>내부 서버</b><small>기관용</small></button>
+                <p class="runner-intro">문서를 처리할 위치를 선택하세요.</p><div class="runner-switch" role="group" aria-label="실행 대상">
+                  <button type="button" class="runner-option is-active" data-runner="browser" aria-pressed="true"><b>브라우저</b><small>근거 추출 · 설치 없음</small></button>
+                  <button type="button" class="runner-option" data-runner="agent" aria-pressed="false"><b>PC 에이전트</b><small>PC 처리 · AI 선택</small></button>
+                  <button type="button" class="runner-option" data-runner="server" aria-pressed="false"><b>내부 서버</b><small>기관 환경에서 처리</small></button>
                 </div>
 
                 <div class="connection-box" id="connectionBox">
@@ -145,35 +66,94 @@ export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
                   </div>
                 </div>
 
-                <label class="field-label" for="taskInput">업무 요청</label>
-                <textarea class="task-input" id="taskInput" rows="4">최근 사업계획과 결과보고를 비교해서 핵심 차이, 확인이 필요한 수치, 예상질문 초안을 근거와 함께 정리해줘.</textarea>
+<div class="task-document-grid"><div class="task-editor">                <label class="field-label" for="taskInput">업무 요청</label>
+                <textarea class="task-input" id="taskInput" rows="3" aria-describedby="taskHint" maxlength="5000">최근 사업계획과 결과보고를 비교해서 핵심 차이, 확인이 필요한 수치, 예상질문 초안을 근거와 함께 정리해줘.</textarea><p class="field-hint" id="taskHint">브라우저 모드는 요청어와 일치하는 근거를 추출합니다. AI 문장 생성은 연결된 실행기에서 지원합니다.</p>
                 <div class="example-row">
                   <button type="button" data-example="최근 사업계획과 결과보고를 비교해서 의회 예상질문과 답변 초안을 근거와 함께 정리해줘.">의회 예상질문</button>
                   <button type="button" data-example="첨부 문서에서 기관별 협조 요청사항과 제출기한을 근거 문장과 함께 정리해줘.">협조 요청</button>
                   <button type="button" data-example="첨부 문서의 핵심 현황, 수치, 변동사항과 확인 필요 항목을 정리해줘.">현황 제출</button>
                 </div>
-                <div class="upload-box">
-                  <input id="documentInput" type="file" multiple accept=".txt,.md,.markdown,.csv,.json,.html,.htm" hidden />
+</div><div class="document-editor"><div class="field-label">검토할 문서</div>                <div class="upload-box" id="documentDropZone">
+                  <input id="documentInput" class="visually-hidden" type="file" multiple accept=".txt,.md,.markdown,.csv,.json,.html,.htm" />
                   <label class="file-action" for="documentInput">문서 선택</label>
-                  <div><strong id="fileSummary">선택된 문서 없음</strong><small>TXT · MD · CSV · JSON · HTML, 합계 10MB 이하</small></div>
+                  <div><strong id="fileSummary">선택된 문서 없음</strong><span class="field-hint">여기에 문서를 끌어놓아도 됩니다.</span><small>TXT · MD · CSV · JSON · HTML / 최대 30개, 합계 10MB</small></div>
                 </div>
                 <div class="file-list" id="fileList" aria-live="polite"></div>
-                <button class="primary-action" id="runButton" type="button" disabled>RUN BROWSER LOCAL <span>→</span></button>
-              </section>
-
-              <section class="security-panel panel-glass">
-                <div class="panel-heading"><span>BOUNDARY STATUS</span><span class="status-chip safe"><i></i>ACTUAL</span></div>
+</div></div>                <button class="primary-action" id="runButton" type="button" disabled>브라우저에서 검토 시작 <span>→</span></button>
+              <p class="run-hint" id="runHint" aria-live="polite">문서를 선택하면 검토를 시작할 수 있습니다.</p></section><section class="security-panel panel-glass">
+                <div class="panel-heading"><span>이번 작업의 처리 범위</span></div>
                 <dl class="security-list">
-                  <div><dt>PROCESSING</dt><dd id="securityProcessing">IN BROWSER</dd></div>
-                  <div><dt>ORIGINAL FILE EGRESS</dt><dd id="securityEgress">0 B</dd></div>
-                  <div><dt>HASA INPUT</dt><dd id="securityHasa">NOT USED</dd></div>
-                  <div><dt>API KEY LOCATION</dt><dd id="securityKey">NOT REQUIRED</dd></div>
-                  <div><dt>CONNECTION</dt><dd id="securityConnection">READY</dd></div>
+                  <div><dt>원문 처리 위치</dt><dd id="securityProcessing">IN BROWSER</dd></div>
+                  <div><dt>원문 이동 범위</dt><dd id="securityEgress">0 B</dd></div>
+                  <div><dt>외부 AI 입력</dt><dd id="securityHasa">NOT USED</dd></div>
+                  <div><dt>키 보관 위치</dt><dd id="securityKey">NOT REQUIRED</dd></div>
+                  <div><dt>실행기 연결</dt><dd id="securityConnection">READY</dd></div>
                 </dl>
                 <div class="secure-seal"><b>✓</b><span><strong id="sealTitle">BROWSER LOCAL</strong><small id="sealNote">선택한 문서만 이 탭에서 처리합니다.</small></span></div>
-              </section>
-            </div>
-          </section>
+              <div class="work-help"><strong>설정이 처음이라면</strong><a href="#installGuide">PC 에이전트 설치 안내 <span>↗</span></a><a href="#boundaryTitle">문서가 이동하는 경로 <span>↗</span></a><a href="https://policy.00ai.kr">문서 없이 정책부터 검토 <span>↗</span></a></div></section></div>
+  <details class="execution-details"><summary>현재 실행기 세부정보 <span>＋</span></summary><div class="execution-detail-content"><div class="metric-grid">
+              <article class="metric-card accent"><span>EXECUTOR</span><strong id="executorMetric">BROWSER</strong><small id="executorMetricNote">연결 없이 즉시 실행</small></article>
+              <article class="metric-card"><span>HASA</span><strong id="hasaMetric">OFF</strong><small id="hasaMetricNote">에이전트에서만 호출</small></article>
+              <article class="metric-card"><span>ORIGINAL FILES</span><strong>LOCAL</strong><small>HASA로 원문 전송 안 함</small></article>
+            </div><div class="trust-spine panel-glass">
+                <div class="panel-heading"><span>EXECUTION ROUTE</span><span class="status-chip mint" id="routeStatus"><i></i>READY</span></div>
+                <div class="spine-nodes">
+                  <div class="spine-node internal"><span>01 · CONTROL</span><strong>WEB HARNESS</strong><small>요청 · 실행 대상 · 결과</small></div>
+                  <div class="spine-node internal"><span>02 · EXECUTE</span><strong id="routeExecutor">BROWSER LOCAL</strong><small id="routeExecutorNote">원문이 이 탭을 벗어나지 않음</small></div>
+                  <div class="spine-node external"><span>03 · INFERENCE</span><strong id="routeInference">NOT USED</strong><small>에이전트 연결 시 HASA 선택 사용</small></div>
+                </div>
+              </div></div></details>
+  <section class="quickstart panel-glass" id="installGuide" aria-labelledby="installGuideTitle">
+              <div class="quickstart-head">
+                <div><span class="eyebrow">DOWNLOAD & RUN</span><h2 id="installGuideTitle">설치부터 첫 실행까지.</h2><p>PC에서 AI 분석을 쓰려면 에이전트를 설치하세요. 브라우저 근거 추출은 설치 없이 사용할 수 있습니다.</p></div>
+                <a class="quickstart-download" href="apps/harness-agent/install-windows.ps1" download><b>↓</b><span><strong>Windows 자동 설치</strong><small>install-windows.ps1</small></span></a>
+              </div>
+              <ol class="setup-steps">
+                <li><b>01</b><span><strong>설치 파일 다운로드</strong><small>Python 3.10 이상이 설치된 Windows PC에서 위 버튼을 누릅니다.</small></span></li>
+                <li><b>02</b><span><strong>내려받은 설치 파일 실행</strong><small>파일 내용을 확인한 뒤 PowerShell로 실행합니다. 최초 1회 HASA 키를 입력합니다.</small></span></li>
+                <li><b>03</b><span><strong>자동 시작 등록</strong><small>키는 Windows DPAPI로 암호화되고, 로그인 시 로컬 실행기가 자동으로 시작됩니다.</small></span></li>
+                <li><b>04</b><span><strong>사이트 자동 연결</strong><small>이 화면에서 PC 에이전트를 선택하면 127.0.0.1:43120 연결을 자동 확인합니다.</small></span></li>
+                <li><b>05</b><span><strong>문서 실행·결과 저장</strong><small>문서를 선택해 실행하고 근거·SHA-256·HASA 분석이 포함된 Markdown 결과를 내려받습니다.</small></span></li>
+              </ol>
+              <div class="setup-command">
+                <div><span>기관에서 허용한 설치 파일의 실행 명령</span><code id="installCommand">powershell -ExecutionPolicy Bypass -File .\install-windows.ps1</code></div>
+                <button type="button" id="copyInstallCommand">명령어 복사</button>
+              </div>
+              <div class="setup-notes">
+                <p><strong>중요</strong> 설치 파일은 관리자 권한 없이 현재 사용자 계정에만 등록됩니다. 기존 이용자는 최신 설치 파일을 다시 실행해야 이번 마스킹 개선이 적용됩니다. 이 사이트나 GitHub에는 API Key가 저장되지 않습니다.</p>
+                <a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">전체 설치 소스·제거 방법 보기 →</a>
+              </div>
+              <details class="server-setup">
+                <summary><span><strong>행정망 내부 서버로 설치하려면</strong><small>Linux 서버 · HTTPS · 접근 토큰</small></span><b>+</b></summary>
+                <div><p>내부 서버는 실행기를 방화벽 안에 배치하고 HTTPS 리버스 프록시와 접근 토큰을 적용합니다.</p><pre><code>export HASA_API_KEY="발급받은 새 키"
+export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
+./start-server.sh --origin https://harness.00ai.kr</code></pre><a href="https://github.com/ImZooMooGwan/00AI/tree/main/apps/harness-agent" target="_blank" rel="noreferrer">내부 서버 실행 파일 보기 →</a></div>
+              </details>
+            </section><section class="boundary-map panel-glass" aria-labelledby="boundaryTitle">
+              <div class="boundary-intro">
+                <div><span class="eyebrow">HOW HARNESS WORKS</span><h2 id="boundaryTitle">내 문서는 어디로 이동할까요?</h2></div>
+                <p>웹 화면은 요청과 결과만 조정합니다. 원문을 처리할 위치를 고른 뒤, AI 분석을 켜면 요청과 파일명, 추출 근거를 외부 AI에 전달합니다.</p>
+              </div>
+              <div class="boundary-paths">
+                <article class="boundary-path is-browser">
+                  <div class="path-head"><b>01</b><span><strong>브라우저 로컬</strong><small>가벼운 검토 · 설치 없음</small></span></div>
+                  <div class="path-flow"><span>선택한 문서</span><i>→</i><span>브라우저 메모리</span><i>→</i><span>결과 다운로드</span></div>
+                  <ul><li>원문과 해시는 현재 탭에서 처리</li><li>HASA 및 다른 서버 전송 0 B</li><li>탭을 닫으면 메모리 작업 상태 종료</li></ul>
+                </article>
+                <article class="boundary-path is-agent">
+                  <div class="path-head"><b>02</b><span><strong>PC 에이전트</strong><small>선택 문서 · HASA 선택 분석</small></span></div>
+                  <div class="path-flow"><span>웹</span><i>→</i><span>127.0.0.1</span><i>→</i><span>근거 추출</span><i>→</i><span>HASA</span></div>
+                  <ul><li>원문 처리·SHA-256은 이 PC에서 수행</li><li>요청·파일명·근거의 이메일·휴대전화·주민번호 패턴 마스킹</li><li>키는 Windows DPAPI 암호화, 웹에는 미노출</li></ul>
+                  <a class="inline-install" href="apps/harness-agent/install-windows.ps1" download>Windows 자동 설치 ↓</a>
+                </article>
+                <article class="boundary-path is-server">
+                  <div class="path-head"><b>03</b><span><strong>행정망 내부 서버</strong><small>기관 시스템 · 통제형 실행</small></span></div>
+                  <div class="path-flow"><span>업무 PC</span><i>→</i><span>HTTPS + Token</span><i>→</i><span>내부 실행기</span><i>→</i><span>HASA</span></div>
+                  <ul><li>선택 원문은 지정한 내부 서버까지만 이동</li><li>방화벽·접근 토큰·허용 Origin으로 실행기 접근 제한</li><li>HASA에는 요청·파일명·추출 근거 전달</li></ul>
+                </article>
+              </div>
+              <div class="boundary-rule"><strong>외부 송신 원칙</strong><span>원본 전체 파일 제외</span><span>요청·파일명·근거 전달</span><span>키는 실행기에서 사용</span><small>현재 자동 마스킹은 이메일·휴대전화·주민등록번호 패턴을 대상으로 합니다. 이름·주소 등 모든 개인정보를 탐지하지는 않습니다. 외부 AI 사용과 전송 내용은 기관의 반출 기준에 따라 확인하세요.</small></div>
+            </section></section>
 
           <section class="state-view active-view" data-view="active" aria-labelledby="activeTitle" hidden>
             <div class="state-header">
@@ -222,12 +202,12 @@ export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
               <section class="result-panel panel-glass">
                 <div class="panel-heading"><strong>결과물</strong><span class="result-ready">READY</span></div>
                 <div class="file-card"><b>↗</b><strong id="resultFileName">00AI-Harness-result.md</strong><small id="resultFileMeta">생성 대기</small></div>
-                <ul class="result-checks"><li>✓ 원본 파일 변경 없음</li><li>✓ 파일별 SHA-256 기록</li><li id="resultPrivacyCheck">✓ 원문 외부 전송 0 B</li></ul>
+                <ul class="result-checks"><li>✓ 원본 파일 변경 없음</li><li>✓ 처리 텍스트 SHA-256 기록</li><li id="resultPrivacyCheck">✓ 원문 외부 전송 0 B</li></ul>
                 <button class="secondary-action" type="button" id="downloadResult">결과 파일 다운로드</button>
               </section>
             </div>
             <section class="ledger-panel panel-glass">
-              <div class="panel-heading"><div><strong>Evidence Ledger</strong><small>추출된 근거와 원본 파일을 확인합니다.</small></div><span class="eyebrow" id="ledgerCount">0 ITEMS</span></div>
+              <div class="panel-heading"><div><strong>검토 근거</strong><small>추출된 근거와 원본 파일을 확인합니다.</small></div><span class="eyebrow" id="ledgerCount">0 ITEMS</span></div>
               <div id="ledgerRows"></div>
             </section>
           </section>
@@ -236,6 +216,6 @@ export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="harness-app-v4.js"></script>
+    <script src="harness-app-v5.js"></script>
   </body>
 </html>

@@ -72,7 +72,7 @@ def call_hasa(task: str, evidence: list[dict], config: dict) -> tuple[str | None
     if not api_key:
         return None, None
     snippets = "\n".join(
-        f"[{item['file']}:{item['line']}] {redact(item['text'])}"
+        f"[{redact(item['file'])}:{item['line']}] {redact(item['text'])}"
         for item in evidence[:20]
     )
     if not snippets:
@@ -91,7 +91,7 @@ def call_hasa(task: str, evidence: list[dict], config: dict) -> tuple[str | None
             },
             {
                 "role": "user",
-                "content": f"업무 요청:\n{task}\n\n비식별 근거 문장:\n{snippets}",
+                "content": f"업무 요청:\n{redact(task)}\n\n비식별 근거 문장:\n{snippets}",
             },
         ],
     }
