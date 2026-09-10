@@ -198,5 +198,17 @@
     "stack": "AI · 대화 · 시뮬레이션",
     "status": "LIVE",
     "updated_at": "2026-07-29T09:17:23.212544+00:00"
+  },
+  {
+    "id": "blue-noon-strategy-2026",
+    "name": "푸른 정오 전략기획안",
+    "description": "푸른 정오의 비전, 조직 모델, 플랫폼 및 실행 전략을 담은 전략기획안",
+    "public_url": "https://blue-noon-strategy-2026.hayahoyeho.chatgpt.site",
+    "origin_url": "https://blue-noon-strategy-2026.hayahoyeho.chatgpt.site",
+    "category": "전략기획",
+    "maker": "00AI",
+    "stack": "미디어 · 사회적협동조합 · DAO",
+    "status": "LIVE",
+    "updated_at": "2026-09-10T10:53:47.163230+00:00"
   }
 ]
