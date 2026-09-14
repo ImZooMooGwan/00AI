@@ -1,5 +1,5 @@
 {
-  "dom_bytes": 28098,
+  "dom_bytes": 28557,
   "has_yhub_project": true,
   "has_policy_project": true,
   "custom_hrefs": [
@@ -26,7 +26,9 @@
     "https://daejeon-after-hours-2d.00ai.kr",
     "https://after-hours-dialogue.00ai.kr"
   ],
-  "chatgpt_hrefs": [],
+  "chatgpt_hrefs": [
+    "https://blue-noon-strategy-2026.hayahoyeho.chatgpt.site"
+  ],
   "runtime_errors": [],
-  "healthy": true
+  "healthy": false
 }
