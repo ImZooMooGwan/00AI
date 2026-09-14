@@ -198,5 +198,17 @@
     "stack": "AI · 대화 · 시뮬레이션",
     "status": "LIVE",
     "updated_at": "2026-07-29T09:17:23.212544+00:00"
+  },
+  {
+    "id": "body-soul-response-guide",
+    "name": "바디앤솔 언론·취재 및 기관 대응 가이드",
+    "description": "영업장 취재 대응, 언론사·노동청 관련 절차와 현장 대응 문안",
+    "public_url": "https://body-soul-response-guide.hayahoyeho.chatgpt.site",
+    "origin_url": "https://body-soul-response-guide.hayahoyeho.chatgpt.site",
+    "category": "운영 가이드",
+    "maker": "00AI",
+    "stack": "언론 대응 · 노무 절차 · 현장 매뉴얼",
+    "status": "LIVE",
+    "updated_at": "2026-09-14T07:14:16.903284+00:00"
   }
 ]
