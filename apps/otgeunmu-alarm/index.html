@@ -170,8 +170,8 @@ h1 .accent{color:var(--plum)}
       <div class="stat"><div class="stat-label">마지막 체크</div><div class="stat-num" style="font-size:18px" id="lastCheck">--:--</div></div>
     </div>
     <div class="permission">
-      <p id="permissionText">🔔 시작할 때 알림 권한을 자동으로 요청해요.</p>
-      <button class="btn btn-outline btn-small" id="permissionBtn">알림 켜기</button>
+      <p id="permissionText">🔔 아래 버튼을 직접 눌러 알림을 허용해 주세요.</p>
+      <button class="btn btn-outline btn-small" id="permissionBtn">알림 권한 요청</button>
     </div>
   </section>
 </main>
@@ -240,7 +240,9 @@ h1 .accent{color:var(--plum)}
     clearTimeout(showToast.timer);showToast.timer=setTimeout(function(){$("toast").hidden=true},2600);
   }
   function notificationGuide(){
-    showToast("알림이 차단되어 있어요. 주소창 왼쪽 자물쇠 → 알림 → 허용으로 바꾼 뒤 새로고침해 주세요.");
+    $("permissionText").textContent="⚠️ 알림이 차단되어 있어요. 주소창 왼쪽 자물쇠 → 알림 → 허용 → 새로고침 순서로 설정해 주세요.";
+    $("permissionBtn").textContent="설정 후 다시 확인";
+    showToast("주소창 왼쪽 자물쇠 → 알림 → 허용 → 새로고침해 주세요.");
   }
   async function requestNotification(auto){
     if(!("Notification" in window)){showToast("이 브라우저는 알림을 지원하지 않아요.");return false}
@@ -325,9 +327,10 @@ h1 .accent{color:var(--plum)}
       $("heroAlarmTime").textContent="--:--";
       $("heroAlarmRemain").textContent="시작하면 다음 시각이 보여요";
     }
-    var hasPermission=("Notification" in window)&&Notification.permission==="granted";
-    $("permissionText").textContent=hasPermission?"🔔 브라우저 알림이 켜져 있어요.":"🔔 브라우저 알림을 켜면 다른 탭에서도 알려드려요.";
-    $("permissionBtn").textContent=hasPermission?"알림 켜짐":"알림 켜기";
+    var permission=("Notification" in window)?Notification.permission:"unsupported";
+    var hasPermission=permission==="granted";
+    $("permissionText").textContent=hasPermission?"🔔 브라우저 알림이 켜져 있어요.":permission==="denied"?"⚠️ 알림 차단 상태입니다. 주소창 왼쪽 자물쇠 → 알림 → 허용 → 새로고침해 주세요.":permission==="unsupported"?"⚠️ 이 브라우저는 알림을 지원하지 않아요.":"🔔 아래 버튼을 직접 눌러 알림 권한을 허용해 주세요.";
+    $("permissionBtn").textContent=hasPermission?"알림 켜짐":permission==="denied"?"설정 후 다시 확인":"알림 권한 요청";
     $("permissionBtn").disabled=hasPermission;
     renderPay(now);
     $("alarmOverlay").hidden=!state.alarmOpen;
@@ -407,7 +410,6 @@ h1 .accent{color:var(--plum)}
   document.addEventListener("visibilitychange",function(){if(!document.hidden)tick()});
   window.addEventListener("focus",tick);
   readState();render();
-  setTimeout(function(){requestNotification(true)},500);
   setInterval(tick,1000);
 })();
 </script>
