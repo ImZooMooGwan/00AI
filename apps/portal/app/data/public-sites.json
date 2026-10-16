@@ -198,5 +198,17 @@
     "stack": "AI · 대화 · 시뮬레이션",
     "status": "LIVE",
     "updated_at": "2026-07-29T09:17:23.212544+00:00"
+  },
+  {
+    "id": "otgeunmu-alarm",
+    "name": "수당 냠냠 카피바라 초과근무 알람",
+    "description": "1시간마다 알림을 주고 급수별 초과근무 예상수당을 실시간으로 계산하는 스톱워치",
+    "public_url": "https://otgeunmu-check-alarm.nextrunners-6559.chatgpt.site",
+    "origin_url": "https://otgeunmu-check-alarm.nextrunners-6559.chatgpt.site",
+    "category": "공무원 업무도구",
+    "maker": "00AI Lab",
+    "stack": "스톱워치 · 알람 · 수당 계산",
+    "status": "LIVE",
+    "updated_at": "2026-10-16T05:11:00.000Z"
   }
 ]
