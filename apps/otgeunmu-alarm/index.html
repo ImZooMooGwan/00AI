@@ -170,7 +170,7 @@ h1 .accent{color:var(--plum)}
       <div class="stat"><div class="stat-label">마지막 체크</div><div class="stat-num" style="font-size:18px" id="lastCheck">--:--</div></div>
     </div>
     <div class="permission">
-      <p id="permissionText">🔔 브라우저 알림을 켜면 다른 탭에서도 알려드려요.</p>
+      <p id="permissionText">🔔 시작할 때 알림 권한을 자동으로 요청해요.</p>
       <button class="btn btn-outline btn-small" id="permissionBtn">알림 켜기</button>
     </div>
   </section>
@@ -238,6 +238,22 @@ h1 .accent{color:var(--plum)}
   function showToast(msg){
     $("toast").textContent=msg;$("toast").hidden=false;
     clearTimeout(showToast.timer);showToast.timer=setTimeout(function(){$("toast").hidden=true},2600);
+  }
+  function notificationGuide(){
+    showToast("알림이 차단되어 있어요. 주소창 왼쪽 자물쇠 → 알림 → 허용으로 바꾼 뒤 새로고침해 주세요.");
+  }
+  async function requestNotification(auto){
+    if(!("Notification" in window)){showToast("이 브라우저는 알림을 지원하지 않아요.");return false}
+    if(Notification.permission==="granted"){render();return true}
+    if(Notification.permission==="denied"){notificationGuide();render();return false}
+    try{
+      var result=await Notification.requestPermission();
+      render();
+      if(result==="granted"){showToast("알림을 켰어요. 한 시간마다 알려드릴게요 🔔");return true}
+      if(result==="denied")notificationGuide();
+      else if(!auto)showToast("알림 권한을 허용하면 한 시간 알람을 받을 수 있어요.");
+      return false;
+    }catch(e){notificationGuide();return false}
   }
   function renderLogs(){
     var list=$("logList");
@@ -319,6 +335,7 @@ h1 .accent{color:var(--plum)}
     renderLogs();
   }
   function start(){
+    requestNotification(false);
     var now=Date.now();
     state.running=true;state.startedAt=now;state.nextAlarmAt=now+HOUR;state.snoozeUntil=null;state.alarmOpen=false;state.lastSession=null;
     save();render();showToast("카피바라 출동! 한 시간 뒤에 만나요 🦫");
@@ -381,11 +398,7 @@ h1 .accent{color:var(--plum)}
     state.alarmOpen=false;state.snoozeUntil=Date.now()+10*60*1000;save();render();showToast("좋아요, 10분 뒤 다시 살짝 깨울게요 💤");
   });
   $("permissionBtn").addEventListener("click",async function(){
-    if(!("Notification" in window)){showToast("이 브라우저는 알림을 지원하지 않아요.");return}
-    try{
-      var result=await Notification.requestPermission();
-      render();showToast(result==="granted"?"브라우저 알림을 켰어요 🔔":result==="denied"?"브라우저 설정에서 알림을 허용해 주세요.":"알림 권한을 허용하면 사용할 수 있어요.");
-    }catch(e){showToast("알림 권한을 설정할 수 없어요.")}
+    await requestNotification(false);
   });
   $("clearBtn").addEventListener("click",function(){
     if(!state.logs.length){showToast("지울 기록이 없어요.");return}
@@ -393,7 +406,9 @@ h1 .accent{color:var(--plum)}
   });
   document.addEventListener("visibilitychange",function(){if(!document.hidden)tick()});
   window.addEventListener("focus",tick);
-  readState();render();setInterval(tick,1000);
+  readState();render();
+  setTimeout(function(){requestNotification(true)},500);
+  setInterval(tick,1000);
 })();
 </script>
 </body>
