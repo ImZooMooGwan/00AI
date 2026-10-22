@@ -1,189 +1,175 @@
-# 00AI Workspace — 공통 문서처리 엔진 v5
+# 00AI Workspace — Public-Sector Document Intelligence
 
-> **공무원의 업무폴더를 읽고, 의회·타 부서·기관 요구자료 작성에 필요한 근거를 검색하는 공공 AI 하네스 실험 버전입니다.**
->
-> 상태: **프로토타입 (v5)**. 배포 및 정적 코드 검토와 실제 행정망 PC에서의 종단 간 검증은 서로 다릅니다. 아래의 기능 중 운영환경별 제한과 미구현 사항을 확인해 주세요.
+**Turn everyday working folders into source-grounded administrative drafts.**
 
-## 1. 프로젝트 소개
+[![Status](https://img.shields.io/badge/status-prototype-orange)](https://github.com/ImZooMooGwan/00AI)
+[![Delivery](https://img.shields.io/badge/delivery-browser--first-486FF8)](https://harness.00ai.kr/)
+[![Language](https://img.shields.io/badge/UI-Korean-14B8A6)](https://harness.00ai.kr/)
 
-00AI Workspace는 지방자치단체 등 공공부문 담당자가 관리하는 **업무폴더의 파일**을 브라우저에서 선택해 텍스트와 표 정보를 추출·색인하고, 요청한 업무에 관련된 근거를 HASA의 언어모델로 보내 행정문서 초안을 작성하는 서비스입니다.
+> **Live workspace:** https://harness.00ai.kr/  
+> **Alternate workspace:** https://00ai.kr/workspace  
+> **Repository:** https://github.com/ImZooMooGwan/00AI/tree/main/workspace/document-engine
 
-주요 사용 사례는 다음과 같습니다.
+## Why this exists
 
-- **지방의회 요구자료 작성**: 최근 수년간 사업별 예산·집행액·방문인원·성과 자료를 파일에서 찾아 비교표 및 설명 초안 작성
-- **타 부서 협조자료**: 사업 추진현황, 연도별 지표, 근거자료 취합
-- **중앙부처·유관기관 제출자료**: 업무실적·성과·추진계획 정리
-- **감사·평가 사전검토**: 누락 자료와 상충 수치 확인을 위한 초안
-- **반복 보고**: 동일 업무폴더에 있는 여러 문서 기반 보고서·요약·체크리스트 초안
+An administrative officer responding to a council, another department, an auditor, or a national agency typically needs to review many scattered documents, extract figures from spreadsheets, cross-check dates, assemble tables, and write a defensible submission. A general chatbot is not enough: **the numbers must be traceable to files**.
 
-**핵심 가치:** 수치를 새로 만들어내는 AI가 아니라, 실제 보유 파일에서 확인 가능한 자료를 먼저 확보하고 그 범위 안에서 담당자의 문서작성을 보조하는 것입니다.
+**00AI Workspace** is an experimental, browser-first AI assistant designed around that specific workflow:
 
-## 2. 실행
+**Select a local folder → Parse supported files → Build an in-browser index → Retrieve relevant evidence → Review what will be sent → Generate a HASA-backed draft → Verify and export.**
 
-### 온라인
-- 사이트: **https://00ai.kr/workspace**
-- 별도 전용 경로로 배포된 버전으로, 기존 `/harness` 서비스와 별개입니다.
-- Cloudflare 경로·계정 설정에 따라 가용 여부가 달라질 수 있으니 직접 접속을 확인해 주세요.
+It targets a government workstation where installing Node.js, Python, or executables may be restricted, without assuming that internet access implies authorization to disclose internal materials.
 
-### 로컬 HTML
-1. 이 폴더의 **[index.html](./index.html)**을 다운로드합니다.
-2. Windows의 Edge 또는 Chrome에서 엽니다.
-3. HASA 연결 상태를 확인하고, 필요 시 사용 가능한 키/연결주소를 설정합니다.
-4. **업무폴더 선택**으로 자료를 불러와 인덱싱합니다.
-5. 에이전트/업무유형을 선택하고 요청 내용을 입력합니다.
-6. 외부 전송될 근거 내용을 확인한 뒤 실행하고 결과를 검토합니다.
+## What can you do?
 
-**설치 정책:** 사용자의 PC에 Node.js, Python, GPU 및 별도 EXE 설치를 요구하지 않는 단일 HTML 방식을 지향합니다. 다만 파일 형식과 브라우저 보안정책에 따라 일부 기능은 제한됩니다.
+| Workflow | What it aims to produce |
+| --- | --- |
+| Legislative council requests | Year-by-year program budgets, expenditure, attendance and evidence-backed narrative |
+| Interdepartmental inquiries | Project status summaries and requested tables |
+| National agency reporting | Outcomes, implementation progress and supporting documents |
+| Audit preparation | Draft evidence inventories, missing-item flags and discrepancies |
+| Document intelligence | Summaries, comparisons, question answering and classification |
+| General drafting | Reports, meeting summaries, checklists and correspondence |
 
-## 3. 주요 사용 흐름
+Some options are **prompt templates**, not fully independent production engines. PPTX generation, OCR, legally reliable rule checking and advanced spreadsheet reconciliation require further implementation.
 
-```text
-[로컬 업무폴더 선택]
-         |
-[파일별 형식 식별 및 텍스트/표 추출]
-         |
-[문서·시트·위치 정보 보존 / 근거 인덱스]
-         |
-[사용자 요구사항 및 업무유형 입력]
-         |
-[관련 자료 검색 / 근거 후보 선택]
-         |
-[외부 HASA 전송 내용 확인]
-         |
-[AI 보고서·요구자료 초안 생성]
-         |
-[원본 근거 및 수치 확인 → 담당자 수정·제출]
-```
+## Quick start
 
-### 예시 요청
+### In your browser
+
+1. Open **https://harness.00ai.kr/**.
+2. Check the HASA connection indicator. Select a model that is available to your account.
+3. Choose **Select folder**, then grant access to the chosen directory and its descendants.
+4. Inspect the parsed-file counts and any unsupported formats.
+5. Choose an administrative task and write a concrete request.
+6. Review the exact evidence excerpts before approving any external transfer.
+7. Review the draft, confirm all figures against their original source, and export the result.
+
+### Standalone HTML
+
+Download [`index.html`](./index.html) and open it with Edge or Chrome. The prototype is designed for a single-file interface; API functionality still depends on network availability, browser policies, and valid HASA credentials. No credentials are published in this repository.
+
+### Example request
 
 ```text
-우리 부서의 업무폴더 자료를 기준으로 2024~2026년 청년공간별
-예산, 집행액, 집행률, 방문인원, 주요 사업성과를 정리해 줘.
+Using documents in the selected working folder, prepare a response for
+the local council comparing 2024–2026 youth-space budgets, expenditures,
+execution rates, visitor counts and major program outcomes.
 
-연도·공간별 비교표와 의회 제출용 설명문을 작성하고,
-각 수치가 나온 파일명·시트 또는 근거 위치를 적어 줘.
-
-근거가 없는 값은 추정하지 말고 '확인 필요'로 표시해 줘.
-서로 다른 파일의 수치가 다르면 두 수치를 함께 제시해 줘.
+Create a year-by-year table, identify the source file and sheet or
+section for every figure, flag conflicting values and mark missing
+evidence as "Verification required". Do not invent numbers.
 ```
 
-**주의:** AI가 생성한 결과는 행정기관의 확정 자료가 아닙니다. 결재·제출 전 수치, 기준일, 증빙, 적용 법령을 담당자가 확인해야 합니다.
-
-## 4. 문서처리 엔진
-
-### 핵심 구조
-- **파일 탐색:** 브라우저 사용자가 선택한 폴더 및 하위 폴더 파일 열람. 다른 폴더를 임의로 탐색할 권한은 없습니다.
-- **텍스트 추출:** 지원 형식에서 로컬 JavaScript로 내용을 추출합니다.
-- **표 인식:** XLSX 행·열·셀 주소 등 원본 위치 단서를 유지하여 문장만 남기는 방식보다 검증 가능성을 높이도록 설계했습니다.
-- **문서 청크:** 긴 문서를 여러 조각으로 분리해 로컬 인덱스를 구성합니다.
-- **근거 검색:** 업무 요청에서 추출한 검색어로 관련 조각을 우선 선택합니다. 모든 문서가 LLM에 동시에 전달되는 것은 아닙니다.
-- **출처 보조:** 추출 과정에서 확인된 파일 경로와 위치 정보는 AI 입력 및 결과 검토에 사용합니다.
-- **출력:** 작성된 초안의 화면 확인, 복사·텍스트 저장 등 기본 흐름을 제공합니다.
-
-### 파일 형식 지원 현황
-
-| 형식 | 현 단계 설명 | 주의사항 |
-|---|---|---|
-| TXT, MD, CSV, JSON | 브라우저에서 텍스트로 읽는 기본 경로 | 인코딩·표 구조에 따라 결과 차이 |
-| HTML, XML | 태그 제거·텍스트 추출 계열 | 복잡한 서식이 보존되지는 않음 |
-| DOCX | 압축 XML의 문단·표 추출 | 병합 셀·서식·각주는 검증 필요 |
-| XLSX | 워크시트 셀·행 정보 추출 | 수식 계산 결과, 날짜 서식, 외부 참조 등은 별도 검증 |
-| PPTX | 슬라이드 XML 텍스트 추출 | 시각적 배치와 도형 의미는 제한적 |
-| HWPX | 압축 XML 기반 문서 추출 | 표·이미지·복잡한 개체의 완전한 재현은 보장하지 않음 |
-| PDF | 고급 파서 추가 검토 대상 | 스캔 PDF/OCR은 현재 보장되지 않음 |
-| HWP(구형 바이너리) | 고급 파서 추가 검토 대상 | 현 HTML 파일만으로 전체 지원한다고 주장하지 않음 |
-
-참고한 오픈소스: [kordoc](https://github.com/chrisryugj/kordoc), [Docufinder](https://github.com/chrisryugj/Docufinder). 참고 및 아키텍처 검토와 해당 라이브러리 전체를 이식·검증한 것은 구분합니다. 라이선스·버전·사용 코드를 확인한 뒤 실제로 포함한 의존성만 재배포 명세에 표기해야 합니다.
-
-## 5. AI 모델 및 연결
-
-- **AI 공급자:** HASA Open (`https://open.hasa.re.kr/`)
-- **주요 기본 후보:** `hyperclovax-seed-32b`
-- **비교 후보:** `kanana-2-30b-a3b`
-- **모델 선택:** HASA 조회 결과에서 계정이 사용할 수 있는 모델 중 업무에 적합한 모델을 선택하는 방향
-- **CORS 중계:** `https://00ai-hasa-bridge.able001.workers.dev` (환경별 확인 필요)
-- **응답 처리:** 모델 응답을 업무 초안으로 표시하며, 근거 누락·수치 불일치 가능성을 별도로 검토해야 합니다.
-
-**비밀키 정책:** 공개 GitHub 저장소와 공개 웹 소스코드에는 HASA 개인 키를 포함하지 않습니다. 로컬 사본에 키를 내장하면 해당 파일을 열어보는 사람에게 키가 노출될 수 있습니다. 공개용 운영 연결은 Cloudflare 등 비밀관리 기능에 보관하는 것을 권장합니다.
-
-## 6. 법령·조례와 MCP 연계
-
-법령비서 활용은 기존 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp) 프로젝트의 법령 검색·인용 검증 기능과 연결하는 것이 목표입니다.
-
-- 법령명·조례명 조회 및 관련 규정의 근거 제시
-- 현재 시행 법령과 과거 기준일의 법령 적용 구분
-- 문서 초안의 법적 근거 인용 확인
-- 근거 미확인 조문에 대한 경고
-
-**현재 제한:** 실제 MCP 도구 호출·인증·결과 검증의 종단 간 연동은 별도로 검증해야 합니다. 단순 연결주소 입력이나 HTTP 상태 확인만으로 법령 검증 기능이 완성된 것은 아닙니다.
-
-## 7. 업무 에이전트
-
-문서처리 엔진은 에이전트들이 공통으로 사용하는 기반입니다.
-
-| 업무 그룹 | 예시 |
-|---|---|
-| 행정 요구자료 | 의회 요구자료, 타 부서 협조, 기관 제출자료, 감사·평가 대응 |
-| 문서 생성 | 보고서, 공문 초안, 공지·메일, 체크리스트 |
-| 분석 | 문서 요약·비교, Table QA, 데이터 프로파일링, 키워드·분류 |
-| 협업 | 회의록 요약, FAQ 작성, 연관자료 검색 |
-| 전문 | 법령비서, 이미지 문서 추출, 슬라이드 구성 |
-
-**구현 단계 구분:** 텍스트 기반 생성 기능은 공통 AI 프롬프트를 사용할 수 있지만, 실제 PPTX 파일 생성, OCR, 고급 수치 검산, MCP 도구 호출 등은 별도 엔진 및 테스트가 필요합니다.
-
-## 8. 화면 구성 및 UX
-
-- **사이드바:** 업무실, 에이전트, 파일/자료, 설정 등의 탐색
-- **업무영역:** 폴더 선택 → 파일 분석 현황 → 업무 입력
-- **에이전트 선택:** 행정업무 기준 추천 기능을 선택
-- **결과영역:** 생성된 초안, 근거자료 및 저장 동작
-- **연결 상태:** HASA 모델 및 요청 오류 확인
-
-디자인은 과한 효과보다 공무원이 자료를 찾고 초안을 만드는 데 필요한 **명확한 작업 순서, 가독성, 오류 표시**에 초점을 둡니다.
-
-## 9. 안전성과 데이터 취급
-
-1. 브라우저에서 폴더를 선택하더라도 로컬의 모든 파일을 무단 탐색할 수는 없습니다.
-2. 원본 파일은 읽기 대상으로 취급하며 덮어쓰지 않습니다.
-3. 외부 HASA 호출에 포함되는 텍스트는 사전에 사용자가 검토해야 합니다.
-4. **기관 승인 없는 개인정보·비공개 행정자료·보안자료 전송은 금지**해야 합니다.
-5. 웹 브라우저의 키 내장은 비밀정보 보호 기능이 아닙니다.
-6. 생성된 보고서에 등장한 숫자와 법령은 담당자가 원본과 대조해야 합니다.
-7. 대용량 폴더, 암호화 파일, 스캔 PDF, 이미지 파일, 손상된 문서의 처리는 환경에 따라 실패할 수 있습니다.
-
-## 10. 알려진 한계
-
-- 현재 프로토타입의 모든 파일 형식을 행정망 PC에서 실증한 것은 아닙니다.
-- 폴더 색인 후 관련 조각을 검색하므로 **폴더 전체 내용을 빠짐없이 AI가 이해한다는 보장은 없습니다.**
-- 수식이 포함된 엑셀의 계산 결과와 복잡한 병합표는 실제 값으로 대조해야 합니다.
-- HWP 및 이미지 기반 PDF는 추가 파싱/OCR 구현이 필요합니다.
-- 법령 MCP는 완전한 구동·검증이 필요한 확장영역입니다.
-- 공개 웹 배포본과 개인 로컬 개발본의 API 키 연결 방식이 다를 수 있습니다.
-
-## 11. 다음 개발 우선순위
-
-1. **문서 파싱 정확도:** HWP/HWPX/PDF/XLSX 표·셀·쪽 단위 근거 추적
-2. **수치 검증:** 합계·집행률·달성률 등 계산 및 연도별 자료 충돌 탐지
-3. **의회 요구자료 템플릿:** 요구 공문을 항목화하여 각 항목에 원본 근거를 자동 매칭
-4. **법령 MCP 실행:** 실제 서버 연결, 인증, 도구 호출, 적용시점 검증
-5. **제출 산출물:** 엑셀·워드·한글 파일 출력과 양식 유지
-6. **테스트:** 실무용 합성 자료셋, 브라우저별 실행 테스트, 프롬프트 인젝션 및 정보유출 방지 검증
-
-## 12. 프로젝트 구조
+## Architecture
 
 ```text
-00AI/
-└── workspace/
-    └── document-engine/
-        ├── index.html   # 문서처리 엔진 v5 웹 실행물
-        └── README.md    # 본 문서
+Government workstation (Edge / Chrome)
+     │
+     ├── User-selected local folder / subfolders
+     │      ├── Text, CSV, JSON and structured Office files
+     │      └── Format-aware extraction and chunking
+     │
+     ├── In-memory document index
+     │      ├── File path and source-position metadata
+     │      └── Query-time evidence retrieval
+     │
+     └── Transfer review and explicit user approval
+                     │
+                     ▼
+       Cloudflare Worker / HASA adapter
+                     │
+                     ▼
+              HASA LLM service
+                     │
+                     ▼
+          Source-grounded draft / export
 ```
 
-프로젝트 전체 저장소: https://github.com/ImZooMooGwan/00AI
+### Processing principles
 
-## 13. 개발·협업 기여
+- Read only files deliberately selected by the user; do not modify originals.
+- Extract and index locally wherever supported.
+- Keep workbook cell, table, document and filename provenance when available.
+- Retrieve selected evidence snippets rather than forwarding an entire folder by default.
+- Ask for approval before network transmission of evidence.
+- Label unsupported files, missing evidence and model failures explicitly.
+- Treat generated narratives and citations as **drafts requiring verification**, not official findings.
 
-오류 제보 시 브라우저 버전, 사용한 문서 확장자, 재현 절차, 예상 결과와 실제 결과를 알려주세요. 로그나 재현자료에는 개인·비공개 행정정보 및 API 키를 포함하지 마세요.
+## Format support: current limitations matter
 
-본 프로젝트는 공공 AI 대전환 챌린지 출품을 고려한 **공공행정 업무 효율화 실험**이며, 행정기관의 공식 검증·보안승인을 받은 운영제품임을 의미하지 않습니다.
+| Format | Current approach | Limitations |
+| --- | --- | --- |
+| TXT / Markdown / CSV / JSON | Browser text parsing | Encoding and complex data interpretation may differ |
+| HTML / XML | Text extraction | Layout and semantics may be lost |
+| DOCX | Compressed XML extraction | Merged cells and layout are not guaranteed |
+| XLSX | Sheet/row/cell extraction | Formula evaluation, cached values and date types require checking |
+| PPTX | Slide text extraction | Visual layout and chart semantics may be lost |
+| HWPX | Compressed-XML extraction attempts | Complex tables and embedded objects may be missed |
+| PDF | Future parser integration | Scanned PDF / OCR not reliable in current build |
+| Legacy binary HWP | Future parser integration | Not supported as a complete browser-native parser |
+
+Workloads containing large folders or encrypted, malformed, image-based or legacy office documents may fail. Do not interpret a parsed-file count as proof that all relevant evidence was recovered.
+
+## AI models and integration
+
+- AI provider: [HASA Open](https://open.hasa.re.kr/)
+- Potential Korean administrative-document models: `hyperclovax-seed-32b`, `kanana-2-30b-a3b`
+- Optional additional models depend on the dynamically retrieved HASA model list and user entitlements.
+- Existing Cloudflare API bridge: `00ai-hasa-bridge`
+- Law and ordinance analysis is intended to work with an existing Korean-law MCP integration; successful end-to-end legal-tool execution remains a separate validation milestone.
+
+### References and related open source
+
+- [kordoc](https://github.com/chrisryugj/kordoc): Korean-document parsing project — architectural reference; **not** a claim that its complete engine is included.
+- [Docufinder](https://github.com/chrisryugj/Docufinder): full-text document discovery reference.
+- [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp): legal retrieval / citation validation reference.
+
+Original projects retain their own licenses. Attribution does not imply incorporation of entire implementations.
+
+## Security and data governance
+
+**Never upload restricted administrative files, personal information, security-sensitive materials or non-public records to third-party AI services without explicit organizational approval.**
+
+- A public Git repository is not a place for API keys.
+- A browser application cannot keep a hardcoded client-side key secret.
+- External HTTPS reachability does not authorize external data processing.
+- Client-side redaction or consent UI alone does not constitute enforceable data-loss prevention.
+- The current prototype is **not** a certified government security product.
+- Users are responsible for source validation before any formal submission.
+
+A separate personal testing copy may use an embedded development key, but **that copy must not be distributed or committed**. Public builds must not include such a key.
+
+## Status and validation
+
+| Milestone | Status |
+| --- | --- |
+| Browser-first workspace | Prototype implemented |
+| HASA model connectivity through Cloudflare | Previously observed in interactive testing; revalidate after updates |
+| Selected-folder file discovery | Prototype implemented |
+| Structured extraction for selected document families | Prototype; format-specific accuracy testing needed |
+| Grounded administrative drafting | Prototype; human verification required |
+| Robust PDF / legacy HWP extraction | Planned |
+| Exact numeric conflict resolution across many files | Planned |
+| Direct Korean-law MCP tool invocation | Planned / requires integration validation |
+| XLSX / DOCX / HWPX output preserving official templates | Planned |
+| Government workstation acceptance tests | Pending |
+
+A successful JavaScript syntax check or Cloudflare deployment does **not** substitute for functional, security or end-to-end testing.
+
+## Roadmap
+
+1. **Parsing fidelity:** robust PDF, HWP, HWPX, DOCX and XLSX handling with table and source coordinates.
+2. **Numeric reconciliation:** deterministic sum, execution rate and target-achievement calculations; version/date conflict reporting.
+3. **Council response assistant:** auto-extract requested fields from an incoming inquiry and fill the response matrix.
+4. **Verified legal grounding:** connect legal MCP tools, cite operative provisions and report effective-date uncertainty.
+5. **Output fidelity:** generate editable Office/HWP-compatible deliverables.
+6. **Institutional readiness:** authentication, enforceable server-side policy, secrets management, evaluation fixtures and auditability.
+
+## Contributing
+
+Please open issues with the browser version, file type, steps to reproduce, expected behavior and observed behavior. **Never attach confidential documents, personal data, credentials or live institutional records.** Contributions should include tests, honest status descriptions and appropriate source attribution.
+
+---
+
+**00AI Workspace is an experimental public-sector productivity project.** It assists trained personnel; it does not replace administrative review, legal judgment, information-security approvals or formal sign-off.
