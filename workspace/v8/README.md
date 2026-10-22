@@ -52,3 +52,18 @@ v8 is a separate Cloudflare preview Worker, also routed at `https://00ai.kr/secu
 ## Deployment and rollback
 
 On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were switched from `00ai-document-engine` to `00ai-workspace-v8`. The previous Worker remains available as a rollback target. The v8 Worker shares server-side HASA access through the `V7` Service Binding and enforces plan-only payload sanitization. `00ai.kr/secure-workspace*` is another direct v8 route. The full production sign-off is **conditional** until browser API calls, Korean-law MCP, KOSIS MCP, and Hancom HWPX interoperability have been tested in their real environments.
+
+
+## Final QA pass — 2026-10-22
+
+- **Routing:** Cloudflare confirms `harness.00ai.kr/*`, `00ai.kr/harness*` and `00ai.kr/secure-workspace*` all target `00ai-workspace-v8`.
+- **Path resolution:** frontend and Worker both normalize the `/harness` and `/secure-workspace` deployment prefixes.
+- **Interactive browser smoke test:** headless Chromium desktop (1320×850) and mobile (390×844) successfully rendered the UI without JavaScript page errors. API responses were mocked due to sandbox outbound browsing restrictions; this is not a live HASA check.
+- **Report workflow:** tested prompt entry, disclosure/approval dialog, mocked AI response, and DOCX/HWPX download buttons.
+- **Document packages:** downloaded DOCX and HWPX archives passed ZIP CRC and XML parsing. The DOCX was successfully rendered into a PDF and inspected visually; Korean text displayed without clipping.
+- **HWPX:** package structural inspection succeeded, but compatibility with Hancom Office is **still unverified**.
+- **PDF export:** DOCX-to-PDF conversion was verified; the in-browser Print/Save-as-PDF control has not been tested on every platform.
+- **Backend:** Cloudflare confirms the `V7` service binding, D1 and Durable Object. A successful live HASA completion, legal/KOSIS remote MCP tool call and actual scheduled job execution are **not verified** by this test.
+- **Security boundary:** the v8 frontend uses PLAN_ONLY; its backend rejects document fields and reconstructs the outgoing abstract plan from an allowlist. This is not equivalent to complete patent-specified dual claim validation.
+
+**Release decision:** Deployable public **preview** with tested routes, UI and basic document export; **not certified as a fully validated administrative production system**.
