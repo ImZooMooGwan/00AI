@@ -4,16 +4,18 @@ const result=(data,status=200)=>Response.json(data,{status});
 export class DailyQuota{constructor(s){this.s=s}async fetch(req){const {ip}=await req.json();return this.s.blockConcurrencyWhile(async()=>{const now=new Date().toISOString().slice(0,10),min=Math.floor(Date.now()/60000),keys=['g:'+now,'ip:'+now+':'+ip,'m:'+min+':'+ip];const values=await Promise.all(keys.map(k=>this.s.storage.get(k))),n=values.map(x=>x||0);if(n[0]>=500||n[1]>=40||n[2]>=5)return result({allowed:false,remaining:Math.max(0,500-n[0])},429);for(let i=0;i<3;i++)await this.s.storage.put(keys[i],n[i]+1);return result({allowed:true,remaining:499-n[0]})})}}
 async function hasa(env,path,body){if(!env.HASA_API_KEY)throw Error('HASA secret missing');const r=await fetch('https://open.hasa.re.kr/v1/'+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+env.HASA_API_KEY,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});if(!r.ok)throw Error('HASA '+r.status);return r.json()}
 async function quota(env,ip){const r=await env.QUOTA.get(env.QUOTA.idFromName('global')).fetch('https://quota/',{method:'POST',body:JSON.stringify({ip})});return {allowed:r.ok,data:await r.json()}}
-async function compose(req,env){let p;try{p=await req.json()}catch{return result({error:'Invalid JSON'},400)}
- if(p.security_mode!=='PLAN_ONLY'||p.sources||p.template||p.guide||typeof p.abstract_plan!=='object'||!p.abstract_plan)return result({error:'PLAN_ONLY mandatory; no document content accepted'},400);
- const keys=Object.keys(p.abstract_plan),allowed=['task_type','evidence_requirements','response_schema','validation_rules','external_evidence'];if(keys.some(x=>!allowed.includes(x)))return result({error:'Invalid plan field'},400);
- const plan=JSON.stringify(p.abstract_plan);if(plan.length>6500)return result({error:'Plan too large'},413);
- if(!env.HASA_API_KEY)return result({error:'HASA secret missing'},503);
- const q=await quota(env,req.headers.get('CF-Connecting-IP')||'unknown');if(!q.allowed)return result({error:'Quota exhausted',quota:q.data},429);
- try{const model=String(p.model||'hyperclovax-seed-32b').slice(0,80);const x=await hasa(env,'chat/completions',{model,messages:[{role:'system',content:'한국 행정업무 계획을 작성하세요. 내부 자료는 제공되지 않았으므로 원문 수치, 사람, 기관별 사실을 추측하지 않고 모든 사실을 확인 필요로 표시하세요. 작업 구조와 검증 절차만 제시하세요.'},{role:'user',content:'추상화된 작업계획: '+plan}],max_tokens:1800,temperature:0.2});return result({answer:x.choices?.[0]?.message?.content||'',model,mode:'PLAN_ONLY',quota:q.data})}catch(e){return result({error:String(e.message||e)},502)}}
+async function compose(req,env){
+let p;try{p=await req.json()}catch{return result({error:'Invalid JSON'},400)}
+if(p.security_mode!=='PLAN_ONLY'||p.sources||p.template||p.guide||typeof p.abstract_plan!=='object'||!p.abstract_plan)return result({error:'PLAN_ONLY mandatory: source documents rejected'},400);
+const keys=Object.keys(p.abstract_plan),allowed=['task_type','evidence_requirements','response_schema','validation_rules','external_evidence'];if(keys.some(k=>!allowed.includes(k)))return result({error:'Invalid plan fields'},400);
+const plan=JSON.stringify(p.abstract_plan);if(plan.length>6500)return result({error:'Plan too large'},413);
+if(!env.V7)return result({error:'Internal HASA binding unavailable'},503);
+const reqBody={prompt:'다음 추상화된 행정작업계획만을 사용해 일반적 보고서 목차와 담당자 검증 체크리스트를 작성하세요. 내부 사실이나 값을 추측하지 마세요: '+plan,model:p.model,sources:'',template:'',guide:'',tool:null};
+try{const r=await env.V7.fetch('https://internal/api/compose',{method:'POST',headers:{'Content-Type':'application/json','CF-Connecting-IP':req.headers.get('CF-Connecting-IP')||'unknown'},body:JSON.stringify(reqBody)});const d=await r.json();return result({...d,mode:'PLAN_ONLY'},r.status)}catch(e){return result({error:'Internal AI service failed: '+String(e.message||e)},502)}
+}
 export default{async fetch(req,env){const p=new URL(req.url).pathname;
- if(p==='/api/health')return result({ok:true,version:'8-preview',configured:!!env.HASA_API_KEY,mode:'PLAN_ONLY',tools:{law:!!env.LAW_OC,stats:false},quota:!!env.QUOTA,schedules:!!env.DB});
- if(p==='/api/models'){try{const x=await hasa(env,'models');return result({models:(x.data||[]).map(v=>v.id)})}catch(e){return result({error:String(e.message||e)},503)}}
+ if(p==='/api/health')return result({ok:true,version:'8-preview',configured:!!env.V7,mode:'PLAN_ONLY',tools:{law:!!env.LAW_OC,stats:false},quota:!!env.QUOTA,schedules:!!env.DB});
+ if(p==='/api/models'){try{const r=await env.V7.fetch('https://internal/api/models');return new Response(r.body,{status:r.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){return result({error:'Internal model lookup failed'},503)}}
  if(p==='/api/compose'&&req.method==='POST')return compose(req,env);
  if(p.startsWith('/api/admin/'))return result({error:'Admin API unavailable in preview'},503);
  if(p.startsWith('/api/'))return result({error:'API unavailable'},404);
