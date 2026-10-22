@@ -75,3 +75,35 @@ On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were
 - Added a client-side **fail-soft mode**: if the AI endpoint fails after the user's approval, the workspace still builds a clearly labeled, editable local report outline and a list of retrieved file excerpts, with the actual error retained. Existing DOCX/PDF/HWPX download controls can work from this local result.
 - The fallback does **not** claim that AI inference, original-source verification or MCP retrieval succeeded. Source claims still require review.
 - Cloudflare Worker upload returned HTTP 200. End-to-end live HASA/KOSIS/law MCP tests and native Hancom HWPX compatibility remain pending; no certification is claimed.
+
+## First release candidate — 2026-10-23
+
+### Delivered in the deployed Worker
+
+- Three production DNS routes: `harness.00ai.kr/*`, `00ai.kr/harness*`, and `00ai.kr/secure-workspace*`.
+- Chat-first document workflow, local-folder indexing, example/template inputs and writing guidance.
+- `PLAN_ONLY` abstract request policy with server-side field allowlisting. No original document excerpts are sent through normal document-drafting requests.
+- Private Cloudflare `V7` service binding provides HASA inference without exposing the key in the browser.
+- Explicit law/statistics question routes `/api/public/law` and `/api/public/stats`; the **submitted question** is sent to an external search/AI process, unlike PLAN_ONLY document drafting. These routes depend on the v7 MCP adapter. Claims still require verification against primary references.
+- Local report fallback if HASA fails, with a conspicuous offline/AI-disconnected label.
+- PDF print, DOCX export, and **experimental** HWPX export.
+- Cloudflare persistent D1 and quota bindings.
+
+### Release acceptance evidence
+
+- JavaScript parser: frontend script and Worker passed.
+- Static security check: `PLAN_ONLY` guard and both public search endpoints present; no literal HASA key embedded.
+- Cloudflare API: Worker upload succeeded, production route mappings and bindings confirmed.
+- Desktop/mobile UI: previous browser smoke test with **mocked** AI API passed.
+- DOCX: local archive/XML parsing and document rendering previously passed; broad compatibility not certified.
+- HWPX: XML/ZIP structure tested; **Hancom opening unverified**.
+- External network limitation: requests to the deployed addresses were inaccessible to the verification environment, therefore real HASA, legal MCP, KOSIS MCP and scheduler execution cannot be called proven. **Do not claim full end-to-end operational acceptance.**
+
+### Open issues for full production acceptance
+
+1. Verify live `GET /api/models` and `POST /api/compose` from a real internet client, including mobile.
+2. Verify `/api/public/law` with the exact source law title, article and effective date.
+3. Verify `/api/public/stats` with KOSIS table ID and reference period.
+4. Run one authenticated D1 scheduled job and inspect the saved `job_runs` row; the admin panel is not complete.
+5. Open a generated HWPX in Hancom Office and correct its format if necessary.
+6. Add patent-disclosed E/D dual verification, signed/pinned evidence snapshots and claim-level numeric checks.
