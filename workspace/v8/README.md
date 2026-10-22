@@ -67,3 +67,11 @@ On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were
 - **Security boundary:** the v8 frontend uses PLAN_ONLY; its backend rejects document fields and reconstructs the outgoing abstract plan from an allowlist. This is not equivalent to complete patent-specified dual claim validation.
 
 **Release decision:** Deployable public **preview** with tested routes, UI and basic document export; **not certified as a fully validated administrative production system**.
+
+
+## Reliability patch — 2026-10-23
+
+- Revalidated Cloudflare v8 Worker bindings: `V7` service bridge, D1 and Durable Object.
+- Added a client-side **fail-soft mode**: if the AI endpoint fails after the user's approval, the workspace still builds a clearly labeled, editable local report outline and a list of retrieved file excerpts, with the actual error retained. Existing DOCX/PDF/HWPX download controls can work from this local result.
+- The fallback does **not** claim that AI inference, original-source verification or MCP retrieval succeeded. Source claims still require review.
+- Cloudflare Worker upload returned HTTP 200. End-to-end live HASA/KOSIS/law MCP tests and native Hancom HWPX compatibility remain pending; no certification is claimed.
