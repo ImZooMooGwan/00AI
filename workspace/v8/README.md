@@ -48,3 +48,7 @@ v8 is a separate Cloudflare preview Worker, also routed at `https://00ai.kr/secu
 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp) · [korean-stats-mcp](https://github.com/chrisryugj/korean-stats-mcp) · [kordoc](https://github.com/chrisryugj/kordoc) · [hermes-dashboard](https://github.com/chrisryugj/hermes-dashboard) · [LexDiff](https://github.com/chrisryugj/lexdiff). These are references, not claims of bundled implementation.
 
 **Status: Preview, not a completed production release.**
+
+## Deployment and rollback
+
+On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were switched from `00ai-document-engine` to `00ai-workspace-v8`. The previous Worker remains available as a rollback target. The v8 Worker shares server-side HASA access through the `V7` Service Binding and enforces plan-only payload sanitization. `00ai.kr/secure-workspace*` is another direct v8 route. The full production sign-off is **conditional** until browser API calls, Korean-law MCP, KOSIS MCP, and Hancom HWPX interoperability have been tested in their real environments.
