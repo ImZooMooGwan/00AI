@@ -30,7 +30,7 @@ The referenced invention disclosure additionally defines an on-premises model, r
 Legacy binary HWP is **not** generated. HWPX is experimental and should not be used for official submission without verifying it in Hancom Office.
 
 ## Operational setup
-v8 is a separate Cloudflare preview Worker. A new Worker **does not automatically inherit** the HASA secret configured on v7. A live HASA test is required before replacing `harness.00ai.kr`. Target service limits are 500 global calls per UTC day, 40 per IP per day, and 5 per IP per minute using a Durable Object.
+v8 is a separate Cloudflare preview Worker, also routed at `https://00ai.kr/secure-workspace`. The v8 Worker uses a **Cloudflare Service Binding** named `V7` to call the existing v7 Worker, which owns the HASA secret. No browser credentials are shipped. A live end-to-end test is still required before replacing `harness.00ai.kr`. Target service limits are 500 global calls per UTC day, 40 per IP per day, and 5 per IP per minute using a Durable Object.
 
 ## Testing status
 - Syntax: frontend and Worker passed.
