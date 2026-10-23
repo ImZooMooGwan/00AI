@@ -91,3 +91,10 @@ The existing `workspace/v8` at `harness.00ai.kr` remains separate. The Gov Agent
 - The Cloudflare API proxy still rebuilds task type, document count and extension counts server-side and does not forward files, paths, numerical evidence or the full question.
 
 **Quality evidence:** JavaScript parse test passed for browser and Worker modules, embedded HTML matched GitHub source, the V7 service binding was present, and Cloudflare deployment returned HTTP 200. **No live completion test or Windows desktop QA** was carried out in this release. HWP/PDF parsing, autonomous file editing, on-premises models and true evidence-to-claim verification are future separate milestones and must not be described as complete.
+
+
+## Interactive gamification UI — 2026-10-23
+
+The Gov Agent interface now includes a self-contained animated miniature office map with seven clickable work areas (council materials, legal review, KOSIS templates, report drafting, AI hub, document evidence review, history), gently floating character/robot CSS/emoji illustrations, task navigation, contextual prompt suggestions, local XP/level increases after successful rule-based execution, responsive mobile layouts and reduced-motion accessibility. All scene graphics are inline HTML/CSS/emoji; the offline file needs no external image downloads. This is a functional interactive approximation of the user-supplied isometric concept, not a photorealistic WebGL 3-D recreation. The law and KOSIS buttons are workspace prompt presets, NOT proof of connected official data APIs. XP is session-local, not persisted or tied to employee performance.
+
+Static checks: all clickable handlers resolve, JavaScript parses, embedded Worker HTML matches the standalone source, existing HASA function and document export functions remain. Cloudflare Worker deploy HTTP 200. Physical interactive browser testing is still outstanding.
