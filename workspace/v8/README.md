@@ -117,3 +117,28 @@ On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were
 - Local retrieval was tightened: unrelated document excerpts with zero query-term matches are no longer automatically included as evidence.
 - Folder analysis still has format/size limitations, including legacy HWP, OCR PDF, and very large or complex workbooks. Successful parsing does not certify factual or numerical correctness.
 - Deployed Cloudflare Worker received HTTP 200 and JavaScript syntax passed. Live end-to-end HASA, MCP, PDF mobile printing, Hancom HWPX opening and scheduled task execution are separate acceptance tests and remain unverified.
+
+
+## Hardening release — 2026-10-23 (security audit follow-up)
+
+### Changes actually deployed
+- Reject POST API requests declared larger than 18 KB and non-JSON content types on public `/api/` endpoints. **Limitations:** chunked requests and post-decompression size still require stream-based byte counting; this is not a complete DoS safeguard.
+- Fail closed when the downstream search response does **not** report the requested MCP tool in `toolUsed`; an LLM narrative alone is no longer displayed as successful official legal/KOSIS retrieval.
+- Label external search responses as **unverified**, not official facts.
+- Distinguish external search query transmission from local document browsing in the approval dialog and result label.
+- Warn when a selected folder contains more than 250 files: only the first 250 are processed by this release.
+- Preserve PLAN_ONLY for ordinary document drafting, with local-only documents and server-side task allowlisting.
+
+### Outstanding blocking issues (not claimed as fixed)
+1. The production-replay version of v7 in GitHub is truncated; restore from an authoritative intact release and enforce reproducible deployments before changes to that Worker.
+2. Validate real HASA completions, law/KOSIS MCP responses and source IDs through an internet client; toolUsed checks prevent false positives but cannot prove official facts.
+3. Replace current XML-flattening XLSX/HWPX parser with conformant, bounded document readers retaining cell coordinates, units and date formats.
+4. Implement actual local claim-to-source verification and mathematical reconciliation (COPY/SUM/DIFFERENCE/RATIO). Current source excerpt attachment is NOT verified evidence.
+5. Correct legacy HWP and scanned PDF extraction, or explicitly reject these documents; never mark unsupported documents as fully parsed.
+6. Validate HWPX opening in Hancom and PDF on mobile; leave HWPX labeled experimental.
+7. Establish authenticated job administration, idempotent schedules, Cron run capture and operational alerts.
+8. Conduct browser network HAR and penetration tests with non-sensitive test fixtures before authorizing institutional data use.
+9. Enforce request and CPU limits at infrastructure level, not solely client-declared Content-Length.
+10. Complete privacy/records retention analysis and public-sector network security approval.
+
+**Acceptance status:** safer **public preview**, *not* a complete production certification. Cloudflare Worker upload succeeded; live external integrations and official-document accuracy remain unverified.
