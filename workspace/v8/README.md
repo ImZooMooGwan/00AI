@@ -107,3 +107,13 @@ On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were
 4. Run one authenticated D1 scheduled job and inspect the saved `job_runs` row; the admin panel is not complete.
 5. Open a generated HWPX in Hancom Office and correct its format if necessary.
 6. Add patent-disclosed E/D dual verification, signed/pinned evidence snapshots and claim-level numeric checks.
+
+
+## Security and UX audit — 2026-10-23
+
+- Browser folder selection through `webkitdirectory` may display an Edge/Chromium warning using the word **upload**. This grants the page access to the selected local files; it does **not**, by itself, send files to a remote server. The UI now explains this distinction.
+- Document drafting retains `PLAN_ONLY` mode: original documents, file paths, excerpts, submitted examples and writing guides are not included in the normal HASA request. The server rebuilds a restricted abstract plan instead of trusting arbitrary nested fields from the browser.
+- **Legal and KOSIS lookup is different:** the user-typed question is sent outside the browser. The approval dialog now shows the actual outbound question and warns users to remove private or personal details. This is not covered by the `PLAN_ONLY` statement.
+- Local retrieval was tightened: unrelated document excerpts with zero query-term matches are no longer automatically included as evidence.
+- Folder analysis still has format/size limitations, including legacy HWP, OCR PDF, and very large or complex workbooks. Successful parsing does not certify factual or numerical correctness.
+- Deployed Cloudflare Worker received HTTP 200 and JavaScript syntax passed. Live end-to-end HASA, MCP, PDF mobile printing, Hancom HWPX opening and scheduled task execution are separate acceptance tests and remain unverified.
