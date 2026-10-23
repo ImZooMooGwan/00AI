@@ -67,3 +67,16 @@ The existing `workspace/v8` at `harness.00ai.kr` remains separate. The Gov Agent
 | Ink | `#222436` | Main content |
 | Muted | `#777b8d` | Supporting descriptions |
 | Success | `#198469` | Local-only or completed status |
+
+
+## HASA assisted web mode — 2026-10-23
+
+**Online deployment:** `https://00ai.kr/gov-agent` now offers an optional **HASA AI 작성 보조** checkbox. This mode is **off by default**. Before any external call, the page shows exactly the abstract information intended for the API and requires an explicit user confirmation. Offline `file://` use disables HASA and keeps all rules-based local features.
+
+**Network path:** browser → `/gov-agent/api/compose` → Cloudflare Gov Worker → Cloudflare service binding `V7` → internal existing HASA integration. The API key remains in the upstream V7 Worker secret and is never embedded into HTML or Gov Worker source. A server-side allowlist reconstructs the outbound plan as only task category, document count and per-extension counts. Question original, document text, file names, numerical values, selected evidence, templates and directory paths are neither received as accepted plan fields nor passed to HASA. Unknown plan fields are rejected. A 3 KB JSON-body limit is enforced before parsing.
+
+**Result:** HASA returns general report outline, workflow suggestions and validation checklist only, not a document-grounded answer. The client joins that general advice locally with search results. Provider claims are **not verified** against the source documents.
+
+**Security caveat:** this is a web AI mode, not a fully offline local LLM. External AI can observe the generalized task category and file-type counts if the user consents. Institutional security policies and network approvals still apply. No claims are made that this is safe for classified documents or a complete patent-style E/D dual verification solution.
+
+**Tests:** static JavaScript syntax passed; deployed Worker source matched the standalone HTML; V7 service binding reported configured in the Cloudflare API; Worker deployment returned HTTP 200. Direct end-to-end live HASA completion could not be confirmed via this environment, so do not advertise external provider availability as proven. Existing IP/total throttling is managed by the upstream V7 Worker, but individual request quota behavior has not been load tested.
