@@ -45,3 +45,25 @@
 
 ## Relationship to existing projects
 The existing `workspace/v8` at `harness.00ai.kr` remains separate. The Gov Agent A1 does not use HASA or Cloudflare API endpoints. This project shares high-level UI and office parsing ideas but avoids dependencies that would require installation on administrative PCs.
+
+## UI refresh (v1.1 — 2026-10-23)
+
+**Visual language:** calm light surfaces, muted indigo (#5557d6), rounded 10–20px corners, generous whitespace, system Korean fonts only (no external font downloads), subtle separation rather than heavy outlines and gradients.
+
+**Information architecture:** persistent desktop navigation, responsive compact mobile navigation, a concise task introduction, Step 01 (local files), Step 02 (task request), right-side progress and evidence cards, and a full-width report preview with download actions. Desktop, mobile and A4 print layouts are defined.
+
+**Interaction changes:** task status messages retain their original labels when completed; the confirmation checkbox now affects TXT, HTML, JSON, DOCX and browser print/PDF. All previous file IDs, exported functions, and offline constraints are maintained.
+
+**Offline integrity:** the HTML uses no external JavaScript, CSS, images, font servers or network requests. Both deployed Cloudflare Worker HTML and downloadable `index.html` are generated from the same content. Cloudflare's browser-delivery Worker uses a restrictive `connect-src 'none'` policy.
+
+**Verification completed:** JavaScript parse, all 18 DOM element IDs needed by the application, 10 inline click handlers, worker/HTML exact-content synchronization, mobile + print CSS rules, and source-level absence of outbound request primitives. Cloudflare Worker deploy completed with HTTP 200. Actual manual visual inspection in managed Windows browsers has not been performed in this execution.
+
+### Visual hierarchy and UI tokens
+| Token | Hex | Purpose |
+| --- | --- | --- |
+| Background | `#f7f8fb` | Workspace canvas |
+| Surfaces | `#ffffff` | Panels and cards |
+| Indigo | `#5557d6` | Primary actions and brand |
+| Ink | `#222436` | Main content |
+| Muted | `#777b8d` | Supporting descriptions |
+| Success | `#198469` | Local-only or completed status |
