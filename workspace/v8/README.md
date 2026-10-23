@@ -156,3 +156,10 @@ These checks **do not** constitute complete OOXML support. The reader rejects ZI
 ## Incremental local number-evidence check — 2026-10-23
 
 The browser now compares literal numbers appearing in a user's request against candidate local evidence chunks and displays the matched local source paths/IDs or a clear **'verification required'** message. All scanning is performed in browser memory. It does not send local numerical evidence to the remote HASA model. The report is explicitly labeled a **candidate check**, not audited arithmetic or certified source verification. This feature cannot infer spreadsheet units, compare cells semantically, or validate numbers that are absent from the request. Future work must add structured numeric metadata, date/period reconciliation, deterministic formulas and claim-level source verification. JavaScript syntax checked and Worker deployment returned HTTP 200.
+
+
+## Evidence integrity milestone — 2026-10-23
+
+Browser-only SHA-256 digests, per-run random UUID reference identifiers and numeric-claim review statuses were introduced. SHA-256 hashes are calculated over current extracted text chunks; they do **not** yet bind to a persistent original-file snapshot/version or independently validated serialized outbound evidence. The public HASA branch remains PLAN_ONLY and receives no document excerpts. The system marks matching numeric literals as **NUMERIC_LITERAL_MATCH_ONLY**, not as substantiated factual claims; unsupported or text-only statements remain **NEEDS_REVIEW**. A deterministic `changePercent` helper has been added for future constrained numeric workflows but is not yet wired to full source-coordinate verification. This milestone is **not** the patent-described E/D semantic dual validation.
+
+Still unverified: remote MCP calls, authenticated Cron job execution, HWPX native application opening, legacy HWP and PDF parsing. Full production acceptance remains blocked.
