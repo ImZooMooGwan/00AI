@@ -142,3 +142,12 @@ On 2026-10-22, Cloudflare routes `harness.00ai.kr/*` and `00ai.kr/harness*` were
 10. Complete privacy/records retention analysis and public-sector network security approval.
 
 **Acceptance status:** safer **public preview**, *not* a complete production certification. Cloudflare Worker upload succeeded; live external integrations and official-document accuracy remain unverified.
+
+
+## Browser document engine patch — 2026-10-23
+
+GitHub research reviewed `chrisryugj/kordoc`, `Docufinder`, and `korean-stats-mcp` as reference architectures. **No complete third-party parser was copied or claimed to be included.** The browser-native reader now preserves XLSX worksheet XML identifiers, row numbers, cell addresses, shared string mappings and the literal formula expressions found in sheet XML. DOCX and PPTX paragraph extraction uses DOMParser instead of blanket regex tag removal. The ZIP reader now imposes bounded compressed-entry and total expanded sizes and checks XML syntax.
+
+These checks **do not** constitute complete OOXML support. The reader rejects ZIP data-descriptor files (flag bit 3), does not compute Excel formulas, does not fully interpret number formats, merged cells or shared formulas, and does not handle PDF, legacy HWP, scanned images or nonstandard HWPX packages. For officially submitted figures, the user must still verify the original file and the applicable units/period. ZIP corruption, compression bombs and parser-edge security need further systematic testing.
+
+**Release evidence:** JavaScript parsing passed before commit; Cloudflare Worker update returned HTTP 200. Actual uploaded-file fixtures, native Hancom compatibility, live HASA/MCP calls and institution-network penetration tests were not completed in this patch.
