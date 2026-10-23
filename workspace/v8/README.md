@@ -151,3 +151,8 @@ GitHub research reviewed `chrisryugj/kordoc`, `Docufinder`, and `korean-stats-mc
 These checks **do not** constitute complete OOXML support. The reader rejects ZIP data-descriptor files (flag bit 3), does not compute Excel formulas, does not fully interpret number formats, merged cells or shared formulas, and does not handle PDF, legacy HWP, scanned images or nonstandard HWPX packages. For officially submitted figures, the user must still verify the original file and the applicable units/period. ZIP corruption, compression bombs and parser-edge security need further systematic testing.
 
 **Release evidence:** JavaScript parsing passed before commit; Cloudflare Worker update returned HTTP 200. Actual uploaded-file fixtures, native Hancom compatibility, live HASA/MCP calls and institution-network penetration tests were not completed in this patch.
+
+
+## Incremental local number-evidence check — 2026-10-23
+
+The browser now compares literal numbers appearing in a user's request against candidate local evidence chunks and displays the matched local source paths/IDs or a clear **'verification required'** message. All scanning is performed in browser memory. It does not send local numerical evidence to the remote HASA model. The report is explicitly labeled a **candidate check**, not audited arithmetic or certified source verification. This feature cannot infer spreadsheet units, compare cells semantically, or validate numbers that are absent from the request. Future work must add structured numeric metadata, date/period reconciliation, deterministic formulas and claim-level source verification. JavaScript syntax checked and Worker deployment returned HTTP 200.
