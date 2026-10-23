@@ -80,3 +80,14 @@ The existing `workspace/v8` at `harness.00ai.kr` remains separate. The Gov Agent
 **Security caveat:** this is a web AI mode, not a fully offline local LLM. External AI can observe the generalized task category and file-type counts if the user consents. Institutional security policies and network approvals still apply. No claims are made that this is safe for classified documents or a complete patent-style E/D dual verification solution.
 
 **Tests:** static JavaScript syntax passed; deployed Worker source matched the standalone HTML; V7 service binding reported configured in the Cloudflare API; Worker deployment returned HTTP 200. Direct end-to-end live HASA completion could not be confirmed via this environment, so do not advertise external provider availability as proven. Existing IP/total throttling is managed by the upstream V7 Worker, but individual request quota behavior has not been load tested.
+
+
+## Stability update — 2026-10-23
+
+- HASA assistance now has a 45-second client request abort and treats empty AI responses as errors, falling back to local report generation.
+- Frontend stores accurate execution mode (`LOCAL_ONLY` or `WEB_PLAN_ONLY_HASA`) in JSON audit exports.
+- Percentage change is marked `산출불가(기준값 0)` when the base value is zero, rather than treating the entire calculation as invalid or rendering misleading percentages.
+- Explicit outbound-plan confirmation remains mandatory; canceling it keeps local work available.
+- The Cloudflare API proxy still rebuilds task type, document count and extension counts server-side and does not forward files, paths, numerical evidence or the full question.
+
+**Quality evidence:** JavaScript parse test passed for browser and Worker modules, embedded HTML matched GitHub source, the V7 service binding was present, and Cloudflare deployment returned HTTP 200. **No live completion test or Windows desktop QA** was carried out in this release. HWP/PDF parsing, autonomous file editing, on-premises models and true evidence-to-claim verification are future separate milestones and must not be described as complete.
