@@ -33,3 +33,15 @@ Tiptap/Yjs 동시 편집, 수치 검증, 최종본 확정·잠금, 보고서 출
 - 인증메일 필요 설정: `SESSION_SECRET`, `RESEND_API_KEY`, 인증된 `MAIL_FROM`.
 - `docs.00ai.kr` Cloudflare Custom Domain 연결 API 성공. **기존 Worker에는 안내 페이지가 유지되어 전체 앱 배포는 미완료**.
 - 개발용으로 가상자료만 사용. 이메일 발송 및 HASA 연결의 실제 성공 여부는 아직 검증되지 않음.
+
+
+## 2026-10-28 online deployment update
+
+- Main Worker source: [`worker.js`](./worker.js), newly committed and deployed to Cloudflare `00ai-gov-docs`.
+- Domain `docs.00ai.kr` is connected to the Worker, and D1 `DB` binding is present.
+- HASA API key is held only in Cloudflare Worker secret `HASA_API_KEY`; `SESSION_SECRET` is also provisioned.
+- Email OTP flow is coded but **cannot be used until verified sender service credentials (`RESEND_API_KEY`) are configured**.
+- HASA upstream URL is configured provisionally to `https://open.hasa.re.kr/v1/chat/completions`; **upstream API response/model compatibility is not yet proven**.
+- Editor currently uses 3-second polling + revision conflict detection; it is not a Yjs/CRDT real-time coauthoring engine.
+- Live browser response could not be independently confirmed from the inspection environment; Cloudflare API reports successful Worker upload and domain binding.
+- Test with synthetic data only. Passwords/tokens/secrets must not be committed to GitHub.
