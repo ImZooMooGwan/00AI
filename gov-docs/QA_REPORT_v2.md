@@ -90,3 +90,21 @@ CREATE TABLE IF NOT EXISTS docs_v2_files (
 6. DOCX/HWPX/PDF 내보내기 및 문서 라운드트립 테스트
 
 **평가**: 업무용 완성품이 아닌, 서비스 운영 주소에 배포된 기능 확장 프로토타입. 완료/미완료 표기를 혼동하지 말 것.
+
+
+## 2026-10-28 추가 개발 및 검수 (v2.1)
+**실제 개발·배포**
+- 문서별 댓글 등록·조회 API 및 우측 검토 탭 구현
+- 소유자 검토 요청(submitted) → 승인(approved) → 확정(final) 상태 전이; 확정 시 snapshot 저장
+- 반려 및 초안 상태 복귀 API 구현
+- HTML 및 Word 호환 `.doc` 파일 내보내기, 브라우저 인쇄를 통한 PDF 저장 UI 구현
+- 신규 테이블 docs_v2_comments / docs_v2_members / docs_v2_versions 생성
+- Cloudflare Workers 배포 API 성공(HTTP 200)
+- UI 내장 JavaScript 정적 구문 검사 통과
+
+**제한 및 미완료**
+- `.doc`는 HTML 기반 Word 호환 출력이며 DOCX 포맷 아님.
+- PDF는 브라우저 인쇄 기능으로 저장, PDF 엔진 직접 생성 아님.
+- 댓글과 상태 전이의 사용자 브라우저 E2E 검증은 미수행.
+- 문서별 ACL 강제, R2 원본 보관, 진정한 Yjs CRDT 공동 편집, 바이너리 HWP 및 스캔 PDF OCR, 완전한 HWPX 서식 복원, 원본 보존 라운드트립은 미구현.
+- R2 활성화 실패: Cloudflare 403/10042 계정 설정 필요. 운영 전 실제 문서 사용 금지.
