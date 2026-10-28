@@ -151,6 +151,8 @@ async function openDoc(id){if(!id)return;if(dirty){const ok=await saveDoc(true);
 function format(cmd,arg){if(currentDoc?.status!=='draft'||manualView){notice('읽기 전용 문서입니다.',true);return}e('editor').focus();document.execCommand(cmd,false,arg||null);markDirty()}
 function insertTable(){format('insertHTML','<table><tbody><tr><th>구분</th><th>내용</th></tr><tr><td>항목</td><td>입력하세요</td></tr></tbody></table><p><br></p>')}
 e('editor').addEventListener('input',markDirty);
+e('editor').addEventListener('paste',ev=>{if(currentDoc?.status!=='draft'||manualView){ev.preventDefault();return}const fragment=ev.clipboardData?.getData('text/html');if(fragment){ev.preventDefault();document.execCommand('insertHTML',false,sanitizeHTML(fragment));markDirty()}});
+
 
 async function saveDoc(automatic=false){if(!active||!dirty)return true;if(saving)return false;if(currentDoc?.status!=='draft')return false;clearTimeout(autoSaveTimer);saving=true;const snapshot=sanitizeHTML(e('editor').innerHTML);setSync('저장 중…','dirty');try{const d=await request('v2/save',{id:active,body:snapshot,expectedRev:rev});rev=d.rev;dirty=sanitizeHTML(e('editor').innerHTML)!==snapshot;setSync(dirty?'추가 변경사항':'저장됨',dirty?'dirty':'saved');updateCounter();if(dirty)autoSaveTimer=setTimeout(()=>saveDoc(true),1200);else if(!automatic)notice('문서가 저장되었습니다');return true}catch(x){setSync('저장 확인 필요','error');notice('저장 실패: '+x.message,true);return false}finally{saving=false}}
 async function renameDoc(){if(!active||!currentDoc)return;const title=e('title').value.trim().slice(0,120);if(!title||title===currentDoc.title)return;try{await request('v2/rename',{id:active,title});currentDoc.title=title;await loadDocs();notice('문서 제목을 변경했습니다')}catch(x){notice('제목 변경 실패: '+x.message,true)}}
