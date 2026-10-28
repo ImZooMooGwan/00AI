@@ -23,3 +23,13 @@ Tiptap/Yjs 동시 편집, 수치 검증, 최종본 확정·잠금, 보고서 출
 
 ## 기존 소스
 현재 개발 산출물: `00AI_Gov_Docs_Web_Email_Verification_v0.3.zip` (대화 내 첨부). GitHub에 실행 소스 전체 반영 및 Cloudflare 실서비스 배포는 인증·발신 설정과 함께 검증 예정입니다.
+
+
+## v0.4 HASA AI integration (2026-10-28)
+- [소스 배포 패키지]는 대화에 첨부된 `00AI_Gov_Docs_HASA_v04.zip` 참조.
+- 웹 UI에 AI 요약, 문장 교정, 수치 검증, 보고서 초안 생성 탭 추가.
+- AI 요청은 Worker 서버측 `/api/ai`에서 HTTPS OpenAI-compatible API로 프록시하며, HASA 키는 브라우저에 노출되지 않음.
+- 필요한 설정: `HASA_API_URL`, `HASA_MODEL`, secret `HASA_API_KEY`.
+- 인증메일 필요 설정: `SESSION_SECRET`, `RESEND_API_KEY`, 인증된 `MAIL_FROM`.
+- `docs.00ai.kr` Cloudflare Custom Domain 연결 API 성공. **기존 Worker에는 안내 페이지가 유지되어 전체 앱 배포는 미완료**.
+- 개발용으로 가상자료만 사용. 이메일 발송 및 HASA 연결의 실제 성공 여부는 아직 검증되지 않음.
