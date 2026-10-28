@@ -45,3 +45,17 @@ Tiptap/Yjs 동시 편집, 수치 검증, 최종본 확정·잠금, 보고서 출
 - Editor currently uses 3-second polling + revision conflict detection; it is not a Yjs/CRDT real-time coauthoring engine.
 - Live browser response could not be independently confirmed from the inspection environment; Cloudflare API reports successful Worker upload and domain binding.
 - Test with synthetic data only. Passwords/tokens/secrets must not be committed to GitHub.
+
+## 무료 이메일 인증 연동 (2026-10-28)
+
+**무료 권장: Brevo** — 무료 플랜은 하루 최대 300통의 트랜잭션 이메일을 제공합니다. Cloudflare Workers 유료 전환이 필요하지 않습니다.
+
+1. https://www.brevo.com/ 에서 Free 계정을 만들고 발신 도메인 `00ai.kr` 또는 발신 주소를 인증합니다.
+2. Brevo API Keys에서 발급받은 키를 Cloudflare Worker `00ai-gov-docs`의 Secret `BREVO_API_KEY`에 저장합니다. **절대 공개 GitHub에 키를 기록하지 않습니다.**
+3. `MAIL_FROM`을 Brevo에서 승인한 발신 주소로 설정합니다 (예: `00AI Gov Docs <auth@00ai.kr>`).
+4. https://docs.00ai.kr/api/health 에서 `mail: true`를 확인한 뒤, 실제 `@korea.kr` 주소로 6자리 OTP 발송을 테스트합니다.
+5. 최초 로그인 후 닉네임을 설정합니다.
+
+기존 Resend 발송도 선택적으로 지원하지만, `BREVO_API_KEY`가 존재하면 Brevo를 우선 사용합니다.
+
+**현재 상태**: Brevo API 지원 코드는 GitHub와 Cloudflare Worker에 반영됨. Brevo 계정/키/발신주소 승인 정보가 연결되지 않아 이메일 실발송 및 사용자 로그인은 아직 검증하지 못했습니다. 이메일 도메인 소유 인증이 공무원 재직 여부를 확인하는 것은 아닙니다.
