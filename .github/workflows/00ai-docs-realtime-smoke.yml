@@ -10,23 +10,38 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose live worker routes and asset delivery
+      - name: Check live dynamic editor and WebSocket authentication
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import urllib.request,urllib.error
-          paths=["/","/api/health","/realtime-app/","/realtime-app/assets/index-CVKnn5b-.js","/realtime-app/assets/index-Ne1RMaRW.css"]
-          for path in paths:
-            url="https://docs.00ai.kr"+path
-            req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (00AI-DOCS-Beta-CI)"})
-            try:
-              with urllib.request.urlopen(req,timeout=25) as res:
-                body=res.read()
-                print("PASS",path,res.status,len(body),res.headers.get('content-type'))
-                if path=="/realtime-app/":
-                  assert b'<div id="root">' in body
-            except urllib.error.HTTPError as e:
-              print("FAIL",path,e.code,list(e.headers.items()),e.read(600).decode('utf-8',errors='replace'))
-              raise
+          import urllib.request,urllib.error,re,base64,os
+          root="https://docs.00ai.kr"
+          agent={"User-Agent":"Mozilla/5.0 (00AI-DOCS-Beta-CI)"}
+          def get(path):
+            req=urllib.request.Request(root+path,headers=agent)
+            with urllib.request.urlopen(req,timeout=30) as response:
+              body=response.read().decode("utf-8")
+              assert response.status==200,(path,response.status)
+              return body,response.headers.get('content-type','')
+          page,typ=get('/realtime-app/')
+          assert 'text/html' in typ
+          assert '<div id="root">' in page
+          js=re.search(r'src="(/realtime-app/assets/index-[A-Za-z0-9_-]+\.js)"',page).group(1)
+          css=re.search(r'href="(/realtime-app/assets/index-[A-Za-z0-9_-]+\.css)"',page).group(1)
+          script,jstype=get(js)
+          style,csstype=get(css)
+          assert 'javascript' in jstype and 'doc-editor' in script
+          assert 'text/css' in csstype and '.paper' in style
+          health,hctype=get('/api/health')
+          assert 'application/json' in hctype and '"ok":true' in health
+          print('PASS live editor HTML, JS, CSS, health endpoint')
+          headers={**agent,'Origin':root,'Upgrade':'websocket','Connection':'Upgrade','Sec-WebSocket-Key':base64.b64encode(os.urandom(16)).decode(),'Sec-WebSocket-Version':'13'}
+          req=urllib.request.Request(root+'/api/v2/collab?doc=00000000-0000-0000-0000-000000000000',headers=headers)
+          try:
+            urllib.request.urlopen(req,timeout=20)
+            raise AssertionError('Unauthenticated websocket upgrade must not succeed')
+          except urllib.error.HTTPError as error:
+            assert error.code in (401,403),(error.code,error.read(200))
+            print('PASS unauthenticated WebSocket rejected with',error.code)
           PY
