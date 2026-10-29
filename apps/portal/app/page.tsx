@@ -98,7 +98,7 @@ export default function Home() {
       <header className="hub-header">
         <a className="hub-brand" href="#top" aria-label="00AI 행정 도구 첫 화면"><span className="hub-brand-mark">00</span><span>AI<small>PUBLIC WORK TOOLS</small></span></a>
         <nav className="hub-nav" aria-label="주요 메뉴"><a href="#service-list">서비스</a><a href="#use-guide">이용 안내</a></nav>
-        <a className="hub-header-link" href="https://github.com/ImZooMooGwan/00AI" target="_blank" rel="noreferrer">개발 프로젝트 <span aria-hidden="true">↗</span></a>
+        <a className="hub-header-link" href="/drop">서비스 배포 <span aria-hidden="true">↗</span></a>
       </header>
 
       <section className="hub-hero" aria-labelledby="hub-title">

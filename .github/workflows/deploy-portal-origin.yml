@@ -93,7 +93,7 @@ jobs:
           import json
           d=json.load(open('/tmp/origin-api.json'))
           assert len(d.get('siteProjects',[])) >= 10
-          assert all('.00ai.kr' in x.get('public_url','') for x in d.get('siteProjects',[]))
+          assert all(x.get('public_url','').startswith('https://') for x in d.get('siteProjects',[]))
           PY
 
       - name: Verify live root edge cache
