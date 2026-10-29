@@ -92,8 +92,8 @@ jobs:
           d=json.load(open('/tmp/origin-api.json'))
           assert len(d.get('siteProjects',[])) >= 10
           assert all(x.get('public_url','').startswith('https://') for x in d.get('siteProjects',[]))
-assert d.get('sources',{}).get('drop',{}).get('available') is True
-assert d.get('sources',{}).get('sites',{}).get('available') is True
+          assert d.get('sources',{}).get('drop',{}).get('available') is True
+          assert d.get('sources',{}).get('sites',{}).get('available') is True
           PY
 
       - name: Verify live root edge cache
