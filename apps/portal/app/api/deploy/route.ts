@@ -102,6 +102,7 @@ export async function POST(request: Request) {
   forwarded.append("visibility", "public");
   for (const file of files) forwarded.append("files", file, file.name);
 
+  try {
     const response = await fetch(DROP_FUNCTION_URL, {
       method: "POST",
       headers: authHeaders(),
