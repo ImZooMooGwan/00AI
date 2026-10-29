@@ -23,7 +23,7 @@ npx wrangler deploy --dry-run --config dist/00ai_ats/wrangler.json
 ## Cloudflare 배포
 
 1. Cloudflare 인증을 가진 관리 PC에서 `npx wrangler login`을 실행합니다.
-2. 리소스를 생성합니다: D1 `00ai-ats`, Workers KV `00ai-ats-resumes`, Queue `00ai-ats-email`을 생성합니다. 이력서 최대 크기는 10 MB이며 Workers KV Free 한도는 계정 기준 1 GB입니다.
+2. 리소스를 생성합니다: D1 `00ai-ats`, Workers KV `00ai-ats-resumes`, Queue `00ai-ats-email`을 생성합니다. 이력서 최대 크기는 10 MB이며 Workers KV Free 한도는 계정 기준 1 GB입니다. 현재 배포는 계정에서 R2가 활성화되지 않아 KV를 사용합니다. KV는 글로벌 복제 저장소라 다른 위치에서 최근 파일을 읽을 때 최대 60초 지연될 수 있습니다. R2 활성화 후에는 객체 저장소로 전환하는 것을 권장합니다.
 3. D1 실제 ID를 `wrangler.jsonc`의 database_id에 입력합니다.
 4. `wrangler d1 migrations apply 00ai-ats --remote`로 스키마를 적용합니다.
 5. Access application을 만들어 사이트 경로 전체를 보호하고 `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`를 vars에 설정합니다. 별도 Access 설정 전에는 Worker secrets `ATS_ACCESS_PASSWORD`, `ATS_SESSION_SECRET`을 설정해 로그인합니다.
