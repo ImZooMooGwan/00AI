@@ -106,15 +106,12 @@ export default function Home() {
               redirect: "follow",
               signal: AbortSignal.timeout(4000),
             });
-            return [
-              service.healthKey,
-              {
-                ok: response.type === "opaque" || response.ok,
-                detail: response.type === "opaque" ? "서비스 주소 응답 확인" : "웹 화면 응답 정상",
-              },
-            ];
+            return [service.healthKey, {
+              ok: response.type === "opaque" || response.ok,
+              detail: response.type === "opaque" ? "서비스 주소 응답 확인" : "웹 화면 응답 정상",
+            }] as [string, ServiceHealth];
           } catch {
-            return [service.healthKey, { ok: false, detail: "접속 시간 초과 또는 연결 실패" }];
+            return [service.healthKey, { ok: false, detail: "접속 시간 초과 또는 연결 실패" }] as [string, ServiceHealth];
           }
         }),
       );
