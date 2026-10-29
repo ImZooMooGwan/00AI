@@ -22,6 +22,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
+      - name: Test Yjs CRDT convergence
+        run: npm test
       - name: Build Vite
         run: npm run build
       - uses: actions/upload-artifact@v4
