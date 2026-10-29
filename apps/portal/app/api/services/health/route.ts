@@ -2,73 +2,49 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-type Probe = {
-  key: string;
-  url: string;
-  kind?: "yhub";
-};
-
-const probes: Probe[] = [
-  { key: "WORKSPACE", url: "https://00ai.kr/workspace/" },
-  { key: "HARNESS", url: "https://harness.00ai.kr/" },
-  { key: "GOV_AGENT", url: "https://00ai.kr/gov-agent/" },
-  { key: "POLICY", url: "https://policy.00ai.kr/" },
-  { key: "YHUB", url: "https://yhub.00ai.kr/api/v1/mcp/status", kind: "yhub" },
-  { key: "TIME", url: "https://otgeunmu-check-alarm.nextrunners-6559.chatgpt.site/" },
-];
-
-async function check(probe: Probe): Promise<{ ok: boolean; detail: string }> {
+export async function GET() {
   try {
-    const response = await fetch(probe.url, {
-      method: "GET",
-      headers: probe.kind === "yhub" ? { Accept: "application/json" } : { Accept: "text/html" },
+    const response = await fetch("https://mcp.00ai.kr/youth/health", {
+      headers: { Accept: "application/json" },
       cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      return { ok: false, detail: `응답 오류 · HTTP ${response.status}` };
+      return NextResponse.json(
+        { service: { ok: false, detail: `MCP 응답 오류 · HTTP ${response.status}` } },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     }
-    if (response.url.toLowerCase().includes("signin-with-chatgpt")) {
-      return { ok: false, detail: "로그인 또는 공개 권한 확인 필요" };
-    }
-    if (probe.kind === "yhub") {
-      const data = await response.json() as {
-        state?: string;
-        ready?: boolean;
-        toolCount?: number;
-        database?: { policyCount?: number };
-        lastSyncAt?: string | null;
-      };
-      const ok = data.state === "connected" && data.ready === true;
-      const sync = data.lastSyncAt
-        ? new Date(data.lastSyncAt).toLocaleString("ko-KR", {
-            timeZone: "Asia/Seoul",
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "확인 정보 없음";
-      const policyCount = data.database?.policyCount ?? 0;
-      const tools = data.toolCount ?? 0;
-      return {
-        ok,
-        detail: ok
-          ? `MCP 연결 · 정책 ${policyCount}건 · 도구 ${tools}개 · 동기화 ${sync}`
-          : "MCP 연결 상태 확인 필요",
-      };
-    }
-    return { ok: true, detail: "웹 화면 응답 정상" };
+    const data = await response.json() as {
+      ok?: boolean;
+      tools?: number;
+      database?: { connected?: boolean; policy_count?: number; backend?: string };
+      hasa?: { configured?: boolean; state?: string };
+      last_sync_at?: string | null;
+      last_sync_status?: string | null;
+    };
+    const ok = data.ok === true && data.database?.connected === true;
+    const synced = data.last_sync_at
+      ? new Date(data.last_sync_at).toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "확인 정보 없음";
+    const readTools = Math.max(0, (data.tools ?? 0) - (data.hasa?.configured ? 0 : 1));
+    const detail = ok
+      ? `MCP 연결 · 정책 ${data.database?.policy_count ?? 0}건 · 조회 도구 ${readTools}개 · HASA ${data.hasa?.configured ? "연결됨" : "키 미설정"} · 동기화 ${synced}`
+      : "정책 MCP 연결 상태 확인 필요";
+    return NextResponse.json(
+      { service: { ok, detail, lastSyncStatus: data.last_sync_status ?? null } },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch {
-    return { ok: false, detail: "응답 시간 초과 또는 연결 실패" };
+    return NextResponse.json(
+      { service: { ok: false, detail: "정책 MCP 상태 확인 시간 초과" } },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
-}
-
-export async function GET() {
-  const results = await Promise.all(probes.map(async (probe) => [probe.key, await check(probe)] as const));
-  return NextResponse.json(
-    { checkedAt: new Date().toISOString(), services: Object.fromEntries(results) },
-    { headers: { "Cache-Control": "no-store" } },
-  );
 }
