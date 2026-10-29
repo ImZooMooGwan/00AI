@@ -1,19 +1,21 @@
 {
-  "name": "00ai-docs-editor-staging",
+  "name": "00ai-docs-realtime-editor",
+  "version": "0.2.0",
   "private": true,
-  "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "vite build"
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@tiptap/react": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/extension-collaboration": "^3.0.0",
     "@tiptap/extension-table": "^3.0.0",
     "@tiptap/extension-table-row": "^3.0.0",
     "@tiptap/extension-table-cell": "^3.0.0",
     "@tiptap/extension-table-header": "^3.0.0",
+    "yjs": "^13.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
