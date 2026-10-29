@@ -96,20 +96,46 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/services/health", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error("Service health check failed");
-        return response.json() as Promise<{ services?: Record<string, ServiceHealth> }>;
-      })
-      .then((data) => {
-        if (active) setHealth(data.services ?? {});
-      })
-      .catch(() => {
-        if (active) setHealth({});
-      })
-      .finally(() => {
-        if (active) setHealthLoading(false);
-      });
+    const refresh = async () => {
+      const checks: Array<[string, ServiceHealth]> = await Promise.all(
+        services.map(async (service) => {
+          try {
+            const response = await fetch(service.href, {
+              mode: "no-cors",
+              cache: "no-store",
+              redirect: "follow",
+              signal: AbortSignal.timeout(4000),
+            });
+            return [
+              service.healthKey,
+              {
+                ok: response.type === "opaque" || response.ok,
+                detail: response.type === "opaque" ? "서비스 주소 응답 확인" : "웹 화면 응답 정상",
+              },
+            ];
+          } catch {
+            return [service.healthKey, { ok: false, detail: "접속 시간 초과 또는 연결 실패" }];
+          }
+        }),
+      );
+      try {
+        const response = await fetch("/api/services/health", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json() as { service?: ServiceHealth };
+          if (data.service) {
+            const existing = checks.findIndex(([key]) => key === "YHUB");
+            if (existing >= 0) checks[existing] = ["YHUB", data.service];
+          }
+        }
+      } catch {
+        // Keep the browser-level Y-HUB address check when the deep health API is unavailable.
+      }
+      if (active) {
+        setHealth(Object.fromEntries(checks));
+        setHealthLoading(false);
+      }
+    };
+    void refresh();
     return () => { active = false; };
   }, []);
   const visibleServices = useMemo(() => {
