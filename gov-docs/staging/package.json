@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && npm run build:server",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/collab.test.mjs"
+    "test": "node --test tests/collab.test.mjs",
+    "build:server": "esbuild src/collab-server.js --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/server.js"
   },
   "dependencies": {
     "@tiptap/react": "^3.0.0",
@@ -24,6 +25,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.7.0",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "esbuild": "^0.25.0"
   }
 }
