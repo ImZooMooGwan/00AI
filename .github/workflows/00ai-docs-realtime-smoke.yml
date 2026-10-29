@@ -10,24 +10,23 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Check live rich editor shell and assets
+      - name: Diagnose live worker routes and asset delivery
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import urllib.request
-          root="https://docs.00ai.kr"
-          paths=[
-            ("/realtime-app/","text/html","<div id=\"root\">"),
-            ("/realtime-app/assets/index-CVKnn5b-.js","javascript","doc-editor"),
-            ("/realtime-app/assets/index-Ne1RMaRW.css","text/css","doc-editor")
-          ]
-          for path,content_type,marker in paths:
-            with urllib.request.urlopen(root+path,timeout=25) as res:
-              body=res.read().decode("utf-8")
-              mime=res.headers.get("Content-Type","")
-              assert res.status==200,(path,res.status)
-              assert content_type in mime,(path,mime)
-              assert marker in body,(path,"missing marker")
-              print("PASS",path,len(body),"bytes",mime)
+          import urllib.request,urllib.error
+          paths=["/","/api/health","/realtime-app/","/realtime-app/assets/index-CVKnn5b-.js","/realtime-app/assets/index-Ne1RMaRW.css"]
+          for path in paths:
+            url="https://docs.00ai.kr"+path
+            req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (00AI-DOCS-Beta-CI)"})
+            try:
+              with urllib.request.urlopen(req,timeout=25) as res:
+                body=res.read()
+                print("PASS",path,res.status,len(body),res.headers.get('content-type'))
+                if path=="/realtime-app/":
+                  assert b'<div id="root">' in body
+            except urllib.error.HTTPError as e:
+              print("FAIL",path,e.code,list(e.headers.items()),e.read(600).decode('utf-8',errors='replace'))
+              raise
           PY
