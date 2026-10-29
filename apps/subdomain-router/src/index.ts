@@ -282,7 +282,7 @@ async function resolveRoute(hostname: string): Promise<Route | null> {
 }
 
 function serviceFavicon(hostname: string) {
-  const slug = hostname.toLowerCase().replace(/\\.00ai\\.kr$/, "");
+  const slug = hostname.toLowerCase().replace(/\.00ai\.kr$/, "");
   const labels: Record<string, string> = {
     policy: "PO", "public-ai-gov": "PO", yhub: "YH", "youth-policy-data-hub": "YH",
     "oneul-daejeon": "OD", "otgeunmu-check-alarm": "OT", ats: "AT",
@@ -305,10 +305,10 @@ function serviceFavicon(hostname: string) {
 
 function addServiceFavicon(html: string, hostname: string) {
   const tag = `<link rel="icon" type="image/svg+xml" href="${serviceFavicon(hostname)}" data-00ai-favicon="service">`;
-  if (/<head\\b[^>]*>/i.test(html)) {
-    return html.replace(/<head\\b[^>]*>/i, (head) => `${head}\\n${tag}`);
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (head) => `${head}\n${tag}`);
   }
-  return html.replace(/<html\\b[^>]*>/i, (htmlTag) => `${htmlTag}\\n<head>${tag}</head>`);
+  return html.replace(/<html\b[^>]*>/i, (htmlTag) => `${htmlTag}\n<head>${tag}</head>`);
 }
 
 async function proxyExternal(request: Request, route: Route, incoming: URL) {
