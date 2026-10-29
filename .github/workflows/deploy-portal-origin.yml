@@ -131,11 +131,13 @@ jobs:
             'dom_bytes':len(html),
             'has_yhub_project':'청년정책데이터허브' in html,
             'has_policy_project':'정책상황실' in html,
-            'custom_hrefs':[x for x in hrefs if '.00ai.kr' in x],
-            'chatgpt_hrefs':[x for x in hrefs if 'chatgpt.site' in x],
+            'has_drop_route':any(x.rstrip('/')=='/drop' for x in hrefs),
+            'has_policy_domain':any('policy.00ai.kr' in x for x in hrefs),
+            'has_harness_domain':any('harness.00ai.kr' in x for x in hrefs),
+            'has_yhub_domain':any('yhub.00ai.kr' in x for x in hrefs),
             'runtime_errors':[x for x in log.splitlines() if re.search(r'uncaught|net::ERR|failed to load|cors',x,re.I)][:20],
           }
-          out['healthy']=out['dom_bytes']>10000 and out['has_yhub_project'] and out['has_policy_project'] and len(out['custom_hrefs'])>=10 and not out['chatgpt_hrefs'] and not out['runtime_errors']
+          out['healthy']=out['dom_bytes']>10000 and out['has_yhub_project'] and out['has_policy_project'] and out['has_drop_route'] and out['has_policy_domain'] and out['has_harness_domain'] and out['has_yhub_domain'] and not out['runtime_errors']
           pathlib.Path('.github/portal-origin-health.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
           print(json.dumps(out,ensure_ascii=False,indent=2))
           if not out['healthy']: raise SystemExit(1)
