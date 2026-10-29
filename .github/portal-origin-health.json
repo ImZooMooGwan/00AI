@@ -1,11 +1,11 @@
 {
   "dom_bytes": 10382,
-  "has_yhub_project": false,
+  "has_yhub_project": true,
   "has_policy_project": true,
   "has_drop_route": true,
   "has_policy_domain": true,
   "has_harness_domain": true,
   "has_yhub_domain": true,
   "runtime_errors": [],
-  "healthy": false
+  "healthy": true
 }
