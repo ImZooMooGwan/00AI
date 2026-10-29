@@ -1,0 +1,40 @@
+# 00AI ATS
+
+사내 채용담당자용 ATS 초기 운영 베이스. React/Vite 프런트엔드와 Cloudflare Worker API, D1, R2, Queues, Cron, Access, Email Service 구성을 제공합니다.
+
+## 실행
+
+```bash
+npm install
+npm run dev
+```
+
+로컬 개발은 데모 지원자 데이터를 표시합니다. 실제 Worker API는 Cloudflare Access 및 로컬 D1/R2/Queue 에뮬레이터를 통해 연결합니다.
+
+## 검증
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npx wrangler deploy --dry-run --config dist/00ai_ats/wrangler.json
+```
+
+## Cloudflare 배포
+
+1. Cloudflare 인증을 가진 관리 PC에서 `npx wrangler login`을 실행합니다.
+2. 리소스를 생성합니다: D1 `00ai-ats`, R2 `00ai-ats-resumes`, Queue `00ai-ats-email`, DLQ `00ai-ats-email-dlq`.
+3. D1 실제 ID를 `wrangler.jsonc`의 database_id에 입력합니다.
+4. `wrangler d1 migrations apply 00ai-ats --remote`로 스키마를 적용합니다.
+5. Access application을 만들어 사이트 경로 전체를 보호하고 `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`를 vars에 설정합니다. 관리자/평가위원 이메일은 Worker secrets `ADMIN_EMAILS`, `REVIEWER_EMAILS`로 등록합니다.
+6. `wrangler secret put HASA_API_KEY`로 HASA 키를 설정하고 HASA base URL/호환 API 계약을 확인합니다.
+7. Cloudflare Email Sending에 발신 도메인을 등록한 뒤 `EMAIL` binding 및 발신 주소를 설정합니다.
+8. `npm run build && npx wrangler deploy --config dist/00ai_ats/wrangler.json`을 실행합니다.
+
+운영 배포 전 `DEMO_MODE`가 반드시 `false`인지 확인합니다. 비밀값을 `.env`, 브라우저 번들, Git 저장소에 넣지 않습니다.
+
+## 기능 범위와 제한
+
+현재 구현: 반응형 칸반, 검색/포지션 필터, 카드 상세 drawer, 중복 이메일 후보자 재사용을 포함한 신규 지원건 등록, 단계 이동 및 Undo, D1 상태 이력/낙관적 동시성, 10분 지연 거절 이메일 예약/취소/중복 claim 방지, R2 파일 저장 경로, Access JWT 검증, HASA 서버 프록시, Cloudflare Email binding 구조.
+
+운영 베타 전 추가 구현이 필요한 항목: 평가/면접 CRUD 화면과 API, 대량 XLSX/CSV 등록, 이력서 브라우저 미리보기/문서 파싱, 이메일 템플릿 편집 및 수동 재시도·취소 UI, 사용자 초대/역할 관리 UI, 활동 기록 화면, 웹훅 기반 전달/반송 상태 반영, 개인정보 파기 및 보존 작업, 실제 HASA 규격 검증. 이 항목들은 완료된 것으로 표시하지 않습니다.
