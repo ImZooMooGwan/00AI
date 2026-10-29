@@ -74,6 +74,17 @@ const services: Service[] = [
     action: "정책 데이터 탐색",
   },
   {
+    code: "YOUTH SPACE AX",
+    title: "청년공간 AX Flow",
+    category: "업무지원",
+    maturity: "실험실",
+    healthKey: "YOUTH_SPACE_AX",
+    description: "청년공간의 공공 AI 접근권 거점 조성과 운영 흐름을 살펴보는 공개 시연판입니다.",
+    tasks: ["지원 조합 탐색", "공간 운영 흐름", "AX 적용 시나리오"],
+    href: "https://youth-ai-access-flow.nextrunners-6559.chatgpt.site/",
+    action: "청년공간 AX 보기",
+  },
+  {
     code: "TIME",
     title: "초과근무 알람",
     category: "업무지원",
