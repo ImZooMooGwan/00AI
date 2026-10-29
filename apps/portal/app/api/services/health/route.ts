@@ -33,7 +33,7 @@ export async function GET() {
           minute: "2-digit",
         })
       : "확인 정보 없음";
-    const readTools = Math.max(0, (data.tools ?? 0) - (data.hasa?.configured ? 0 : 1));
+    const readTools = Math.max(0, (data.tools ?? 0) - 1);
     const detail = ok
       ? `MCP 연결 · 정책 ${data.database?.policy_count ?? 0}건 · 조회 도구 ${readTools}개 · HASA ${data.hasa?.configured ? "연결됨" : "키 미설정"} · 동기화 ${synced}`
       : "정책 MCP 연결 상태 확인 필요";
