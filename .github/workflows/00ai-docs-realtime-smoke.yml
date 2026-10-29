@@ -19,7 +19,7 @@ jobs:
           root="https://docs.00ai.kr"
           paths=[
             ("/realtime-app/","text/html","<div id=\"root\">"),
-            ("/realtime-app/assets/index-CVKnn5b-.js","javascript","sourceMappingURL"),
+            ("/realtime-app/assets/index-CVKnn5b-.js","javascript","doc-editor"),
             ("/realtime-app/assets/index-Ne1RMaRW.css","text/css","doc-editor")
           ]
           for path,content_type,marker in paths:
