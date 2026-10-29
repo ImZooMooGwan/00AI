@@ -20,6 +20,8 @@ export class YjsJournalBridge {
   private attempts=0;
   private ackedSeq=0;
   private synced=false;
+  private snapshotParts:string[]=[];
+  private snapshotExpected=0;
   public onStatus:(status:Status,message:string)=>void=()=>{};
   public onPending:(count:number)=>void=()=>{};
   constructor(public readonly ydoc:Y.Doc, private readonly documentId:string) {
@@ -51,6 +53,9 @@ export class YjsJournalBridge {
     ws.onmessage=({data})=>{
       if(generation!==this.generation)return;
       let msg:Message;try{msg=JSON.parse(data)}catch{return;}
+      if(msg.type==='snapshot-start'){this.snapshotParts=[];this.snapshotExpected=Number((msg as any).parts)||0;}
+      if(msg.type==='snapshot-part' && msg.data){const index=Number((msg as any).index);if(Number.isInteger(index)&&index>=0&&index<this.snapshotExpected)this.snapshotParts[index]=msg.data;}
+      if(msg.type==='snapshot-end'){if(this.snapshotExpected&&this.snapshotParts.length===this.snapshotExpected&&this.snapshotParts.every(Boolean)){try{Y.applyUpdate(this.ydoc,fromBase64(this.snapshotParts.join('')),'remote')}catch{this.onStatus('error','스냅샷 적용 실패')}}else this.onStatus('error','스냅샷 일부가 누락됐습니다');this.snapshotParts=[];this.snapshotExpected=0;}
       if(msg.type==='update' && msg.data){
         try{Y.applyUpdate(this.ydoc,fromBase64(msg.data),'remote');this.ackedSeq=Math.max(this.ackedSeq,msg.seq||0);}
         catch{this.onStatus('error','업데이트 적용 실패');}
