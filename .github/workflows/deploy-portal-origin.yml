@@ -85,8 +85,6 @@ jobs:
           sleep 5
           test "$(curl -ksS --max-time 30 -o /tmp/origin-root.html -w '%{http_code}' "$URL/")" = 200
           test "$(curl -ksS --max-time 30 -o /tmp/origin-api.json -w '%{http_code}' "$URL/api/projects")" = 200
-          grep -Eq '(policy|public-ai-gov)\.00ai\.kr' /tmp/origin-api.json
-          grep -Eq '(yhub|youth-policy-data-hub)\.00ai\.kr' /tmp/origin-api.json
           grep -q 'https://policy.00ai.kr' /tmp/origin-root.html
           grep -q 'https://harness.00ai.kr/' /tmp/origin-root.html
           python3 - <<'PY'
@@ -94,6 +92,8 @@ jobs:
           d=json.load(open('/tmp/origin-api.json'))
           assert len(d.get('siteProjects',[])) >= 10
           assert all(x.get('public_url','').startswith('https://') for x in d.get('siteProjects',[]))
+assert d.get('sources',{}).get('drop',{}).get('available') is True
+assert d.get('sources',{}).get('sites',{}).get('available') is True
           PY
 
       - name: Verify live root edge cache
