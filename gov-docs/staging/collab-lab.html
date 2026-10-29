@@ -1,0 +1,30 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>00AI DOCS | 실시간 공동편집 검증</title><style>
+:root{font-family:Pretendard,"Malgun Gothic",sans-serif;color:#202b43;background:#f0f2f8}*{box-sizing:border-box}body{margin:0}.top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid #e1e5ef;padding:16px 22px}.top b{color:#3c52c5}.pill{border-radius:18px;padding:6px 13px;background:#eff1f8;font-size:12px}main{max-width:1040px;margin:26px auto;padding:0 16px}.card{background:#fff;border:1px solid #dfe4ed;border-radius:14px;padding:26px;box-shadow:0 9px 28px #293b5a0d}.heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.note{font-size:13px;color:#65718a;line-height:1.7}.warn{color:#92520c;background:#fff5e9;padding:12px;border-radius:10px}textarea{width:100%;min-height:420px;border:1px solid #d8dfed;border-radius:10px;padding:20px;font:15px/1.8 "Malgun Gothic",sans-serif;resize:vertical;outline:none}textarea:focus{border-color:#5268d7;box-shadow:0 0 0 3px #5268d723}button,a{padding:9px 12px;border:1px solid #cbd2e4;border-radius:8px;background:white;color:#314cae;cursor:pointer;text-decoration:none}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.small{font-size:12px;color:#65718a}.success{color:#137752}.error{color:#ae3a41}</style></head><body>
+<header class="top"><b>00AI DOCS</b><span>실시간 공동메모 검증실</span><span class="pill" id="connection">접속 준비</span></header>
+<main><div class="card"><div class="heading"><h2 id="docTitle">문서 확인 중…</h2><span class="small" id="pending">대기 중</span></div>
+<p class="warn">이 화면은 정식 문서 편집기를 교체하지 않는 별도의 텍스트 협업 실험실입니다. 표·이미지·한글 서식은 지원하지 않으며, 입력 내용은 기존 문서 본문으로 저장되지 않습니다. 공개·가상자료로만 시험하세요.</p>
+<div class="actions"><button id="retry">재연결</button><button id="copy">공동편집 링크 복사</button><a id="back" href="/">원래 문서로 돌아가기</a></div>
+<textarea id="editor" placeholder="연결·동기화가 끝나면 이곳에서 함께 입력하세요." disabled></textarea>
+<p class="note">두 브라우저에서 같은 주소를 열어 동시에 입력하면 Yjs가 텍스트 변경을 병합합니다. 전송 업데이트는 문서별 Durable Object 저장소에 기록되고 재접속 시 다시 전달됩니다. CDN에서 Yjs 모듈을 가져올 수 없는 네트워크에서는 이 기능을 사용할 수 없습니다.</p>
+<p class="small" id="detail"></p></div></main>
+<script type="module">
+import * as Y from 'https://cdn.jsdelivr.net/npm/yjs@13.6.27/+esm';
+const url=new URL(location.href),id=url.searchParams.get('doc');
+const el=n=>document.getElementById(n),box=el('editor'),status=el('connection'),info=el('detail');
+const doc=new Y.Doc(), shared=doc.getText('text'), pending=[];
+let socket=null,synced=false,generation=0,roomHistory=0;
+const toB64=(uint)=>{let s='';for(let i=0;i<uint.length;i++)s+=String.fromCharCode(uint[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+const fromB64=str=>{const padded=str.replace(/-/g,'+').replace(/_/g,'/');const raw=atob(padded+'='.repeat((4-padded.length%4)%4));return Uint8Array.from(raw,c=>c.charCodeAt(0))};
+function setStatus(v,bad=false){status.textContent=v;status.className='pill '+(bad?'error':'success')}
+function queueUpdate(update){const data=toB64(update);if(data.length>89000){setStatus('수정이 너무 큽니다',true);box.disabled=true;return}pending.push(data);updateBadge();flush()}
+function updateBadge(){el('pending').textContent='미전송 업데이트 '+pending.length+'건'}
+function flush(){if(!synced||socket?.readyState!==WebSocket.OPEN)return;while(pending.length){const data=pending[0];socket.send(JSON.stringify({type:'update',data}));pending.shift()}updateBadge()}
+shared.observe(()=>{const wanted=shared.toString();if(box.value!==wanted){const from=box.selectionStart,to=box.selectionEnd;box.value=wanted;box.setSelectionRange(Math.min(from,wanted.length),Math.min(to,wanted.length))}});
+doc.on('update',(update,origin)=>{if(origin==='remote')return;queueUpdate(update)});
+box.addEventListener('input',()=>{if(!synced)return;const old=shared.toString(),next=box.value;let pre=0;while(pre<old.length&&pre<next.length&&old[pre]===next[pre])pre++;let suffix=0;while(suffix<old.length-pre&&suffix<next.length-pre&&old[old.length-1-suffix]===next[next.length-1-suffix])suffix++;const del=old.length-pre-suffix,ins=next.slice(pre,next.length-suffix);doc.transact(()=>{if(del)shared.delete(pre,del);if(ins)shared.insert(pre,ins)})});
+async function connect(){if(!id||!/^[a-f0-9-]{36}$/i.test(id)){setStatus('문서 ID 없음',true);return}const g=++generation;synced=false;box.disabled=true;socket?.close();setStatus('접속 중');const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/v2/collab?doc='+encodeURIComponent(id));socket=ws;ws.onopen=()=>{if(g!==generation)return;setStatus('이력 동기화 중');ws.send(JSON.stringify({type:'sync',since:0}))};ws.onmessage=event=>{if(g!==generation)return;let m;try{m=JSON.parse(event.data)}catch{return}if(m.type==='update'){roomHistory=Math.max(roomHistory,m.seq);try{Y.applyUpdate(doc,fromB64(m.data),'remote')}catch{setStatus('업데이트 복원 오류',true)}}if(m.type==='synced'){synced=true;box.disabled=false;flush();box.value=shared.toString();setStatus('동기화 완료');info.textContent='마지막 서버 순번: '+Math.max(roomHistory,m.through)}if(m.type==='error')setStatus(m.reason||'서버 오류',true);if(m.type==='reset-required')setStatus('복원용 스냅샷이 필요합니다',true)};ws.onclose=()=>{if(g!==generation)return;synced=false;box.disabled=true;setStatus('연결 끊김',true);info.textContent='연결을 다시 시도하세요.'};ws.onerror=()=>setStatus('네트워크 오류',true)}
+el('retry').onclick=connect;el('copy').onclick=async()=>{await navigator.clipboard.writeText(location.href);el('copy').textContent='링크 복사됨'};
+el('back').href='/?doc='+encodeURIComponent(id||'');
+window.addEventListener('beforeunload',event=>{if(pending.length){event.preventDefault();event.returnValue=''}});
+try{const r=await fetch('/api/v2/doc?id='+encodeURIComponent(id),{credentials:'same-origin'});if(!r.ok)throw Error('문서 접근권한 확인 실패: HTTP '+r.status);const data=await r.json();el('docTitle').textContent=(data.doc?.title||'문서')+' · 공동메모';connect()}catch(error){setStatus(error.message,true)}
+</script></body></html>
