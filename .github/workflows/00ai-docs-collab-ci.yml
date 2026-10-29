@@ -4,9 +4,13 @@ on:
   push:
     paths:
       - 'gov-docs/staging/**'
+      - '!gov-docs/staging/dist/**'
       - '.github/workflows/00ai-docs-collab-ci.yml'
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: 00ai-docs-collab-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,6 +30,17 @@ jobs:
         run: npm test
       - name: Build Vite
         run: npm run build
+      - name: Commit versioned build assets
+        if: github.ref == 'refs/heads/main'
+        working-directory: .
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -f gov-docs/staging/dist
+          if ! git diff --cached --quiet; then
+            git commit -m "build: publish validated realtime editor bundle [skip ci]"
+            git push
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: 00ai-docs-realtime-editor
