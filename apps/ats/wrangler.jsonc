@@ -1,0 +1,15 @@
+{
+  "$schema":"node_modules/wrangler/config-schema.json",
+  "name":"00ai-ats",
+  "main":"worker/index.ts",
+  "compatibility_date":"2026-10-29",
+  "compatibility_flags":["nodejs_compat"],
+  "assets":{"directory":"./dist","binding":"ASSETS","not_found_handling":"single-page-application"},
+  "d1_databases":[{"binding":"DB","database_name":"00ai-ats","database_id":"1c075371-26fd-4fae-9ca5-897090438b6b","migrations_dir":"migrations"}],
+  "r2_buckets":[{"binding":"RESUMES","bucket_name":"00ai-ats-resumes"}],
+  "send_email":[{"name":"EMAIL"}],
+  "queues":{"producers":[{"binding":"EMAIL_QUEUE","queue":"00ai-ats-email"}],"consumers":[{"queue":"00ai-ats-email","max_batch_size":10,"max_retries":5,"dead_letter_queue":"00ai-ats-email-dlq"},{"queue":"00ai-ats-email-dlq","max_batch_size":10,"max_retries":0}]},
+  "triggers":{"crons":["* * * * *"]},
+  "vars":{"EMAIL_FROM_NAME":"채용팀","EMAIL_FROM_ADDRESS":"recruit@example.com","HASA_BASE_URL":"https://hasa.example.com","DEMO_MODE":"false"},
+  "observability":{"enabled":true}
+}
