@@ -1,5 +1,21 @@
 [
   {
+    "id": "00ai-ats",
+    "name": "00AI ATS",
+    "description": "지원자 등록·채용 단계 관리와 불합격 안내 이메일 예약을 제공하는 채용 파이프라인",
+    "public_url": "https://ats.00ai.kr/",
+    "origin_url": "https://ats.00ai.kr/",
+    "aliases": [
+      "ats",
+      "applicant-tracking"
+    ],
+    "category": "공무원 업무도구",
+    "maker": "00AI",
+    "stack": "지원자 관리 · 채용 파이프라인 · 이메일 자동화",
+    "status": "LIVE",
+    "updated_at": "2026-10-29T00:00:00.000Z"
+  },
+  {
     "id": "youth-policy-data-hub",
     "name": "청년정책데이터허브 Y-HUB",
     "description": "청년정책과 공공데이터를 한곳에서 탐색하고 분석하는 데이터 허브",

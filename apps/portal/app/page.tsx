@@ -47,6 +47,17 @@ const services: Service[] = [
     action: "에이전트 열기",
   },
   {
+    code: "ATS",
+    title: "00AI ATS",
+    category: "업무지원",
+    maturity: "실험실",
+    healthKey: "ATS",
+    description: "지원자 등록과 채용 단계, 불합격 안내 메일 예약을 관리하는 채용 파이프라인입니다.",
+    tasks: ["지원자 관리", "채용 단계 추적", "안내 메일 예약"],
+    href: "https://ats.00ai.kr/",
+    action: "채용 파이프라인 열기",
+  },
+  {
     code: "POLICY",
     title: "AI 정책상황실",
     category: "정책·데이터",
