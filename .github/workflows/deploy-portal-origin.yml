@@ -129,7 +129,7 @@ jobs:
           hrefs=re.findall(r'href=["\']([^"\']+)["\']',html,re.I)
           out={
             'dom_bytes':len(html),
-            'has_yhub_project':'청년정책데이터허브' in html,
+            'has_yhub_project':'청년정책 데이터허브' in html,
             'has_policy_project':'정책상황실' in html,
             'has_drop_route':any(x.rstrip('/')=='/drop' for x in hrefs),
             'has_policy_domain':any('policy.00ai.kr' in x for x in hrefs),
