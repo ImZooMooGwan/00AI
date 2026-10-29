@@ -281,6 +281,36 @@ async function resolveRoute(hostname: string): Promise<Route | null> {
   return resolveRemoteRoute(slug);
 }
 
+function serviceFavicon(hostname: string) {
+  const slug = hostname.toLowerCase().replace(/\\.00ai\\.kr$/, "");
+  const labels: Record<string, string> = {
+    policy: "PO", "public-ai-gov": "PO", yhub: "YH", "youth-policy-data-hub": "YH",
+    "oneul-daejeon": "OD", "otgeunmu-check-alarm": "OT", ats: "AT",
+    docs: "DX", harness: "HA", "gov-agent": "GA",
+  };
+  const colors: Record<string, string> = {
+    policy: "#172554", "public-ai-gov": "#172554",
+    yhub: "#0f766e", "youth-policy-data-hub": "#0f766e",
+    "oneul-daejeon": "#1d4ed8", "otgeunmu-check-alarm": "#7458c8",
+    ats: "#0f766e", docs: "#4659dc", harness: "#143af5", "gov-agent": "#5557d6",
+  };
+  let hash = 2166136261;
+  for (const char of slug) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  const hue = (hash >>> 0) % 360;
+  const color = colors[slug] || `hsl(${hue} 62% 38%)`;
+  const monogram = (labels[slug] || slug.split("-").slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "AI").slice(0, 2);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="17" fill="${color}"/><circle cx="32" cy="32" r="26" fill="none" stroke="white" stroke-opacity=".24" stroke-width="2"/><text x="32" y="39" text-anchor="middle" font-family="Arial,sans-serif" font-size="${monogram.length === 1 ? 28 : 21}" font-weight="800" fill="white">${monogram}</text><circle cx="49" cy="14" r="5" fill="#91f3e1"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function addServiceFavicon(html: string, hostname: string) {
+  const tag = `<link rel="icon" type="image/svg+xml" href="${serviceFavicon(hostname)}" data-00ai-favicon="service">`;
+  if (/<head\\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\\b[^>]*>/i, (head) => `${head}\\n${tag}`);
+  }
+  return html.replace(/<html\\b[^>]*>/i, (htmlTag) => `${htmlTag}\\n<head>${tag}</head>`);
+}
+
 async function proxyExternal(request: Request, route: Route, incoming: URL) {
   const target = buildTarget(route.target, incoming);
   const cachePolicy = cachePolicyFor(request, incoming);
@@ -335,8 +365,20 @@ async function proxyExternal(request: Request, route: Route, incoming: URL) {
     }
 
     headers.set("X-00AI-Upstream", target.hostname);
+    let body: BodyInit | null = request.method === "HEAD" ? null : response.body;
+    if (
+      request.method === "GET" &&
+      response.ok &&
+      (headers.get("content-type") || "").toLowerCase().includes("text/html")
+    ) {
+      const html = await response.text();
+      body = addServiceFavicon(html, incoming.hostname);
+      headers.delete("content-encoding");
+      headers.delete("content-length");
+      headers.delete("etag");
+    }
     return withSecurity(
-      new Response(request.method === "HEAD" ? null : response.body, {
+      new Response(body, {
         status: response.status,
         statusText: response.statusText,
         headers,
