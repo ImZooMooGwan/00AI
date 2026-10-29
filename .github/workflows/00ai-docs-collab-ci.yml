@@ -1,0 +1,31 @@
+name: 00AI DOCS Realtime Editor CI
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'gov-docs/staging/**'
+      - '.github/workflows/00ai-docs-collab-ci.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gov-docs/staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build Vite
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 00ai-docs-realtime-editor
+          path: gov-docs/staging/dist
+          if-no-files-found: error
