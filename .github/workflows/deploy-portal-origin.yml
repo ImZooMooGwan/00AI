@@ -96,25 +96,21 @@ jobs:
           assert d.get('sources',{}).get('sites',{}).get('available') is True
           PY
 
-      - name: Verify live root edge cache
+      - name: Verify live 00AI root page
         shell: bash
         run: |
           set -euo pipefail
           healthy=false
           for attempt in {1..8}; do
-            first_headers="$(mktemp)"
-            second_headers="$(mktemp)"
-            first_code="$(curl -ksS --max-time 15 -o /dev/null -D "$first_headers" -w '%{http_code}' https://00ai.kr/ || true)"
+            first_code="$(curl -ksS --max-time 15 -o /dev/null -w '%{http_code}' https://00ai.kr/ || true)"
             sleep 2
-            second_code="$(curl -ksS --max-time 15 -o /dev/null -D "$second_headers" -w '%{http_code}' https://00ai.kr/ || true)"
+            second_code="$(curl -ksS --max-time 15 -o /tmp/00ai-root.html -w '%{http_code}' https://00ai.kr/ || true)"
             if [[ "$first_code" == "200" && "$second_code" == "200" ]] && \
-              grep -qi '^x-00ai-portal: fast-cache-v1' "$second_headers" && \
-              grep -qi '^x-00ai-cache: HIT' "$second_headers"; then
+              grep -q '행정에 필요한 도구' /tmp/00ai-root.html && \
+              grep -q '서비스 배포' /tmp/00ai-root.html; then
               healthy=true
-              rm -f "$first_headers" "$second_headers"
               break
             fi
-            rm -f "$first_headers" "$second_headers"
             sleep 3
           done
           [[ "$healthy" == "true" ]]
