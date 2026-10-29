@@ -1,711 +1,162 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import "./drop.css";
-import "./github-projects.css";
-import "./redesign.css";
-import { NewHeader, NewHero, CaseStudy, FeaturedServices } from "./redesign";
-import publicSites from "./data/public-sites.json";
+import { useMemo, useState } from "react";
+import "./admin-hub.css";
 
-type Status = "LIVE" | "BETA" | "LAB" | "COMING SOON";
-type SyncState = "loading" | "synced" | "degraded";
-
-type PublishedProject = {
-  slug: string;
-  name: string;
-  public_url: string;
-  status: string;
-  organization?: string | null;
-  uploader_name?: string | null;
-  description?: string | null;
-};
-
-type GitHubProject = {
-  id: string;
-  name: string;
-  full_name: string;
+type Category = "문서·보고" | "정책·데이터" | "업무지원";
+type Service = {
+  code: string;
+  title: string;
+  category: Category;
+  status: "운영 중" | "실험실";
   description: string;
-  repository_url: string;
-  homepage: string | null;
-  public_url: string;
-  owner: string;
-  language: string | null;
-  topics: string[];
-  status: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type SiteProject = {
-  id: string;
-  name: string;
-  description: string;
-  public_url: string;
-  category: string;
-  maker: string;
-  stack: string;
-  status: string;
-  updated_at: string;
-};
-
-type GalleryProject = {
-  id: string;
-  name: string;
-  problem: string;
-  field: string;
-  maker: string;
-  stack: string;
-  status: string;
+  tasks: string[];
   href: string;
-  source: "github" | "site" | "drop" | "core";
-  hasHomepage?: boolean;
+  action: string;
 };
 
-const services: Array<{
-  name: string;
-  description: string;
-  status: Status;
-  category: string;
-  tags: string[];
-  href: string;
-}> = [
+const services: Service[] = [
   {
-    name: "AI 정책상황실",
-    description:
-      "데이터와 AI를 이용해 정책대안을 분석하고 행정문서를 작성합니다.",
-    status: "LIVE",
-    category: "정책·행정",
-    tags: ["정책", "데이터", "법령", "보고서"],
-    href: "https://policy.00ai.kr",
+    code: "DOCS",
+    title: "00AI DOCS",
+    category: "문서·보고",
+    status: "실험실",
+    description: "공문과 보고서 초안을 작성하고, 문서를 함께 검토합니다.",
+    tasks: ["문서 작성", "공동 편집", "검토·저장"],
+    href: "https://00ai.kr/workspace/",
+    action: "문서 작업 시작",
   },
   {
-    name: "청년정책 데이터허브",
-    description: "청년정책과 공공데이터를 한곳에서 탐색합니다.",
-    status: "LIVE",
-    category: "청년정책",
-    tags: ["청년정책", "시각화", "공공데이터"],
-    href: "https://yhub.00ai.kr",
-  },
-  {
-    name: "00AI Harness",
-    description:
-      "행정망 안의 시스템, 데이터, 문서와 AI를 안전하게 연결합니다.",
-    status: "LAB",
-    category: "개발",
-    tags: ["공공AI", "오케스트레이션", "행정망"],
+    code: "HARNESS",
+    title: "00AI Harness",
+    category: "문서·보고",
+    status: "실험실",
+    description: "업무 문서에서 근거를 찾고, 요청사항과 확인 항목을 정리합니다.",
+    tasks: ["문서 검토", "근거 추출", "의회 자료 초안"],
     href: "https://harness.00ai.kr/",
+    action: "문서 검토 시작",
   },
   {
-    name: "00AI DROP",
-    description:
-      "ZIP이나 정적 웹 파일을 올리고 공공AI 서비스를 바로 공유하세요.",
-    status: "BETA",
-    category: "개발",
-    tags: ["배포", "Hosting", "GitHub"],
-    href: "#deploy",
+    code: "GOV AGENT",
+    title: "00AI Gov Agent",
+    category: "문서·보고",
+    status: "실험실",
+    description: "자료와 도구를 연결해 행정 업무의 조사·작성 과정을 지원합니다.",
+    tasks: ["자료 조사", "업무 계획", "반복 업무 지원"],
+    href: "https://00ai.kr/gov-agent/",
+    action: "에이전트 열기",
+  },
+  {
+    code: "POLICY",
+    title: "AI 정책상황실",
+    category: "정책·데이터",
+    status: "운영 중",
+    description: "법령과 공공데이터를 바탕으로 정책 대안을 살피고 보고자료를 준비합니다.",
+    tasks: ["법령·근거 탐색", "정책 대안 검토", "보고자료 초안"],
+    href: "https://policy.00ai.kr/",
+    action: "정책 검토 시작",
+  },
+  {
+    code: "Y–HUB",
+    title: "청년정책 데이터허브",
+    category: "정책·데이터",
+    status: "운영 중",
+    description: "청년정책과 공공데이터를 검색·비교하고 정책 간 관계를 살펴봅니다.",
+    tasks: ["정책 검색", "정책 비교", "데이터 탐색"],
+    href: "https://yhub.00ai.kr/",
+    action: "정책 데이터 탐색",
+  },
+  {
+    code: "TIME",
+    title: "초과근무 알람",
+    category: "업무지원",
+    status: "운영 중",
+    description: "시간 알림과 직급별 예상 수당 계산으로 초과근무 시간을 확인합니다.",
+    tasks: ["시간 알림", "예상 수당 계산", "누적 시간 확인"],
+    href: "https://otgeunmu-check-alarm.nextrunners-6559.chatgpt.site/",
+    action: "초과근무 확인",
   },
 ];
 
-const coreProjects: GalleryProject[] = [
-  {
-    id: "core-policy",
-    name: "AI 정책상황실",
-    problem: "정책 대안 검토와 보고자료 작성",
-    field: "행정",
-    maker: "00AI",
-    stack: "AI · 데이터 · 법령",
-    status: "LIVE",
-    href: "https://policy.00ai.kr",
-    source: "core",
-  },
-  {
-    id: "core-harness",
-    name: "00AI Harness",
-    problem: "행정망에서의 안전한 AI 실행",
-    field: "행정",
-    maker: "00AI Lab",
-    stack: "Local AI · Orchestration",
-    status: "LAB",
-    href: "https://harness.00ai.kr/",
-    source: "core",
-  },
-];
-
-function Badge({ status }: { status: Status }) {
-  return (
-    <span className={`badge ${status.toLowerCase().replace(" ", "-")}`}>
-      <i />
-      {status}
-    </span>
-  );
-}
-
-function topicLabel(topic: string) {
-  return topic.replaceAll("-", " ");
-}
-
-function toGalleryProject(project: GitHubProject): GalleryProject {
-  const stack = [
-    project.language,
-    ...project.topics.slice(0, 2).map(topicLabel),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  return {
-    id: `github-${project.id}`,
-    name: project.name,
-    problem: project.description,
-    field: project.topics[0]
-      ? topicLabel(project.topics[0])
-      : "오픈소스",
-    maker: project.owner,
-    stack: stack || "GitHub",
-    status: project.status,
-    href: project.public_url,
-    source: "github",
-    hasHomepage: Boolean(project.homepage),
-  };
-}
-
-function toSiteGalleryProject(project: SiteProject): GalleryProject {
-  return {
-    id: `site-${project.id}`,
-    name: project.name,
-    problem: project.description,
-    field: project.category,
-    maker: project.maker,
-    stack: project.stack,
-    status: project.status,
-    href: project.public_url,
-    source: "site",
-    hasHomepage: true,
-  };
-}
-
-function projectLinkLabel(project: GalleryProject) {
-  if (project.source === "github") {
-    return project.hasHomepage ? "서비스 열기 →" : "GitHub 보기 →";
-  }
-  if (project.source === "site") return "서비스 열기 →";
-  return project.source === "drop" ? "프로젝트 열기 →" : "상세 보기 →";
-}
+const categories = ["전체", "문서·보고", "정책·데이터", "업무지원"] as const;
 
 export default function Home() {
-  const [tab, setTab] = useState<"services" | "projects">("projects");
+  const [category, setCategory] = useState<(typeof categories)[number]>("전체");
   const [query, setQuery] = useState("");
-  const [dragging, setDragging] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [organization, setOrganization] = useState("");
-  const [uploaderName, setUploaderName] = useState("");
-  const [projectName, setProjectName] = useState("");
-  const [description, setDescription] = useState("");
-  const [dropReady, setDropReady] = useState<boolean | null>(null);
-  const [deployState, setDeployState] = useState<
-    "idle" | "uploading" | "done" | "error"
-  >("idle");
-  const [message, setMessage] = useState("");
-  const [publishedProjects, setPublishedProjects] = useState<
-    PublishedProject[]
-  >([]);
-  const [githubProjects, setGitHubProjects] = useState<GitHubProject[]>([]);
-  const [siteProjects, setSiteProjects] = useState<SiteProject[]>(publicSites);
-  const [syncState, setSyncState] = useState<SyncState>("loading");
-  const [githubOwner, setGithubOwner] = useState("ImZooMooGwan");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const prioritizedServices = useMemo(
-    () =>
-      [...services].sort(
-        (a, b) => Number(b.status === "LIVE") - Number(a.status === "LIVE"),
-      ),
-    [],
-  );
-
-  const filteredServices = useMemo(
-    () =>
-      prioritizedServices.filter((service) =>
-        `${service.name} ${service.description} ${service.tags.join(" ")}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-      ),
-    [prioritizedServices, query],
-  );
-
-  const galleryProjects = useMemo(() => {
-    const candidates: GalleryProject[] = [
-      ...siteProjects.map(toSiteGalleryProject),
-      ...githubProjects.map(toGalleryProject),
-      ...publishedProjects.map((project) => ({
-        id: `drop-${project.slug}`,
-        name: project.name,
-        problem: project.description || "00AI DROP 공개 프로젝트",
-        field: "00AI DROP",
-        maker:
-          [project.organization, project.uploader_name]
-            .filter(Boolean)
-            .join(" · ") || "00AI 참여자",
-        stack: project.slug,
-        status: project.status,
-        href: project.public_url,
-        source: "drop" as const,
-      })),
-      ...coreProjects,
-    ];
-    const seen = new Set<string>();
-    const bluePriority = (project: GalleryProject) =>
-      project.source === "core" || project.source === "drop" ? 0 : 1;
-
-    return candidates
-      .filter((project) => {
-        const key = project.name.trim().toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a, b) => bluePriority(a) - bluePriority(b));
-  }, [githubProjects, publishedProjects, siteProjects]);
-
-  const filteredProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return galleryProjects;
-    return galleryProjects.filter((project) =>
-      `${project.name} ${project.problem} ${project.field} ${project.maker} ${project.stack}`
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [galleryProjects, query]);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/projects", { headers: { Accept: "application/json" } })
-      .then((response) => {
-        if (!response.ok) throw new Error("Project registry unavailable");
-        return response.json();
-      })
-      .then((result) => {
-        if (!active) return;
-        setPublishedProjects(result.projects || []);
-        setGitHubProjects(result.githubProjects || []);
-        setSiteProjects(result.siteProjects?.length ? result.siteProjects : publicSites);
-        setGithubOwner(result.sources?.github?.owner || "ImZooMooGwan");
-        setDropReady(Boolean(result.sources?.drop?.available));
-        setSyncState(
-          result.sources?.github?.available && result.sources?.sites?.available
-            ? "synced"
-            : "degraded",
-        );
-      })
-      .catch(() => {
-        if (!active) return;
-        setSyncState("degraded");
-        setDropReady(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const selectFiles = (selected: FileList | null) =>
-    setFiles(selected ? Array.from(selected) : []);
-
-  const deploy = async () => {
-    if (!organization.trim()) {
-      setDeployState("error");
-      setMessage("소속을 입력해 주세요.");
-      return;
-    }
-    if (!uploaderName.trim()) {
-      setDeployState("error");
-      setMessage("성명을 입력해 주세요.");
-      return;
-    }
-    if (!projectName.trim()) {
-      setDeployState("error");
-      setMessage("제목을 입력해 주세요.");
-      return;
-    }
-    if (description.trim().length < 5) {
-      setDeployState("error");
-      setMessage("내용을 5자 이상 입력해 주세요.");
-      return;
-    }
-    if (!files.length) {
-      setDeployState("error");
-      setMessage("업로드할 파일을 선택해 주세요.");
-      return;
-    }
-
-    setDeployState("uploading");
-    setMessage("파일 검사와 저장을 진행하고 있습니다.");
-    const data = new FormData();
-    data.append("organization", organization.trim());
-    data.append("uploaderName", uploaderName.trim());
-    data.append("name", projectName.trim());
-    data.append("description", description.trim());
-    data.append("visibility", "public");
-    files.forEach((file) => data.append("files", file));
-
-    try {
-      const response = await fetch("/api/deploy", {
-        method: "POST",
-        body: data,
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "배포를 완료하지 못했습니다.");
-      }
-      setDeployState("done");
-      setDropReady(true);
-      setPublishedProjects((items) => [
-        {
-          slug: result.slug,
-          name: result.name,
-          public_url: result.publicUrl,
-          status: result.status,
-          organization: result.organization,
-          uploader_name: result.uploaderName,
-          description: result.description,
-        },
-        ...items,
-      ]);
-      setMessage(
-        `${result.name} 등록과 파일 저장을 완료했습니다. ${result.publicUrl}에서 공개될 준비가 됐습니다.`,
-      );
-    } catch (error) {
-      setDeployState("error");
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "파일 저장 중 문제가 발생했습니다.",
-      );
-    }
-  };
+  const visibleServices = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase("ko-KR");
+    return services.filter((service) => {
+      const matchesCategory = category === "전체" || service.category === category;
+      const haystack = [service.title, service.category, service.description, ...service.tasks].join(" ").toLocaleLowerCase("ko-KR");
+      return matchesCategory && (!q || haystack.includes(q));
+    });
+  }, [category, query]);
 
   return (
-    <main>
-      <a className="skip-to-content" href="#services">본문 바로가기</a>
-      <NewHeader />
-      <NewHero />
-      <CaseStudy />
-      <FeaturedServices />
+    <main className="admin-hub" id="top">
+      <a className="hub-skip" href="#service-list">서비스 목록으로 바로가기</a>
+      <header className="hub-header">
+        <a className="hub-brand" href="#top" aria-label="00AI 행정 도구 첫 화면"><span className="hub-brand-mark">00</span><span>AI<small>PUBLIC WORK TOOLS</small></span></a>
+        <nav className="hub-nav" aria-label="주요 메뉴"><a href="#service-list">서비스</a><a href="#use-guide">이용 안내</a></nav>
+        <a className="hub-header-link" href="https://github.com/ImZooMooGwan/00AI" target="_blank" rel="noreferrer">개발 프로젝트 <span aria-hidden="true">↗</span></a>
+      </header>
 
-      <section id="projects" className="section section-rule">
-        <div className="section-head">
-          <div>
-            <p className="kicker">03 / OPEN PROJECTS</p>
-            <h2>
-              공공의 가능성을,
-              <br />
-              함께 넓힙니다.
-            </h2>
+      <section className="hub-hero" aria-labelledby="hub-title">
+        <div className="hub-hero-inner">
+          <div className="hub-hero-copy">
+            <p className="hub-eyebrow"><span /> 00AI · 공공업무 도구</p>
+            <h1 id="hub-title">행정에 필요한 도구,<br /><em>한곳에서 바로 시작하세요.</em></h1>
+            <p className="hub-intro">정책 검토와 문서 작성부터 데이터 탐색과 업무 관리까지.<br className="desktop-only" /> 지금 필요한 업무를 고르면 알맞은 서비스로 연결합니다.</p>
+            <a className="hub-primary" href="#service-list">업무 도구 찾기 <span aria-hidden="true">↓</span></a>
           </div>
-          <div className="project-section-meta">
-            <p className="section-description">
-              00AI에서 만든 서비스와 실험 중인 프로젝트를 공개합니다.
-            </p>
-            <p className={`project-sync ${syncState}`} aria-live="polite">
-              <i />
-              {syncState === "loading" && "GitHub 확인 중"}
-              {syncState === "synced" &&
-                `자동 동기화 · GitHub ${githubProjects.length} · 공개서비스 ${siteProjects.length}`}
-              {syncState === "degraded" &&
-                "GitHub 연결 지연 · 기존 목록 표시 중"}
-            </p>
+          <div className="hub-hero-note" aria-label="도구 이용 기준">
+            <span className="note-index">00AI / GUIDE</span>
+            <strong>AI는 초안과 탐색을 돕습니다.</strong>
+            <p>근거와 최신성은 확인하고, 최종 판단과 결재는 담당자가 합니다.</p>
+            <a href="#use-guide">안전한 이용 기준 <span aria-hidden="true">→</span></a>
           </div>
         </div>
-        <div className="registry" id="registry">
-          <div className="registry-tabs">
-            <button
-              className={tab === "services" ? "active" : ""}
-              onClick={() => setTab("services")}
-            >
-              서비스 등록부
-            </button>
-            <button
-              className={tab === "projects" ? "active" : ""}
-              onClick={() => setTab("projects")}
-            >
-              프로젝트 갤러리 · {galleryProjects.length}
-            </button>
-            <label>
-              <span className="sr-only">검색</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={
-                  tab === "services" ? "서비스 검색" : "프로젝트 검색"
-                }
-              />
-            </label>
+        <div className="hub-hero-footer"><span>업무 목적에 맞춰 골라 쓰는 공공 AI</span><span>POLICY · DOCUMENTS · DATA · WORK</span></div>
+      </section>
+
+      <section className="hub-services" id="service-list" aria-labelledby="service-title">
+        <div className="hub-section-heading">
+          <div><p className="hub-eyebrow">업무별 서비스</p><h2 id="service-title">무엇을 하시겠어요?</h2><p>서비스 이름보다 지금 하려는 업무를 기준으로 골라보세요.</p></div>
+          <div className="hub-count"><strong>{visibleServices.length.toString().padStart(2, "0")}</strong><span>개 도구</span></div>
+        </div>
+
+        <div className="hub-controls">
+          <div className="hub-filters" role="group" aria-label="업무 분야 선택">
+            {categories.map((item) => <button key={item} type="button" className={category === item ? "is-active" : ""} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}
           </div>
-          {tab === "services" ? (
-            <div className="registry-list">
-              {filteredServices.map((service) => (
-                <div className="registry-row" key={service.name}>
-                  <Badge status={service.status} />
-                  <div>
-                    <b>{service.name}</b>
-                    <span>{service.description}</span>
-                  </div>
-                  <span className="row-category">{service.category}</span>
-                  <a
-                    href={service.href}
-                    target={
-                      service.href.startsWith("http") ? "_blank" : undefined
-                    }
-                    rel="noreferrer"
-                  >
-                    열기 →
-                  </a>
-                </div>
-              ))}
-              {filteredServices.length === 0 && (
-                <p className="empty">검색 결과가 없습니다.</p>
-              )}
-            </div>
-          ) : (
-            <div className="project-list">
-              {filteredProjects.map((project) => (
-                <a
-                  key={project.id}
-                  className={`project-card project-source-${project.source}`}
-                  href={project.href}
-                  aria-label={`${project.name} — ${projectLinkLabel(project).replace(" →", "")}`}
-                >
-                  <article>
-                    <div className="project-mark">
-                      {project.source === "github"
-                        ? "GH"
-                        : project.source === "site"
-                          ? "WEB"
-                          : "00"}
-                    </div>
-                    <div>
-                      <p>
-                        {project.field} · {project.status}
-                      </p>
-                      <h3>{project.name}</h3>
-                      <span>{project.problem}</span>
-                    </div>
-                    <dl>
-                      <div>
-                        <dt>제작</dt>
-                        <dd>{project.maker}</dd>
-                      </div>
-                      <div>
-                        <dt>기술</dt>
-                        <dd>{project.stack}</dd>
-                      </div>
-                    </dl>
-                    <span className="project-card-action">
-                      {projectLinkLabel(project)}
-                    </span>
-                  </article>
-                </a>
-              ))}
-              {filteredProjects.length === 0 && (
-                <p className="empty">검색 결과가 없습니다.</p>
-              )}
-            </div>
-          )}
+          <label className="hub-search"><span aria-hidden="true">⌕</span><span className="sr-only">서비스 검색</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="업무나 서비스 검색" /></label>
+        </div>
+
+        {visibleServices.length ? <div className="hub-service-grid">
+          {visibleServices.map((service, index) => <article className="hub-service-card" key={service.code}>
+            <div className="hub-card-top"><span className="hub-card-code">{service.code}</span><span className={`hub-status ${service.status === "운영 중" ? "is-live" : "is-lab"}`}><i />{service.status}</span></div>
+            <div className="hub-card-title-row"><span className="hub-card-number">{String(index + 1).padStart(2, "0")}</span><span className="hub-category">{service.category}</span></div>
+            <h3>{service.title}</h3>
+            <p className="hub-card-description">{service.description}</p>
+            <ul className="hub-task-list">{service.tasks.map((task) => <li key={task}>{task}</li>)}</ul>
+            <a className="hub-card-action" href={service.href} target="_blank" rel="noreferrer"><span>{service.action}</span><span aria-hidden="true">↗</span></a>
+          </article>)}
+        </div> : <div className="hub-empty"><strong>검색 결과가 없습니다.</strong><p>다른 업무 표현으로 검색하거나 분야를 바꿔보세요.</p></div>}
+      </section>
+
+      <section className="hub-use-guide" id="use-guide" aria-labelledby="guide-title">
+        <div className="guide-heading"><p className="hub-eyebrow">사용 전 확인</p><h2 id="guide-title">업무에 쓸 때<br /><em>세 가지만 확인하세요.</em></h2></div>
+        <div className="guide-list">
+          <article><span>01</span><div><h3>민감한 정보는 입력하지 않기</h3><p>개인정보와 비공개 행정자료는 기관의 보안 기준과 서비스 처리 범위를 확인한 뒤 다루세요.</p></div></article>
+          <article><span>02</span><div><h3>출처와 수치를 원문에서 확인하기</h3><p>AI가 제시한 법령, 통계, 인용문은 공식 원문과 기준 시점을 다시 확인하세요.</p></div></article>
+          <article><span>03</span><div><h3>결과는 검토 후 업무에 반영하기</h3><p>생성된 내용은 참고 초안입니다. 행정상 판단과 대외 발송 전 담당자가 검토하세요.</p></div></article>
         </div>
       </section>
 
-      <section id="deploy" className="deploy section section-rule">
-        <div className="deploy-intro">
-          <p className="kicker">
-            00AI DROP <Badge status="BETA" />
-          </p>
-          <h2>
-            파일을 놓으면
-            <br />
-            서비스가 됩니다.
-          </h2>
-          <p>
-            HTML, CSS, JavaScript 또는 빌드가 완료된 웹앱을 올려보세요.
-            ZIP 파일은 안전검사를 거쳐 자동으로 풀립니다.
-          </p>
-        </div>
-        <div className="drop-panel">
-          <div
-            className={`storage-status ${
-              dropReady === null ? "" : dropReady ? "ready" : "blocked"
-            }`}
-            role="status"
-          >
-            <span>
-              <span className="dot" />
-              <b>서비스 업로드</b> · {dropReady === null && "이용 가능 여부 확인 중"}
-              {dropReady === true && "업로드 가능"}
-              {dropReady === false && "현재 업로드할 수 없습니다"}
-            </span>
-            <span>
-              {dropReady === true
-                ? "등록 정보와 파일을 함께 저장합니다."
-                : "잠시 후 다시 시도해 주세요."}
-            </span>
-          </div>
-
-          <div className="publisher-form">
-            <label className="project-input">
-              소속
-              <input
-                value={organization}
-                onChange={(event) => setOrganization(event.target.value)}
-                maxLength={80}
-                placeholder="예: 대전광역시 청년정책과 / 개인"
-                autoComplete="organization"
-              />
-            </label>
-            <label className="project-input">
-              성명
-              <input
-                value={uploaderName}
-                onChange={(event) => setUploaderName(event.target.value)}
-                maxLength={40}
-                placeholder="예: 홍길동"
-                autoComplete="name"
-              />
-            </label>
-            <label className="project-input full">
-              제목
-              <input
-                value={projectName}
-                onChange={(event) => setProjectName(event.target.value)}
-                maxLength={80}
-                placeholder="예: 공공문서 개인정보 자동 마스킹"
-              />
-            </label>
-            <label className="project-input full">
-              내용
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                maxLength={600}
-                placeholder="서비스가 해결하려는 문제와 주요 기능을 간단히 적어주세요."
-              />
-              <small>{description.length} / 600자</small>
-            </label>
-            <p className="publisher-note">
-              소속·성명·제목·내용은 프로젝트 공개 정보로 활용될 수 있습니다.
-              연락처, 주민등록번호 등 민감한 개인정보는 입력하지 마세요.
-            </p>
-          </div>
-
-          <div
-            className={`drop-zone ${dragging ? "dragging" : ""}`}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragging(false);
-              selectFiles(event.dataTransfer.files);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                inputRef.current?.click();
-              }
-            }}
-            onClick={() => inputRef.current?.click()}
-          >
-            <div className="drop-icon">↓</div>
-            <h3>웹 서비스 파일을 놓으세요</h3>
-            <p>ZIP · HTML · CSS · JS · 이미지 · 폰트</p>
-            <span className="button ghost">파일 선택</span>
-            <input
-              ref={inputRef}
-              className="sr-only"
-              type="file"
-              multiple
-              accept=".zip,.html,.htm,.css,.js,.mjs,.json,.svg,.png,.jpg,.jpeg,.webp,.woff,.woff2"
-              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                selectFiles(event.target.files)
-              }
-            />
-          </div>
-          {files.length > 0 && (
-            <div className="file-list" aria-live="polite">
-              <b>{files.length}개 파일 선택됨</b>
-              {files.slice(0, 3).map((file) => (
-                <span key={`${file.name}-${file.size}`}>
-                  {file.name} <small>{Math.ceil(file.size / 1024)}KB</small>
-                </span>
-              ))}
-              {files.length > 3 && <span>외 {files.length - 3}개</span>}
-              <button
-                className="button primary"
-                type="button"
-                disabled={deployState === "uploading" || dropReady === false}
-                onClick={deploy}
-                title={
-                  dropReady === false
-                    ? "서비스 업로드 연결 후 사용할 수 있습니다."
-                    : undefined
-                }
-              >
-                {deployState === "uploading"
-                  ? "저장 중…"
-                  : dropReady === false
-                    ? "업로드 일시 중단"
-                    : "등록하고 배포하기 →"}
-              </button>
-            </div>
-          )}
-          {deployState !== "idle" && (
-            <p className={`deploy-message ${deployState}`} role="status">
-              {message}
-            </p>
-          )}
-          <div className="deploy-notes">
-            <span>최대 50MB · 파일 1,000개</span>
-            <span>단일 HTML은 자동으로 시작 파일로 인식합니다</span>
-          </div>
-          <div className="github-import">
-            <b>GitHub 자동 등록</b>
-            <p>
-              {githubOwner} 계정에 공개 저장소를 만들면 프로젝트 갤러리에
-              자동으로 추가됩니다. 저장소의 설명·Homepage·Topics를 카드 정보로
-              사용합니다.
-            </p>
-            <a
-              className="text-link"
-              href={`https://github.com/${githubOwner}?tab=repositories`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub 프로젝트 관리 <span>→</span>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section id="about" className="about section">
-        <p className="kicker">PUBLIC BY DESIGN / ABOUT 00AI</p>
-        <h2>
-          기술은 새로워도,
-          <br />
-          <em>우리가 향하는 곳은 사람.</em>
-        </h2>
-        <p>
-          완성된 서비스뿐 아니라 실험 과정과 프로토타입도 공개합니다. 00AI는
-          공식 정부 서비스가 아니며, 공공 AI의 실제 활용 방식을 만들고 검증하는
-          독립 실험 플랫폼입니다.
-        </p>
-        <div className="about-repositories"><a href="https://github.com/ImZooMooGwan/00AI" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a href="https://gitlab.aigov.go.kr/00AI" target="_blank" rel="noopener noreferrer">GitLab ↗</a></div>
-      </section>
-      <footer className="new-footer">
-        <a className="brand" href="#top">
-          <span>00</span>AI
-        </a>
-        <p>Public AI Platform · 2026</p>
-        <a href="#top">맨 위로 ↑</a>
+      <footer className="hub-footer">
+        <a className="hub-brand footer-brand" href="#top"><span className="hub-brand-mark">00</span><span>AI<small>PUBLIC WORK TOOLS</small></span></a>
+        <p>00AI는 공공업무 활용 방식을 실험·개발하는 독립 프로젝트입니다.<br />공식 정부 서비스가 아니며, 각 도구의 운영 상태와 이용 조건을 확인해 주세요.</p>
+        <a className="footer-github" href="https://github.com/ImZooMooGwan/00AI" target="_blank" rel="noreferrer">소스 코드 보기 ↗</a>
       </footer>
     </main>
   );

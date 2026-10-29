@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./font-face.css";
-export const metadata: Metadata = { title: "00AI — AI는, 모두의 것.", description: "누구나 쓰고, 함께 만들고, 지역을 바꾸는 공공 AI. 대전시 청년 AI 보편복지 모델과 정책·행정·청년정책 서비스를 만나보세요.", other: { "codex-preview": "development" } };
+export const metadata: Metadata = { title: "00AI — 행정 공공업무 도구", description: "정책 검토, 행정문서 작성, 공공데이터 탐색과 업무 관리를 지원하는 00AI 공공업무 도구 모음입니다." };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="ko"><body>{children}</body></html>; }
