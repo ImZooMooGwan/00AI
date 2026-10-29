@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./admin-hub.css";
 
 type Category = "문서·보고" | "정책·데이터" | "업무지원";
+type ServiceHealth = { ok: boolean; detail: string };
 type Service = {
   code: string;
   title: string;
   category: Category;
-  status: "운영 중" | "실험실";
+  maturity: "서비스" | "실험실";
+  healthKey: string;
   description: string;
   tasks: string[];
   href: string;
@@ -17,21 +19,23 @@ type Service = {
 
 const services: Service[] = [
   {
-    code: "DOCS",
-    title: "00AI DOCS",
+    code: "WORKSPACE",
+    title: "00AI 업무실",
     category: "문서·보고",
-    status: "실험실",
-    description: "공문과 보고서 초안을 작성하고, 문서를 함께 검토합니다.",
-    tasks: ["문서 작성", "공동 편집", "검토·저장"],
+    maturity: "실험실",
+    healthKey: "WORKSPACE",
+    description: "업무폴더를 바탕으로 의회 요구자료와 보고서 초안을 작성합니다.",
+    tasks: ["업무폴더 분석", "요구자료 초안", "결과 다운로드"],
     href: "https://00ai.kr/workspace/",
-    action: "문서 작업 시작",
+    action: "업무실 열기",
   },
   {
     code: "HARNESS",
     title: "00AI Harness",
     category: "문서·보고",
-    status: "실험실",
-    description: "업무 문서에서 근거를 찾고, 요청사항과 확인 항목을 정리합니다.",
+    maturity: "실험실",
+    healthKey: "HARNESS",
+    description: "업무 문서의 근거를 찾아 요청사항과 확인 항목을 정리합니다.",
     tasks: ["문서 검토", "근거 추출", "의회 자료 초안"],
     href: "https://harness.00ai.kr/",
     action: "문서 검토 시작",
@@ -40,17 +44,19 @@ const services: Service[] = [
     code: "GOV AGENT",
     title: "00AI Gov Agent",
     category: "문서·보고",
-    status: "실험실",
-    description: "자료와 도구를 연결해 행정 업무의 조사·작성 과정을 지원합니다.",
-    tasks: ["자료 조사", "업무 계획", "반복 업무 지원"],
+    maturity: "실험실",
+    healthKey: "GOV_AGENT",
+    description: "업무자료는 PC 브라우저에서 처리하며 HASA는 선택해 연결합니다.",
+    tasks: ["로컬 자료 탐색", "보고서 초안", "Word·PDF 저장"],
     href: "https://00ai.kr/gov-agent/",
-    action: "에이전트 열기",
+    action: "로컬 에이전트 열기",
   },
   {
     code: "POLICY",
     title: "AI 정책상황실",
     category: "정책·데이터",
-    status: "운영 중",
+    maturity: "서비스",
+    healthKey: "POLICY",
     description: "법령과 공공데이터를 바탕으로 정책 대안을 살피고 보고자료를 준비합니다.",
     tasks: ["법령·근거 탐색", "정책 대안 검토", "보고자료 초안"],
     href: "https://policy.00ai.kr/",
@@ -60,7 +66,8 @@ const services: Service[] = [
     code: "Y–HUB",
     title: "청년정책 데이터허브",
     category: "정책·데이터",
-    status: "운영 중",
+    maturity: "서비스",
+    healthKey: "YHUB",
     description: "청년정책과 공공데이터를 검색·비교하고 정책 간 관계를 살펴봅니다.",
     tasks: ["정책 검색", "정책 비교", "데이터 탐색"],
     href: "https://yhub.00ai.kr/",
@@ -70,7 +77,8 @@ const services: Service[] = [
     code: "TIME",
     title: "초과근무 알람",
     category: "업무지원",
-    status: "운영 중",
+    maturity: "서비스",
+    healthKey: "TIME",
     description: "시간 알림과 직급별 예상 수당 계산으로 초과근무 시간을 확인합니다.",
     tasks: ["시간 알림", "예상 수당 계산", "누적 시간 확인"],
     href: "https://otgeunmu-check-alarm.nextrunners-6559.chatgpt.site/",
@@ -83,6 +91,27 @@ const categories = ["전체", "문서·보고", "정책·데이터", "업무지�
 export default function Home() {
   const [category, setCategory] = useState<(typeof categories)[number]>("전체");
   const [query, setQuery] = useState("");
+  const [health, setHealth] = useState<Record<string, ServiceHealth>>({});
+  const [healthLoading, setHealthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/services/health", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Service health check failed");
+        return response.json() as Promise<{ services?: Record<string, ServiceHealth> }>;
+      })
+      .then((data) => {
+        if (active) setHealth(data.services ?? {});
+      })
+      .catch(() => {
+        if (active) setHealth({});
+      })
+      .finally(() => {
+        if (active) setHealthLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
   const visibleServices = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("ko-KR");
     return services.filter((service) => {
@@ -134,11 +163,12 @@ export default function Home() {
 
         {visibleServices.length ? <div className="hub-service-grid">
           {visibleServices.map((service, index) => <article className="hub-service-card" key={service.code}>
-            <div className="hub-card-top"><span className="hub-card-code">{service.code}</span><span className={`hub-status ${service.status === "운영 중" ? "is-live" : "is-lab"}`}><i />{service.status}</span></div>
+            <div className="hub-card-top"><span className="hub-card-code">{service.code}</span><span className={`hub-status ${service.maturity === "서비스" ? "is-live" : "is-lab"}`}><i />{service.maturity}</span></div>
             <div className="hub-card-title-row"><span className="hub-card-number">{String(index + 1).padStart(2, "0")}</span><span className="hub-category">{service.category}</span></div>
             <h3>{service.title}</h3>
             <p className="hub-card-description">{service.description}</p>
             <ul className="hub-task-list">{service.tasks.map((task) => <li key={task}>{task}</li>)}</ul>
+            <div className={`hub-health ${healthLoading ? "is-checking" : health[service.healthKey]?.ok ? "is-ready" : "is-failed"}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{healthLoading ? "서비스 연결 확인 중" : health[service.healthKey]?.detail ?? "연결 상태를 확인할 수 없습니다."}</span></div>
             <a className="hub-card-action" href={service.href} target="_blank" rel="noreferrer"><span>{service.action}</span><span aria-hidden="true">↗</span></a>
           </article>)}
         </div> : <div className="hub-empty"><strong>검색 결과가 없습니다.</strong><p>다른 업무 표현으로 검색하거나 분야를 바꿔보세요.</p></div>}
