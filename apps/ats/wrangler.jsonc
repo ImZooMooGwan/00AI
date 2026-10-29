@@ -9,6 +9,6 @@
   "kv_namespaces":[{"binding":"RESUME_FILES","id":"70cac7c94da14839a04872801bf32863"}],
   "queues":{"producers":[{"binding":"EMAIL_QUEUE","queue":"00ai-ats-email"}],"consumers":[{"queue":"00ai-ats-email","max_batch_size":10,"max_retries":5,"dead_letter_queue":"00ai-ats-email-dlq"}]},
   "triggers":{"crons":["* * * * *"]},
-  "vars":{"EMAIL_FROM_NAME":"채용팀","EMAIL_FROM_ADDRESS":"recruit@example.com","HASA_BASE_URL":"","DEMO_MODE":"false"},
+  "vars":{"EMAIL_FROM_NAME":"채용팀","EMAIL_FROM_ADDRESS":"no-reply@00ai.kr","HASA_BASE_URL":"https://open.hasa.re.kr","DEMO_MODE":"false"},
   "observability":{"enabled":true}
 }
