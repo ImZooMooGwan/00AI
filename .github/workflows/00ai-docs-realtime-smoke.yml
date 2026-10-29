@@ -1,0 +1,33 @@
+name: 00AI DOCS Live Realtime Smoke Test
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/00ai-docs-realtime-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check live rich editor shell and assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request
+          root="https://docs.00ai.kr"
+          paths=[
+            ("/realtime-app/","text/html","<div id=\"root\">"),
+            ("/realtime-app/assets/index-CVKnn5b-.js","javascript","sourceMappingURL"),
+            ("/realtime-app/assets/index-Ne1RMaRW.css","text/css","doc-editor")
+          ]
+          for path,content_type,marker in paths:
+            with urllib.request.urlopen(root+path,timeout=25) as res:
+              body=res.read().decode("utf-8")
+              mime=res.headers.get("Content-Type","")
+              assert res.status==200,(path,res.status)
+              assert content_type in mime,(path,mime)
+              assert marker in body,(path,"missing marker")
+              print("PASS",path,len(body),"bytes",mime)
+          PY
