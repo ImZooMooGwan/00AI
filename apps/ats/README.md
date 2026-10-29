@@ -1,6 +1,6 @@
 # 00AI ATS
 
-사내 채용담당자용 ATS 초기 운영 베이스. React/Vite 프런트엔드와 Cloudflare Worker API, D1, R2, Queues, Cron, Access, Email Service 구성을 제공합니다.
+사내 채용담당자용 ATS 초기 운영 베이스. React/Vite 프런트엔드와 Cloudflare Worker API, D1, Workers KV 파일 저장, Queues, Cron, Access 구성을 제공합니다.
 
 ## 실행
 
@@ -23,7 +23,7 @@ npx wrangler deploy --dry-run --config dist/00ai_ats/wrangler.json
 ## Cloudflare 배포
 
 1. Cloudflare 인증을 가진 관리 PC에서 `npx wrangler login`을 실행합니다.
-2. 리소스를 생성합니다: D1 `00ai-ats`, R2 `00ai-ats-resumes`, Queue `00ai-ats-email`, DLQ `00ai-ats-email-dlq`. 현재 연결된 Cloudflare 계정은 R2를 먼저 대시보드에서 활성화해야 합니다.
+2. 리소스를 생성합니다: D1 `00ai-ats`, Workers KV `00ai-ats-resumes`, Queue `00ai-ats-email`을 생성합니다. 이력서 최대 크기는 10 MB이며 Workers KV Free 한도는 계정 기준 1 GB입니다.
 3. D1 실제 ID를 `wrangler.jsonc`의 database_id에 입력합니다.
 4. `wrangler d1 migrations apply 00ai-ats --remote`로 스키마를 적용합니다.
 5. Access application을 만들어 사이트 경로 전체를 보호하고 `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`를 vars에 설정합니다. 별도 Access 설정 전에는 Worker secrets `ATS_ACCESS_PASSWORD`, `ATS_SESSION_SECRET`을 설정해 로그인합니다.
@@ -35,6 +35,6 @@ npx wrangler deploy --dry-run --config dist/00ai_ats/wrangler.json
 
 ## 기능 범위와 제한
 
-현재 구현: 반응형 칸반, 검색/포지션 필터, 카드 상세 drawer, 중복 이메일 후보자 재사용을 포함한 신규 지원건 등록, 단계 이동 및 Undo, D1 상태 이력/낙관적 동시성, 10분 지연 거절 이메일 예약/취소/중복 claim 방지, R2 파일 저장 경로, Access JWT 또는 공유 비밀번호 세션 검증, HASA 서버 프록시. 실제 발송에는 Email binding 및 발신 도메인 설정이 필요합니다.
+현재 구현: 반응형 칸반, 검색/포지션 필터, 카드 상세 drawer, 중복 이메일 후보자 재사용을 포함한 신규 지원건 등록, 단계 이동 및 Undo, D1 상태 이력/낙관적 동시성, 10분 지연 거절 이메일 예약/취소/중복 claim 방지, Workers KV/R2 파일 저장 경로, Access JWT 또는 공유 비밀번호 세션 검증, HASA 서버 프록시. 실제 발송에는 Email binding 및 발신 도메인 설정이 필요합니다.
 
 운영 베타 전 추가 구현이 필요한 항목: 평가/면접 CRUD 화면과 API, 대량 XLSX/CSV 등록, 이력서 브라우저 미리보기/문서 파싱, 이메일 템플릿 편집 및 수동 재시도·취소 UI, 사용자 초대/역할 관리 UI, 활동 기록 화면, 웹훅 기반 전달/반송 상태 반영, 개인정보 파기 및 보존 작업, 실제 HASA 규격 검증. 이 항목들은 완료된 것으로 표시하지 않습니다.
