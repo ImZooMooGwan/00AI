@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/collab.test.mjs"
   },
   "dependencies": {
     "@tiptap/react": "^3.0.0",
