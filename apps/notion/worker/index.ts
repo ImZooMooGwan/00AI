@@ -403,7 +403,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if(pageDatabase&&method==='GET'){
     const pageId=decodeURIComponent(pageDatabase[1]),record=await accessFor(env,user,pageId);
     if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
-    const database=await env.DB.prepare('SELECT id,page_id,title,view_type,created_at,updated_at FROM databases WHERE page_id=?').bind(pageId).first<{id:string;page_id:string;title:string;view_type:string;created_at:string;updated_at:string}>();
+    const database=await env.DB.prepare('SELECT id,page_id,title,CASE WHEN calendar_view=1 THEN \'calendar\' ELSE view_type END AS view_type,created_at,updated_at FROM databases WHERE page_id=?').bind(pageId).first<{id:string;page_id:string;title:string;view_type:string;created_at:string;updated_at:string}>();
     if(!database)return json({database:null,rows:[]});
     const rows=await env.DB.prepare('SELECT id,title,status,assignee,due_date,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all();
     return json({database,rows:rows.results});
@@ -423,8 +423,8 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const databaseId=decodeURIComponent(databaseMatch[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
     if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'데이터베이스 수정 권한이 없습니다.'},403);
-    const body=await request.json<{title?:string;view_type?:string}>(),title=clean(body.title,120)||'업무 목록',viewType=body.view_type==='board'?'board':'table';
-    await env.DB.prepare('UPDATE databases SET title=?,view_type=?,updated_at=? WHERE id=?').bind(title,viewType,now(),databaseId).run();
+    const body=await request.json<{title?:string;view_type?:string}>(),title=clean(body.title,120)||'업무 목록',calendarView=body.view_type==='calendar'?1:0,viewType=body.view_type==='board'?'board':'table';
+    await env.DB.prepare('UPDATE databases SET title=?,view_type=?,calendar_view=?,updated_at=? WHERE id=?').bind(title,viewType,calendarView,now(),databaseId).run();
     return json({ok:true});
   }
   const databaseRows=path.match(/^\/databases\/([^/]+)\/rows$/);
