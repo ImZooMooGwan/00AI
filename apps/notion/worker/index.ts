@@ -269,6 +269,17 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     await env.DB.prepare('INSERT INTO page_visits(user_id,page_id,visited_at) VALUES(?,?,?) ON CONFLICT(user_id,page_id) DO UPDATE SET visited_at=excluded.visited_at').bind(user.id,pageId,now()).run();
     return json({ok:true});
   }
+  const pageMove=path.match(/^\/pages\/([^/]+)\/move$/);
+  if(pageMove&&method==='PATCH'){
+    const pageId=decodeURIComponent(pageMove[1]),page=await env.DB.prepare('SELECT id,workspace_id FROM pages WHERE id=? AND archived_at IS NULL').bind(pageId).first<{id:string;workspace_id:string}>();
+    if(!page)return json({error:'페이지를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,pageId);if(!record||!canWrite(record.access))return json({error:'페이지를 이동할 권한이 없습니다.'},403);
+    const body=await request.json<{parentId?:string|null}>(),parentId=body.parentId?clean(body.parentId,60):null;
+    if(parentId===pageId)return json({error:'페이지를 자기 자신 아래로 이동할 수 없습니다.'},400);
+    if(parentId){const parent=await accessFor(env,user,parentId);if(!parent||parent.page.workspace_id!==page.workspace_id||!canWrite(parent.access))return json({error:'같은 워크스페이스에서 편집 가능한 상위 페이지를 선택해 주세요.'},403);let cursor:string|null=parentId;const seen=new Set<string>();for(let i=0;i<500&&cursor;i++){if(cursor===pageId)return json({error:'하위 페이지를 상위 페이지로 지정할 수 없습니다.'},400);if(seen.has(cursor))break;seen.add(cursor);cursor=await env.DB.prepare('SELECT parent_id FROM pages WHERE id=? AND workspace_id=? AND archived_at IS NULL').bind(cursor,page.workspace_id).first<{parent_id:string|null}>().then(row=>row?.parent_id||null);}}
+    await env.DB.prepare('UPDATE pages SET parent_id=?,updated_at=? WHERE id=?').bind(parentId,now(),pageId).run();
+    await audit(env,user,page.workspace_id,'PAGE_MOVED','page',pageId);return json({ok:true,parentId});
+  }
   const favoriteMatch=path.match(/^\/pages\/([^/]+)\/favorite$/);
   if(favoriteMatch&&(method==='POST'||method==='DELETE')){
     const pageId=decodeURIComponent(favoriteMatch[1]),record=await accessFor(env,user,pageId);
