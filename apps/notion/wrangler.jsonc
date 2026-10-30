@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "00ai-notion",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "d1_databases": [{ "binding": "DB", "database_name": "00ai-notion", "database_id": "583a5f29-d086-4fc0-abc8-68d65a61df74", "migrations_dir": "migrations" }],
+  "durable_objects": { "bindings": [{ "name": "DOC_ROOM", "class_name": "DocumentRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DocumentRoom"] }],
+  "routes": [{ "pattern": "notion.00ai.kr/*", "zone_name": "00ai.kr" }],
+  "vars": { "SIGNUP_ENABLED": "true", "MAIL_FROM": "00AI WORKSPACE <no-reply@00ai.kr>", "HASA_BASE_URL": "https://open.hasa.re.kr", "HASA_MODEL": "exaone-4.0-32b" },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
