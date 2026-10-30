@@ -417,7 +417,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const database=await env.DB.prepare('SELECT id,page_id,title,CASE WHEN calendar_view=1 THEN \'calendar\' ELSE view_type END AS view_type,created_at,updated_at FROM databases WHERE page_id=?').bind(pageId).first<{id:string;page_id:string;title:string;view_type:string;created_at:string;updated_at:string}>();
     if(!database)return json({database:null,rows:[],views:[]});
     const [rows,views]=await Promise.all([
-      env.DB.prepare('SELECT id,title,status,assignee,due_date,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
+      env.DB.prepare('SELECT id,title,status,assignee,due_date,priority,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
       env.DB.prepare('SELECT id,database_id,name,view_type,status_filter,sort_by,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY created_at').bind(database.id).all(),
     ]);
     return json({database,rows:rows.results,views:views.results});
@@ -468,19 +468,19 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const databaseId=decodeURIComponent(databaseRows[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
     if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'항목을 추가할 권한이 없습니다.'},403);
-    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:'할 일';
+    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string;priority?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:'할 일',priority=['긴급','높음','보통','낮음'].includes(body.priority||'')?body.priority!:'보통';
     const rowId=id(),at=now(),position=(await env.DB.prepare('SELECT COALESCE(MAX(position),-1)+1 AS next FROM database_rows WHERE database_id=?').bind(databaseId).first<{next:number}>())?.next||0;
-    await env.DB.prepare('INSERT INTO database_rows(id,database_id,title,status,assignee,due_date,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(rowId,databaseId,clean(body.title,200)||'새 항목',status,clean(body.assignee,120),clean(body.due_date,20),position,at,at).run();
+    await env.DB.prepare('INSERT INTO database_rows(id,database_id,title,status,assignee,due_date,priority,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(rowId,databaseId,clean(body.title,200)||'새 항목',status,clean(body.assignee,120),clean(body.due_date,20),priority,position,at,at).run();
     return json({ok:true,id:rowId},201);
   }
   const databaseRow=path.match(/^\/database-rows\/([^/]+)$/);
   if(databaseRow&&(method==='PATCH'||method==='DELETE')){
-    const rowId=decodeURIComponent(databaseRow[1]),row=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id,r.title,r.status,r.assignee,r.due_date FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(rowId).first<{database_id:string;page_id:string;workspace_id:string;title:string;status:string;assignee:string;due_date:string}>();
+    const rowId=decodeURIComponent(databaseRow[1]),row=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id,r.title,r.status,r.assignee,r.due_date,r.priority FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(rowId).first<{database_id:string;page_id:string;workspace_id:string;title:string;status:string;assignee:string;due_date:string;priority:string}>();
     if(!row)return json({error:'항목을 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,row.page_id);if(!record||!canWrite(record.access))return json({error:'항목을 수정할 권한이 없습니다.'},403);
     if(method==='DELETE'){await env.DB.prepare('DELETE FROM database_rows WHERE id=?').bind(rowId).run();return json({ok:true});}
-    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:row.status;
-    await env.DB.prepare('UPDATE database_rows SET title=?,status=?,assignee=?,due_date=?,updated_at=? WHERE id=?').bind(clean(body.title,200)||row.title,status,body.assignee===undefined?row.assignee:clean(body.assignee,120),body.due_date===undefined?row.due_date:clean(body.due_date,20),now(),rowId).run();
+    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string;priority?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:row.status,priority=['긴급','높음','보통','낮음'].includes(body.priority||'')?body.priority!:row.priority;
+    await env.DB.prepare('UPDATE database_rows SET title=?,status=?,assignee=?,due_date=?,priority=?,updated_at=? WHERE id=?').bind(clean(body.title,200)||row.title,status,body.assignee===undefined?row.assignee:clean(body.assignee,120),body.due_date===undefined?row.due_date:clean(body.due_date,20),priority,now(),rowId).run();
     return json({ok:true});
   }
   const commentMatch=path.match(/^\/pages\/([^/]+)\/comments$/);
