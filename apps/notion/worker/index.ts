@@ -208,6 +208,13 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if (method === 'GET' && path === '/me') return user ? json({user:{id:user.id,email:user.email,display_name:user.display_name,name:user.display_name}}) : json({user:null},401);
   if (!user) return json({error:'로그인이 필요합니다.'},401);
 
+  if(method==='PATCH'&&path==='/profile'){
+    const body=await request.json<{displayName?:string}>(),displayName=clean(body.displayName,80);
+    if(displayName.length<2)return json({error:'표시 이름은 두 글자 이상 입력해 주세요.'},400);
+    await env.DB.prepare('UPDATE users SET display_name=?,last_seen_at=? WHERE id=?').bind(displayName,now(),user.id).run();
+    return json({ok:true,user:{id:user.id,email:user.email,display_name:displayName}});
+  }
+
   if (method === 'GET' && path === '/workspaces') {
     const result = await env.DB.prepare('SELECT w.id,w.name,w.slug,wm.role FROM workspaces w JOIN workspace_members wm ON wm.workspace_id=w.id WHERE wm.user_id=? ORDER BY w.created_at').bind(user.id).all();
     return json({items:result.results});
