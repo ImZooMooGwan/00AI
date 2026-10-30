@@ -206,6 +206,10 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   }
   if (method === 'POST' && path === '/auth/logout') return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':'00ai_notion=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'}});
   if (method === 'GET' && path === '/me') return user ? json({user:{id:user.id,email:user.email,display_name:user.display_name,name:user.display_name}}) : json({user:null},401);
+  if(method==='GET'&&path==='/templates'){
+    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
+    return json({items:result.results});
+  }
   if (!user) return json({error:'로그인이 필요합니다.'},401);
 
   if(method==='PATCH'&&path==='/profile'){
@@ -325,10 +329,6 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(!template)return json({error:'공개 템플릿을 찾을 수 없습니다.'},404);
     const body=await request.json<{reason?:string}>(),reason=clean(body.reason,500);if(!reason)return json({error:'신고 사유를 입력해 주세요.'},400);
     await env.DB.prepare('INSERT INTO template_reports(id,template_id,reporter_id,reason,created_at) VALUES(?,?,?,?,?)').bind(id(),templateId,user.id,reason,now()).run();return json({ok:true},201);
-  }
-  if (method === 'GET' && path === '/templates') {
-    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
-    return json({items:result.results});
   }
   const starterMatch=path.match(/^\/pages\/([^/]+)\/starter$/);
   if(method==='POST'&&starterMatch){
