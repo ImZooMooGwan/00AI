@@ -505,9 +505,19 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     await audit(env,user,record.page.workspace_id,'COMMENT_ADDED','page',pageId);
     return json({ok:true,id:commentId,createdAt:at,notified:mentioned.length},201);
   }
+  if(path==='/notification-preferences'&&method==='GET'){
+    await env.DB.prepare('INSERT OR IGNORE INTO notification_preferences(user_id,updated_at) VALUES(?,?)').bind(user.id,now()).run();
+    const preferences=await env.DB.prepare('SELECT mentions_enabled,page_shares_enabled FROM notification_preferences WHERE user_id=?').bind(user.id).first<{mentions_enabled:number;page_shares_enabled:number}>();
+    return json({mentions:Boolean(preferences?.mentions_enabled),pageShares:Boolean(preferences?.page_shares_enabled)});
+  }
+  if(path==='/notification-preferences'&&method==='PATCH'){
+    const body=await request.json<{mentions?:boolean;pageShares?:boolean}>();
+    await env.DB.prepare('INSERT INTO notification_preferences(user_id,mentions_enabled,page_shares_enabled,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET mentions_enabled=excluded.mentions_enabled,page_shares_enabled=excluded.page_shares_enabled,updated_at=excluded.updated_at').bind(user.id,body.mentions===false?0:1,body.pageShares===false?0:1,now()).run();
+    return json({ok:true});
+  }
   if(method==='GET'&&path==='/notifications'){
-    const rows=await env.DB.prepare('SELECT n.id,n.workspace_id,n.page_id,n.comment_id,n.kind,n.body,n.created_at,n.read_at,p.title AS page_title,u.display_name AS actor_name,u.email AS actor_email FROM notifications n JOIN pages p ON p.id=n.page_id JOIN users u ON u.id=n.actor_id LEFT JOIN workspace_members wm ON wm.workspace_id=n.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=n.page_id AND pm.user_id=? WHERE n.user_id=? AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY n.created_at DESC LIMIT 100').bind(user.id,user.id,user.id).all();
-    const unread=await env.DB.prepare('SELECT COUNT(*) AS count FROM notifications WHERE user_id=? AND read_at IS NULL').bind(user.id).first<{count:number}>();
+    const rows=await env.DB.prepare("SELECT n.id,n.workspace_id,n.page_id,n.comment_id,n.kind,n.body,n.created_at,n.read_at,p.title AS page_title,u.display_name AS actor_name,u.email AS actor_email FROM notifications n JOIN pages p ON p.id=n.page_id JOIN users u ON u.id=n.actor_id LEFT JOIN workspace_members wm ON wm.workspace_id=n.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=n.page_id AND pm.user_id=? LEFT JOIN notification_preferences pref ON pref.user_id=n.user_id WHERE n.user_id=? AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) AND (n.kind!='mention' OR COALESCE(pref.mentions_enabled,1)=1) AND (n.kind!='page_share' OR COALESCE(pref.page_shares_enabled,1)=1) ORDER BY n.created_at DESC LIMIT 100").bind(user.id,user.id,user.id).all();
+    const unread=await env.DB.prepare("SELECT COUNT(*) AS count FROM notifications n LEFT JOIN notification_preferences pref ON pref.user_id=n.user_id WHERE n.user_id=? AND n.read_at IS NULL AND (n.kind!='mention' OR COALESCE(pref.mentions_enabled,1)=1) AND (n.kind!='page_share' OR COALESCE(pref.page_shares_enabled,1)=1)").bind(user.id).first<{count:number}>();
     return json({items:rows.results,unread:unread?.count||0});
   }
   const notificationRead=path.match(/^\/notifications\/([^/]+)\/read$/);
