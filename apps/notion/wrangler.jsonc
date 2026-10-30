@@ -13,6 +13,6 @@
     { "binding": "BREVO_API_KEY", "store_id": "6be7f6264e3a439d88a94a74c3ce1217", "secret_name": "BREVO_API_KEY" },
     { "binding": "HASA_API_KEY", "store_id": "6be7f6264e3a439d88a94a74c3ce1217", "secret_name": "HASA_API_KEY" }
   ],
-  "vars": { "SIGNUP_ENABLED": "true", "MAIL_FROM": "00AI WORKSPACE <no-reply@00ai.kr>", "HASA_BASE_URL": "https://open.hasa.re.kr", "HASA_MODEL": "exaone-4.0-32b" },
+  "vars": { "SIGNUP_ENABLED": "true", "ALLOWED_EMAIL_DOMAINS": "korea.kr", "MAIL_FROM": "00AI WORKSPACE <no-reply@00ai.kr>", "HASA_BASE_URL": "https://open.hasa.re.kr", "HASA_MODEL": "exaone-4.0-32b" },
   "observability": { "enabled": true, "head_sampling_rate": 1 }
 }

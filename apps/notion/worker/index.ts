@@ -14,6 +14,7 @@ export interface Env {
   EMAIL_FROM_ADDRESS?: string;
   EMAIL_FROM_NAME?: string;
   SIGNUP_ENABLED?: string;
+  ALLOWED_EMAIL_DOMAINS?: string;
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
 }
@@ -35,6 +36,14 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 const clean = (value: unknown, max = 200) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max);
 const emailPattern = /^[^\s@]{1,100}@[^\s@.]{1,100}(?:\.[^\s@.]{1,24})+$/;
+
+function allowedEmailDomain(env: Env, email: string) {
+  const configured=allowedEmailDomains(env);
+  const domain=email.slice(email.lastIndexOf('@')+1).toLowerCase();
+  return configured.includes(domain);
+}
+function allowedEmailDomains(env: Env) { return (env.ALLOWED_EMAIL_DOMAINS||'korea.kr').split(',').map(domain=>domain.trim().toLowerCase().replace(/^@/, '')).filter(Boolean); }
+function emailDomainError(env: Env) { return `허용된 기관 이메일 도메인(${allowedEmailDomains(env).join(', ')})로만 로그인할 수 있습니다.`; }
 
 async function hmac(secret: string, value: string) {
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -180,6 +189,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const body = await request.json<{email?:string}>();
     const email = clean(body.email,180).toLowerCase();
     if (!emailPattern.test(email)) return json({ error: '이메일 주소를 확인해 주세요.' }, 400);
+    if (!allowedEmailDomain(env,email)) return json({error:emailDomainError(env)},403);
     const secret = await sessionSecret(env);
     if (!await resolveSecret(env.BREVO_API_KEY)) return json({ error: '이메일 발송 설정을 확인 중입니다. 잠시 후 다시 시도해 주세요.' }, 503);
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
@@ -202,6 +212,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const body = await request.json<{email?:string;code?:string;name?:string}>();
     const email = clean(body.email,180).toLowerCase(), code = clean(body.code,6);
     if (!emailPattern.test(email) || !/^\d{6}$/.test(code)) return json({error:'이메일 또는 코드를 확인해 주세요.'},400);
+    if (!allowedEmailDomain(env,email)) return json({error:emailDomainError(env)},403);
     const record = await env.DB.prepare('SELECT code_hash,expires_at,attempts FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).first<{code_hash:string;expires_at:number;attempts:number}>();
     if (!record || record.expires_at < Date.now() || record.attempts >= 5) return json({error:'코드가 만료되었거나 입력 횟수를 초과했습니다. 새 코드를 요청해 주세요.'},401);
     const actual = await hmac(await sessionSecret(env),`${email}:${code}`);
@@ -218,7 +229,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if (method === 'POST' && path === '/auth/logout') return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':'00ai_notion=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'}});
   if (method === 'GET' && path === '/me') return user ? json({user:{id:user.id,email:user.email,display_name:user.display_name,name:user.display_name}}) : json({user:null},401);
   if(method==='GET'&&path==='/templates'){
-    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
+    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,t.created_at,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
     return json({items:result.results});
   }
   if (!user) return json({error:'로그인이 필요합니다.'},401);
