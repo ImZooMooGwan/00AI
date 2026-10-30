@@ -7,8 +7,8 @@ export interface Env {
   ASSETS: Fetcher;
   DOC_ROOM: DurableObjectNamespace<DocumentRoom>;
   SESSION_SECRET?: string;
-  BREVO_API_KEY?: string;
-  HASA_API_KEY?: string;
+  BREVO_API_KEY?: SecretsStoreSecret | string;
+  HASA_API_KEY?: SecretsStoreSecret | string;
   HASA_BASE_URL?: string;
   HASA_MODEL?: string;
   EMAIL_FROM_ADDRESS?: string;
@@ -23,6 +23,11 @@ type Access = { role: 'owner' | 'admin' | 'member' | 'guest' | 'editor' | 'comme
 
 const encoder = new TextEncoder();
 const now = () => new Date().toISOString();
+async function resolveSecret(value?: SecretsStoreSecret | string): Promise<string | undefined> {
+  if (typeof value === 'string') return value;
+  if (!value) return undefined;
+  try { return await value.get(); } catch { return undefined; }
+}
 const id = () => crypto.randomUUID();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -133,10 +138,11 @@ function originAllowed(request: Request) {
 }
 
 async function sendLoginCode(env: Env, email: string, code: string) {
-  if (!env.BREVO_API_KEY) throw new Error('EMAIL_NOT_CONFIGURED');
+  const apiKey = await resolveSecret(env.BREVO_API_KEY);
+  if (!apiKey) throw new Error('EMAIL_NOT_CONFIGURED');
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
-    headers: { 'api-key': env.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+    headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
       sender: { email: env.EMAIL_FROM_ADDRESS || 'no-reply@00ai.kr', name: env.EMAIL_FROM_NAME || '00AI WORKSPACE' },
       to: [{ email }],
@@ -153,7 +159,10 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   const path = url.pathname.replace(/^\/api/, '');
   const method = request.method;
 
-  if (method === 'GET' && path === '/health') return json({ ok: true, app: '00AI WORKSPACE', auth: Boolean(env.BREVO_API_KEY), ai: Boolean(env.HASA_API_KEY), database: true, realtime: true });
+  if (method === 'GET' && path === '/health') {
+    const [mailKey, aiKey] = await Promise.all([resolveSecret(env.BREVO_API_KEY), resolveSecret(env.HASA_API_KEY)]);
+    return json({ ok: true, app: '00AI WORKSPACE', auth: Boolean(mailKey), ai: Boolean(aiKey), database: true, realtime: true });
+  }
 
   if (method === 'POST' && path === '/auth/request-code') {
     if (!originAllowed(request)) return json({ error: '허용되지 않은 요청입니다.' }, 403);
@@ -161,7 +170,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const email = clean(body.email,180).toLowerCase();
     if (!emailPattern.test(email)) return json({ error: '이메일 주소를 확인해 주세요.' }, 400);
     const secret = await sessionSecret(env);
-    if (!env.BREVO_API_KEY) return json({ error: '이메일 발송 설정을 확인 중입니다. 잠시 후 다시 시도해 주세요.' }, 503);
+    if (!await resolveSecret(env.BREVO_API_KEY)) return json({ error: '이메일 발송 설정을 확인 중입니다. 잠시 후 다시 시도해 주세요.' }, 503);
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
     const fingerprint = await hmac(secret, `otp-ip:${ip}`);
     const rate = await env.DB.prepare('SELECT window_started,count FROM email_rate_limits WHERE fingerprint=?').bind(fingerprint).first<{window_started:number;count:number}>();
@@ -334,13 +343,14 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     return env.DOC_ROOM.getByName(pageId).fetch(new Request('https://notion-internal/collab',{headers}));
   }
   if(method==='POST'&&path==='/ai/assist'){
-    if(!env.HASA_API_KEY)return json({error:'AI 연결 설정이 아직 준비되지 않았습니다.'},503);
+    const aiKey=await resolveSecret(env.HASA_API_KEY);
+    if(!aiKey)return json({error:'AI 연결 설정이 아직 준비되지 않았습니다.'},503);
     const body=await request.json<{action?:string;text?:string}>(),text=clean(body.text,12000),action=clean(body.action,40);
     if(!text)return json({error:'AI 작업에 사용할 텍스트를 선택해 주세요.'},400);
     const actions:Record<string,string>={summarize:'핵심 내용을 간결하게 요약해 주세요.',polish:'의미를 유지하면서 명확하고 자연스럽게 다듬어 주세요.',tasks:'합의된 후속 업무를 담당자와 기한이 확인되는 범위에서 목록으로 정리해 주세요.',translate:'한국어로 자연스럽게 번역해 주세요.'};
     const instruction=actions[action]||actions.polish;
     const base=(env.HASA_BASE_URL||'https://open.hasa.re.kr').replace(/\/$/,'');
-    const response=await fetch(`${base}/v1/chat/completions`,{method:'POST',headers:{authorization:`Bearer ${env.HASA_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:env.HASA_MODEL||'exaone-4.0-32b',messages:[{role:'system',content:`너는 사용자가 선택한 문서 일부를 돕는 한국어 문서 보조자다. 선택한 텍스트 밖의 사실을 지어내지 말고, 원문을 자동 저장하지 않는다. ${instruction}`},{role:'user',content:text}],temperature:0.2})});
+    const response=await fetch(`${base}/v1/chat/completions`,{method:'POST',headers:{authorization:`Bearer ${aiKey}`,'content-type':'application/json'},body:JSON.stringify({model:env.HASA_MODEL||'exaone-4.0-32b',messages:[{role:'system',content:`너는 사용자가 선택한 문서 일부를 돕는 한국어 문서 보조자다. 선택한 텍스트 밖의 사실을 지어내지 말고, 원문을 자동 저장하지 않는다. ${instruction}`},{role:'user',content:text}],temperature:0.2})});
     if(!response.ok)return json({error:'AI 요청을 처리하지 못했습니다.'},502);
     const result=await response.json<{choices?:Array<{message?:{content?:string}}>}>();
     return json({text:result.choices?.[0]?.message?.content||''});
