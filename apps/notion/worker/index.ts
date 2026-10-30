@@ -274,17 +274,53 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const pageId=id(),at=now(),title=clean(body.title,200)||'새 페이지',icon=clean(body.icon,8)||'📄';
     let starterJson:string|null=null;
     if (body.templateId) {
-      const template=await env.DB.prepare("SELECT blocks_json FROM templates WHERE id=? AND visibility='public'").bind(clean(body.templateId,100)).first<{blocks_json:string}>();
+      const template=await env.DB.prepare("SELECT blocks_json FROM templates WHERE id=? AND visibility='public' AND review_status='published'").bind(clean(body.templateId,100)).first<{blocks_json:string}>();
       if (!template) return json({error:'템플릿을 찾을 수 없습니다.'},404);
       starterJson=template.blocks_json;
+      await env.DB.prepare('UPDATE templates SET copy_count=copy_count+1 WHERE id=?').bind(body.templateId).run();
       await env.DB.prepare('INSERT INTO audit_log(id,workspace_id,actor_id,action,resource_type,resource_id,created_at) VALUES(?,?,?,?,?,?,?)').bind(id(),workspaceId,user.id,'TEMPLATE_COPIED','template',body.templateId,at).run();
     }
     await env.DB.prepare('INSERT INTO pages(id,workspace_id,parent_id,title,icon,created_by,created_at,updated_at,starter_json) VALUES(?,?,?,?,?,?,?,?,?)').bind(pageId,workspaceId,parentId,title,icon,user.id,at,at,starterJson).run();
     await audit(env,user,workspaceId,'PAGE_CREATED','page',pageId);
     return json({ok:true,id:pageId},201);
   }
+  if(method==='GET'&&path==='/templates/mine'){
+    const result=await env.DB.prepare("SELECT id,title,description,category,icon,license,source_name,source_url,review_status,version,copy_count,visibility FROM templates WHERE owner_id=? ORDER BY updated_at DESC").bind(user.id).all();
+    return json({items:result.results});
+  }
+  if(method==='POST'&&path==='/templates'){
+    const body=await request.json<{title?:string;description?:string;category?:string;icon?:string;license?:string;sourceName?:string;sourceUrl?:string;blocks?:unknown;publish?:boolean}>();
+    const title=clean(body.title,120),description=clean(body.description,500),category=clean(body.category,60)||'기타',license=clean(body.license,80),sourceName=clean(body.sourceName,120),sourceUrl=clean(body.sourceUrl,500);
+    if(!title||!description||!sourceName||!license||!body.blocks||typeof body.blocks!=='object')return json({error:'제목, 설명, 작성자/출처, 이용조건과 문서 내용은 필수입니다.'},400);
+    let blocks:string;try{blocks=JSON.stringify(body.blocks);}catch{return json({error:'문서 내용을 읽을 수 없습니다.'},400);}
+    if(blocks.length>350_000)return json({error:'템플릿 내용이 너무 큽니다.'},413);
+    if(sourceUrl&&!/^https:\/\//i.test(sourceUrl))return json({error:'출처 URL은 https 주소를 입력해 주세요.'},400);
+    const templateId=id(),at=now(),publish=body.publish===true;
+    await env.DB.prepare('INSERT INTO templates(id,title,description,category,icon,visibility,license,blocks_json,created_at,updated_at,owner_id,source_name,source_url,review_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,at,at,user.id,sourceName,sourceUrl,publish?'published':'pending').run();
+    return json({ok:true,id:templateId,review_status:publish?'published':'pending'},201);
+  }
+  const templateMatch=path.match(/^\/templates\/([^/]+)$/);
+  if(templateMatch&&method==='PATCH'){
+    const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
+    if(!current)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(current.owner_id!==user.id)return json({error:'작성한 템플릿만 수정할 수 있습니다.'},403);
+    const body=await request.json<{title?:string;description?:string;category?:string;visibility?:string}>(),visibility=['public','private','unlisted'].includes(body.visibility||'')?body.visibility!:'private';
+    await env.DB.prepare('UPDATE templates SET title=?,description=?,category=?,visibility=?,review_status=CASE WHEN ?=\'public\' THEN \'published\' ELSE review_status END,version=version+1,updated_at=? WHERE id=?').bind(clean(body.title,120)||'템플릿',clean(body.description,500),clean(body.category,60)||'기타',visibility,visibility,now(),templateId).run();
+    return json({ok:true});
+  }
+  if(templateMatch&&method==='DELETE'){
+    const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
+    if(!current)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(current.owner_id!==user.id)return json({error:'작성한 템플릿만 삭제할 수 있습니다.'},403);
+    await env.DB.prepare('DELETE FROM templates WHERE id=?').bind(templateId).run();return json({ok:true});
+  }
+  const templateReport=path.match(/^\/templates\/([^/]+)\/reports$/);
+  if(templateReport&&method==='POST'){
+    const templateId=decodeURIComponent(templateReport[1]),template=await env.DB.prepare("SELECT id FROM templates WHERE id=? AND visibility='public' AND review_status='published'").bind(templateId).first();
+    if(!template)return json({error:'공개 템플릿을 찾을 수 없습니다.'},404);
+    const body=await request.json<{reason?:string}>(),reason=clean(body.reason,500);if(!reason)return json({error:'신고 사유를 입력해 주세요.'},400);
+    await env.DB.prepare('INSERT INTO template_reports(id,template_id,reporter_id,reason,created_at) VALUES(?,?,?,?,?)').bind(id(),templateId,user.id,reason,now()).run();return json({ok:true},201);
+  }
   if (method === 'GET' && path === '/templates') {
-    const result=await env.DB.prepare("SELECT id,title,description,category,icon,license FROM templates WHERE visibility='public' ORDER BY category,title").all();
+    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
     return json({items:result.results});
   }
   const starterMatch=path.match(/^\/pages\/([^/]+)\/starter$/);
