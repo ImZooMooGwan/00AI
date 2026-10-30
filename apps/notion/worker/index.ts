@@ -6,7 +6,7 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   DOC_ROOM: DurableObjectNamespace<DocumentRoom>;
-  SESSION_SECRET: string;
+  SESSION_SECRET?: string;
   BREVO_API_KEY?: string;
   HASA_API_KEY?: string;
   HASA_BASE_URL?: string;
@@ -36,13 +36,21 @@ async function hmac(secret: string, value: string) {
   const bytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(value)));
   return btoa(String.fromCharCode(...bytes)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
+async function sessionSecret(env: Env) {
+  if (env.SESSION_SECRET) return env.SESSION_SECRET;
+  const generated = `00ai_${Array.from(crypto.getRandomValues(new Uint8Array(48)), byte => byte.toString(16).padStart(2,'0')).join('')}`;
+  await env.DB.prepare("INSERT OR IGNORE INTO app_secrets(key,value,created_at) VALUES('session_secret',?,?)").bind(generated,now()).run();
+  const stored = await env.DB.prepare("SELECT value FROM app_secrets WHERE key='session_secret'").first<{value:string}>();
+  if (!stored?.value) throw new Error('SESSION_SECRET_UNAVAILABLE');
+  return stored.value;
+}
 function decodePayload(value: string) {
   const raw = atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4));
   return JSON.parse(raw) as { sub: string; exp: number };
 }
 async function setSession(userId: string, env: Env) {
   const payload = btoa(JSON.stringify({ sub: userId, exp: Date.now() + 1000 * 60 * 60 * 24 * 14 })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const token = `${payload}.${await hmac(env.SESSION_SECRET, payload)}`;
+  const token = `${payload}.${await hmac(await sessionSecret(env), payload)}`;
   return `00ai_notion=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=1209600`;
 }
 async function currentUser(request: Request, env: Env): Promise<User | null> {
@@ -63,7 +71,7 @@ async function currentUser(request: Request, env: Env): Promise<User | null> {
   if (!token) return null;
   try {
     const [payload, signature] = token.split('.');
-    if (!payload || !signature || await hmac(env.SESSION_SECRET, payload) !== signature) return null;
+    if (!payload || !signature || await hmac(await sessionSecret(env), payload) !== signature) return null;
     const data = decodePayload(payload);
     if (!data.sub || data.exp < Date.now()) return null;
     return await env.DB.prepare('SELECT id,email,display_name FROM users WHERE id=?').bind(data.sub).first<User>();
@@ -152,10 +160,10 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const body = await request.json<{email?:string}>();
     const email = clean(body.email,180).toLowerCase();
     if (!emailPattern.test(email)) return json({ error: '이메일 주소를 확인해 주세요.' }, 400);
-    if (!env.SESSION_SECRET) return json({ error: '인증 설정이 준비되지 않았습니다.' }, 503);
+    const secret = await sessionSecret(env);
     if (!env.BREVO_API_KEY) return json({ error: '이메일 발송 설정을 확인 중입니다. 잠시 후 다시 시도해 주세요.' }, 503);
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
-    const fingerprint = await hmac(env.SESSION_SECRET, `otp-ip:${ip}`);
+    const fingerprint = await hmac(secret, `otp-ip:${ip}`);
     const rate = await env.DB.prepare('SELECT window_started,count FROM email_rate_limits WHERE fingerprint=?').bind(fingerprint).first<{window_started:number;count:number}>();
     if (rate && Date.now()-rate.window_started < 60*60_000 && rate.count >= 8) return json({error:'요청 횟수가 많습니다. 한 시간 뒤 다시 시도해 주세요.'},429);
     if (!rate || Date.now()-rate.window_started >= 60*60_000) await env.DB.prepare('INSERT INTO email_rate_limits(fingerprint,window_started,count) VALUES(?,?,1) ON CONFLICT(fingerprint) DO UPDATE SET window_started=excluded.window_started,count=1').bind(fingerprint,Date.now()).run();
@@ -163,7 +171,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const recent = await env.DB.prepare('SELECT sent_at FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).first<{sent_at:number}>();
     if (recent && Date.now() - recent.sent_at < 45_000) return json({ ok: true, message: '해당 이메일로 로그인 코드를 보냈다면 잠시 후 도착합니다.' });
     const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6,'0');
-    const codeHash = await hmac(env.SESSION_SECRET, `${email}:${code}`);
+    const codeHash = await hmac(secret, `${email}:${code}`);
     await env.DB.prepare('INSERT INTO login_codes(email,code_hash,expires_at,attempts,sent_at) VALUES(?,?,?,0,?) ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash,expires_at=excluded.expires_at,attempts=0,sent_at=excluded.sent_at').bind(email,codeHash,Date.now()+10*60_000,Date.now()).run();
     try { await sendLoginCode(env,email,code); }
     catch (error) { await env.DB.prepare('DELETE FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).run(); console.error(JSON.stringify({event:'login_email_failed',reason:error instanceof Error?error.message:'unknown'})); return json({error:'인증 메일을 보내지 못했습니다. 발신 설정을 확인해 주세요.'},503); }
@@ -176,7 +184,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if (!emailPattern.test(email) || !/^\d{6}$/.test(code)) return json({error:'이메일 또는 코드를 확인해 주세요.'},400);
     const record = await env.DB.prepare('SELECT code_hash,expires_at,attempts FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).first<{code_hash:string;expires_at:number;attempts:number}>();
     if (!record || record.expires_at < Date.now() || record.attempts >= 5) return json({error:'코드가 만료되었거나 입력 횟수를 초과했습니다. 새 코드를 요청해 주세요.'},401);
-    const actual = await hmac(env.SESSION_SECRET,`${email}:${code}`);
+    const actual = await hmac(await sessionSecret(env),`${email}:${code}`);
     if (actual !== record.code_hash) { await env.DB.prepare('UPDATE login_codes SET attempts=attempts+1 WHERE email=? COLLATE NOCASE').bind(email).run(); return json({error:'인증 코드가 올바르지 않습니다.'},401); }
     await env.DB.prepare('DELETE FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).run();
     let account = await env.DB.prepare('SELECT id,email,display_name FROM users WHERE email=? COLLATE NOCASE').bind(email).first<User>();

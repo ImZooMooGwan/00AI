@@ -14,10 +14,12 @@
 
 1. `npm ci`
 2. `wrangler d1 migrations apply 00ai-notion --remote`
-3. Worker secrets 설정: `wrangler secret put BREVO_API_KEY`, `wrangler secret put HASA_API_KEY`
+3. Worker secrets 설정: `wrangler secret put BREVO_API_KEY`, `wrangler secret put HASA_API_KEY`. 세션 서명 키는 첫 로그인 시 D1에 생성·보관합니다.
 4. `npm run deploy`
 
 `wrangler.jsonc`는 `notion.00ai.kr/*` Worker Route와 기존 계정 D1/Workers 리소스를 참조합니다. DNS에 해당 호스트가 없다면 `00ai.kr` zone의 기존 wildcard DNS/서브도메인 라우터 규칙을 확인한 뒤 `notion` 호스트를 Cloudflare proxied DNS에 연결해야 합니다. `MAIL_FROM` 도메인은 Brevo에서 발신 인증되어야 합니다.
+
+GitHub Actions 배포에는 저장소 Actions secrets `CLOUDFLARE_API_TOKEN`, `BREVO_API_KEY`, `HASA_API_KEY`가 필요합니다. 앱 키는 Worker secret으로만 전달됩니다.
 
 ## 운영 설정
 
