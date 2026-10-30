@@ -218,7 +218,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if (method === 'POST' && path === '/auth/logout') return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':'00ai_notion=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'}});
   if (method === 'GET' && path === '/me') return user ? json({user:{id:user.id,email:user.email,display_name:user.display_name,name:user.display_name}}) : json({user:null},401);
   if(method==='GET'&&path==='/templates'){
-    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,t.created_at,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
+    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
     return json({items:result.results});
   }
   if (!user) return json({error:'로그인이 필요합니다.'},401);
