@@ -418,7 +418,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(!database)return json({database:null,rows:[],views:[]});
     const [rows,views]=await Promise.all([
       env.DB.prepare('SELECT id,title,status,assignee,due_date,priority,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
-      env.DB.prepare('SELECT id,database_id,name,view_type,status_filter,sort_by,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY created_at').bind(database.id).all(),
+      env.DB.prepare('SELECT id,database_id,name,view_type,status_filter,sort_by,group_by,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY created_at').bind(database.id).all(),
     ]);
     return json({database,rows:rows.results,views:views.results});
   }
@@ -446,22 +446,22 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const databaseId=decodeURIComponent(databaseViews[1]),database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string}>();
     if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'저장 뷰를 만들 권한이 없습니다.'},403);
-    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string}>(),name=clean(body.name,60);
+    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;group_by?:string}>(),name=clean(body.name,60);
     if(!name)return json({error:'저장 뷰 이름을 입력해 주세요.'},400);
-    const viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:'table',statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:'전체',sortBy=['manual','due_date','title'].includes(body.sort_by||'')?body.sort_by!:'manual',viewId=id(),at=now();
-    await env.DB.prepare('INSERT INTO database_views(id,database_id,name,view_type,status_filter,sort_by,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(viewId,databaseId,name,viewType,statusFilter,sortBy,user.id,at,at).run();
-    return json({ok:true,view:{id:viewId,database_id:databaseId,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,created_at:at,updated_at:at}},201);
+    const viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:'table',statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:'전체',sortBy=['manual','due_date','title'].includes(body.sort_by||'')?body.sort_by!:'manual',groupBy=body.group_by==='status'?'status':'none',viewId=id(),at=now();
+    await env.DB.prepare('INSERT INTO database_views(id,database_id,name,view_type,status_filter,sort_by,group_by,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(viewId,databaseId,name,viewType,statusFilter,sortBy,groupBy,user.id,at,at).run();
+    return json({ok:true,view:{id:viewId,database_id:databaseId,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,group_by:groupBy,created_at:at,updated_at:at}},201);
   }
   const databaseView=path.match(/^\/database-views\/([^/]+)$/);
   if(databaseView&&(method==='PATCH'||method==='DELETE')){
-    const viewId=decodeURIComponent(databaseView[1]),view=await env.DB.prepare('SELECT database_id,name,view_type,status_filter,sort_by FROM database_views WHERE id=?').bind(viewId).first<{database_id:string;name:string;view_type:string;status_filter:string;sort_by:string}>();
+    const viewId=decodeURIComponent(databaseView[1]),view=await env.DB.prepare('SELECT database_id,name,view_type,status_filter,sort_by,group_by FROM database_views WHERE id=?').bind(viewId).first<{database_id:string;name:string;view_type:string;status_filter:string;sort_by:string;group_by:string}>();
     if(!view)return json({error:'저장 뷰를 찾을 수 없습니다.'},404);
     const database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(view.database_id).first<{page_id:string}>(),record=database?await accessFor(env,user,database.page_id):null;
     if(!record||!canWrite(record.access))return json({error:'저장 뷰를 수정할 권한이 없습니다.'},403);
     if(method==='DELETE'){await env.DB.prepare('DELETE FROM database_views WHERE id=?').bind(viewId).run();return json({ok:true});}
-    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string}>(),name=clean(body.name,60)||view.name,viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:view.view_type,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:view.status_filter,sortBy=['manual','due_date','title'].includes(body.sort_by||'')?body.sort_by!:view.sort_by,at=now();
-    await env.DB.prepare('UPDATE database_views SET name=?,view_type=?,status_filter=?,sort_by=?,updated_at=? WHERE id=?').bind(name,viewType,statusFilter,sortBy,at,viewId).run();
-    return json({ok:true,view:{id:viewId,database_id:view.database_id,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,updated_at:at}});
+    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;group_by?:string}>(),name=clean(body.name,60)||view.name,viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:view.view_type,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:view.status_filter,sortBy=['manual','due_date','title'].includes(body.sort_by||'')?body.sort_by!:view.sort_by,groupBy=body.group_by==='status'?'status':'none',at=now();
+    await env.DB.prepare('UPDATE database_views SET name=?,view_type=?,status_filter=?,sort_by=?,group_by=?,updated_at=? WHERE id=?').bind(name,viewType,statusFilter,sortBy,groupBy,at,viewId).run();
+    return json({ok:true,view:{id:viewId,database_id:view.database_id,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,group_by:groupBy,updated_at:at}});
   }
   const databaseRows=path.match(/^\/databases\/([^/]+)\/rows$/);
   if(databaseRows&&method==='POST'){
