@@ -330,15 +330,32 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(sourceUrl&&!/^https:\/\//i.test(sourceUrl))return json({error:'출처 URL은 https 주소를 입력해 주세요.'},400);
     const templateId=id(),at=now(),publish=body.publish===true;
     await env.DB.prepare('INSERT INTO templates(id,title,description,category,icon,visibility,license,blocks_json,created_at,updated_at,owner_id,source_name,source_url,review_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,at,at,user.id,sourceName,sourceUrl,publish?'published':'pending').run();
+    await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,created_by,created_at) VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,sourceName,sourceUrl,user.id,at).run();
     return json({ok:true,id:templateId,review_status:publish?'published':'pending'},201);
+  }
+  const templateHistory=path.match(/^\/templates\/([^/]+)\/versions$/);
+  if(templateHistory&&method==='GET'){
+    const templateId=decodeURIComponent(templateHistory[1]),template=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
+    if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(template.owner_id!==user.id)return json({error:'작성한 템플릿만 이력을 볼 수 있습니다.'},403);
+    const result=await env.DB.prepare('SELECT id,version,title,description,category,visibility,license,created_at FROM template_versions WHERE template_id=? ORDER BY version DESC').bind(templateId).all();return json({items:result.results});
+  }
+  const templateRestore=path.match(/^\/templates\/([^/]+)\/versions\/([^/]+)\/restore$/);
+  if(templateRestore&&method==='POST'){
+    const templateId=decodeURIComponent(templateRestore[1]),versionId=decodeURIComponent(templateRestore[2]),template=await env.DB.prepare('SELECT owner_id,version FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null;version:number}>();
+    if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(template.owner_id!==user.id)return json({error:'작성한 템플릿만 복원할 수 있습니다.'},403);
+    const snapshot=await env.DB.prepare('SELECT title,description,category,icon,visibility,license,blocks_json,source_name,source_url FROM template_versions WHERE id=? AND template_id=?').bind(versionId,templateId).first<{title:string;description:string;category:string;icon:string;visibility:string;license:string;blocks_json:string;source_name:string;source_url:string}>();
+    if(!snapshot)return json({error:'저장 버전을 찾을 수 없습니다.'},404);const at=now(),nextVersion=template.version+1;
+    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,icon=?,visibility=?,license=?,blocks_json=?,source_name=?,source_url=?,review_status=CASE WHEN ?='public' THEN 'published' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.source_name,snapshot.source_url,snapshot.visibility,nextVersion,at,templateId).run();
+    await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,nextVersion,snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.source_name,snapshot.source_url,user.id,at).run();return json({ok:true,version:nextVersion});
   }
   const templateMatch=path.match(/^\/templates\/([^/]+)$/);
   if(templateMatch&&method==='PATCH'){
-    const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
+    const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,version FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null;title:string;description:string;category:string;icon:string;visibility:string;license:string;blocks_json:string;source_name:string;source_url:string;version:number}>();
     if(!current)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(current.owner_id!==user.id)return json({error:'작성한 템플릿만 수정할 수 있습니다.'},403);
-    const body=await request.json<{title?:string;description?:string;category?:string;visibility?:string}>(),visibility=['public','private','unlisted'].includes(body.visibility||'')?body.visibility!:'private';
-    await env.DB.prepare('UPDATE templates SET title=?,description=?,category=?,visibility=?,review_status=CASE WHEN ?=\'public\' THEN \'published\' ELSE review_status END,version=version+1,updated_at=? WHERE id=?').bind(clean(body.title,120)||'템플릿',clean(body.description,500),clean(body.category,60)||'기타',visibility,visibility,now(),templateId).run();
-    return json({ok:true});
+    const body=await request.json<{title?:string;description?:string;category?:string;visibility?:string}>(),visibility=['public','private','unlisted'].includes(body.visibility||'')?body.visibility!:'private',title=clean(body.title,120)||'템플릿',description=clean(body.description,500),category=clean(body.category,60)||'기타',at=now(),nextVersion=current.version+1;
+    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,visibility=?,review_status=CASE WHEN ?='public' THEN 'published' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(title,description,category,visibility,visibility,nextVersion,at,templateId).run();
+    await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,nextVersion,title,description,category,current.icon,visibility,current.license,current.blocks_json,current.source_name,current.source_url,user.id,at).run();
+    return json({ok:true,version:nextVersion});
   }
   if(templateMatch&&method==='DELETE'){
     const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
