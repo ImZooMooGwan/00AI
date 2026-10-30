@@ -229,7 +229,40 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const member=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first();
     const direct=await env.DB.prepare('SELECT 1 AS ok FROM page_members pm JOIN pages p ON p.id=pm.page_id WHERE p.workspace_id=? AND pm.user_id=? LIMIT 1').bind(workspaceId,user.id).first();
     if (!member&&!direct) return json({error:'공간에 접근할 수 없습니다.'},403);
-    const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.created_at,p.updated_at,p.created_by,COALESCE(pm.role,wm.role) AS role,p.starter_json IS NOT NULL AND p.starter_claimed_at IS NULL AS has_starter FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY p.updated_at DESC LIMIT 500').bind(user.id,user.id,workspaceId).all();
+    const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.created_at,p.updated_at,p.created_by,COALESCE(pm.role,wm.role) AS role,p.starter_json IS NOT NULL AND p.starter_claimed_at IS NULL AS has_starter,CASE WHEN f.page_id IS NULL THEN 0 ELSE 1 END AS favorite FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? LEFT JOIN page_favorites f ON f.page_id=p.id AND f.user_id=? WHERE p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY p.updated_at DESC LIMIT 500').bind(user.id,user.id,user.id,workspaceId).all();
+    return json({items:rows.results});
+  }
+  if (method === 'GET' && path === '/search') {
+    const workspaceId=clean(url.searchParams.get('workspaceId'),60), query=clean(url.searchParams.get('q'),120);
+    if(!workspaceId||query.length<2)return json({items:[]});
+    const escaped=query.replace(/[\\%_]/g,'\\$&');
+    const rows=await env.DB.prepare("SELECT p.id,p.parent_id,p.title,p.icon,p.updated_at,COALESCE(pm.role,wm.role) AS role,CASE WHEN lower(p.title) LIKE lower(?) ESCAPE '\\' THEN 'title' ELSE 'content' END AS match_type FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? LEFT JOIN page_content c ON c.page_id=p.id WHERE p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) AND (p.title LIKE ? ESCAPE '\\' OR c.body_text LIKE ? ESCAPE '\\') ORDER BY CASE WHEN lower(p.title) LIKE lower(?) ESCAPE '\\' THEN 0 ELSE 1 END,p.updated_at DESC LIMIT 30")
+      .bind(`%${escaped}%`,user.id,user.id,workspaceId,`%${escaped}%`,`%${escaped}%`,`%${escaped}%`).all();
+    return json({items:rows.results});
+  }
+  const recentMatch=path.match(/^\/pages\/([^/]+)\/visit$/);
+  if(method==='POST'&&recentMatch){
+    const pageId=decodeURIComponent(recentMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    await env.DB.prepare('INSERT INTO page_visits(user_id,page_id,visited_at) VALUES(?,?,?) ON CONFLICT(user_id,page_id) DO UPDATE SET visited_at=excluded.visited_at').bind(user.id,pageId,now()).run();
+    return json({ok:true});
+  }
+  const favoriteMatch=path.match(/^\/pages\/([^/]+)\/favorite$/);
+  if(favoriteMatch&&(method==='POST'||method==='DELETE')){
+    const pageId=decodeURIComponent(favoriteMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    if(method==='POST')await env.DB.prepare('INSERT OR IGNORE INTO page_favorites(user_id,page_id,created_at) VALUES(?,?,?)').bind(user.id,pageId,now()).run();
+    else await env.DB.prepare('DELETE FROM page_favorites WHERE user_id=? AND page_id=?').bind(user.id,pageId).run();
+    return json({ok:true,favorite:method==='POST'});
+  }
+  if(method==='GET'&&path==='/recent'){
+    const workspaceId=clean(url.searchParams.get('workspaceId'),60);
+    const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.updated_at,COALESCE(pm.role,wm.role) AS role,v.visited_at FROM page_visits v JOIN pages p ON p.id=v.page_id LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE v.user_id=? AND p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY v.visited_at DESC LIMIT 30').bind(user.id,user.id,user.id,workspaceId).all();
+    return json({items:rows.results});
+  }
+  if(method==='GET'&&path==='/favorites'){
+    const workspaceId=clean(url.searchParams.get('workspaceId'),60);
+    const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.updated_at,COALESCE(pm.role,wm.role) AS role,f.created_at AS favorited_at FROM page_favorites f JOIN pages p ON p.id=f.page_id LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE f.user_id=? AND p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY f.created_at DESC LIMIT 100').bind(user.id,user.id,user.id,workspaceId).all();
     return json({items:rows.results});
   }
   if (method === 'POST' && path === '/pages') {
@@ -379,6 +412,13 @@ export class DocumentRoom extends DurableObject<Env> {
   private encode(bytes:Uint8Array){let result='';for(const byte of bytes)result+=String.fromCharCode(byte);return btoa(result).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
   private decode(value:string){const raw=atob(value.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-value.length%4)%4));return Uint8Array.from(raw,c=>c.charCodeAt(0));}
   private send(socket:WebSocket,type:string,data:Record<string,unknown>={}){socket.send(JSON.stringify({type,...data}));}
+  private async indexSearchContent(pageId:string){
+    const existing=await this.env.DB.prepare('SELECT 1 AS found FROM page_content WHERE page_id=?').bind(pageId).first();
+    if(existing)return;
+    const extract=(node:any):string=>node.toArray().map((child:any)=>child instanceof Y.XmlText?child.toString():child instanceof Y.XmlElement?extract(child):'').filter(Boolean).join('\n');
+    const text=extract(this.doc.getXmlFragment('default')).slice(0,500_000);
+    await this.env.DB.prepare('INSERT OR IGNORE INTO page_content(page_id,body_text,updated_at) VALUES(?,?,?)').bind(pageId,text,now()).run();
+  }
 
   async fetch(request:Request){
     if(request.headers.get('upgrade')?.toLowerCase()!=='websocket')return new Response('WebSocket required',{status:426});
@@ -413,6 +453,7 @@ export class DocumentRoom extends DurableObject<Env> {
     let request:{type?:string;data?:string};try{request=JSON.parse(message);}catch{this.send(socket,'error',{reason:'잘못된 메시지입니다.'});return;}
     let identity:{actor:string;name:string;role:string;pageId:string};try{identity=JSON.parse(this.ctx.getTags(socket)[0]||'{}');}catch{socket.close(1008,'Invalid session');return;}
     if(request.type==='sync'){
+      try{await this.indexSearchContent(identity.pageId);}catch(error){console.error(JSON.stringify({event:'search_index_backfill_failed',pageId:identity.pageId,error:error instanceof Error?error.message:'unknown'}));}
       const state=this.encode(Y.encodeStateAsUpdate(this.doc));
       if(state.length<60_000)this.send(socket,'update',{seq:this.sequence,data:state});
       else {const size=48_000,parts=Math.ceil(state.length/size);if(parts>100){this.send(socket,'error',{reason:'페이지가 너무 커서 동기화할 수 없습니다.'});return;}this.send(socket,'snapshot-start',{parts,seq:this.sequence});for(let index=0;index<parts;index++)this.send(socket,'snapshot-part',{index,data:state.slice(index*size,(index+1)*size)});this.send(socket,'snapshot-end',{seq:this.sequence});}
@@ -424,6 +465,11 @@ export class DocumentRoom extends DurableObject<Env> {
       let update:Uint8Array;try{update=this.decode(request.data);const check=new Y.Doc();Y.applyUpdate(check,update);check.destroy();}catch{this.send(socket,'error',{reason:'변경 내용을 해석하지 못했습니다.'});return;}
       const saved=this.ctx.storage.sql.exec('INSERT INTO updates(actor,payload,saved_at) VALUES(?,?,?) RETURNING seq',identity.actor,request.data,Date.now()).one() as {seq:number};
       this.sequence=saved.seq;Y.applyUpdate(this.doc,update,'remote');
+      try {
+        const extract=(node:any):string=>node.toArray().map((child:any)=>child instanceof Y.XmlText?child.toString():child instanceof Y.XmlElement?extract(child):'').filter(Boolean).join('\n');
+        const text=extract(this.doc.getXmlFragment('default')).slice(0,500_000);
+        await this.env.DB.prepare('INSERT INTO page_content(page_id,body_text,updated_at) VALUES(?,?,?) ON CONFLICT(page_id) DO UPDATE SET body_text=excluded.body_text,updated_at=excluded.updated_at').bind(identity.pageId,text,now()).run();
+      } catch(error) { console.error(JSON.stringify({event:'search_index_update_failed',pageId:identity.pageId,error:error instanceof Error?error.message:'unknown'})); }
       if(this.sequence%100===0){const state=this.encode(Y.encodeStateAsUpdate(this.doc));this.ctx.storage.sql.exec('INSERT INTO snapshots(id,payload,seq) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,seq=excluded.seq',state,this.sequence);this.ctx.storage.sql.exec('DELETE FROM updates WHERE seq<=?',this.sequence);}
       this.send(socket,'ack',{seq:this.sequence});
       this.broadcast('update',{seq:this.sequence,data:request.data,actor:identity.actor,name:identity.name},socket);return;
