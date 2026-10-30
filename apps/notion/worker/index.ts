@@ -154,6 +154,17 @@ async function sendLoginCode(env: Env, email: string, code: string) {
   if (!response.ok) throw new Error(`EMAIL_PROVIDER_${response.status}`);
 }
 
+async function sendCollaborationInvite(env:Env,email:string,kind:'workspace'|'page',title:string,role:string,url:string){
+  const apiKey=await resolveSecret(env.BREVO_API_KEY);if(!apiKey)return false;
+  const safe=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]||char));
+  const roleNames:Record<string,string>={owner:'소유자',admin:'관리자',member:'멤버',guest:'게스트',editor:'편집자',commenter:'댓글 작성자',viewer:'열람자'};
+  const kindName=kind==='workspace'?'워크스페이스':'페이지',subject=`00AI WORKSPACE ${kindName} 초대: ${title}`;
+  const text=`00AI WORKSPACE ${kindName}에 초대되었습니다.\n\n${title}\n권한: ${roleNames[role]||role}\n\n${url}\n\n초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.`;
+  const html=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#25312a"><p style="color:#4a7056;font-weight:bold">00AI WORKSPACE</p><h2>${kindName} 초대</h2><p>협업 공간에 초대되었습니다.</p><div style="padding:16px;background:#f4f7f4;border-radius:10px"><b>${safe(title)}</b><br><span>권한: ${safe(roleNames[role]||role)}</span></div><p>초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.</p><p><a href="${safe(url)}" style="display:inline-block;background:#345c42;color:white;padding:11px 16px;border-radius:8px;text-decoration:none">00AI WORKSPACE 열기</a></p></div>`;
+  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI WORKSPACE'},to:[{email}],subject,textContent:text,htmlContent:html})});
+  if(!response.ok)throw new Error(`EMAIL_PROVIDER_${response.status}`);return true;
+}
+
 async function routeApi(request: Request, env: Env, user: User | null): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api/, '');
@@ -528,7 +539,8 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(invited){await env.DB.prepare('INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role').bind(workspaceId,invited.id,role,now()).run();}
     else await env.DB.prepare('INSERT INTO workspace_invites(id,workspace_id,email,role,invited_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,accepted_at=NULL').bind(id(),workspaceId,email,role,user.id,now()).run();
     await audit(env,user,workspaceId,'MEMBER_INVITED','workspace',workspaceId);
-    return json({ok:true,accepted:!!invited});
+    let invitationSent=false;{const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();try{invitationSent=await sendCollaborationInvite(env,email,'workspace',workspace?.name||'공공 협업 공간',role,new URL('/',request.url).toString());}catch(error){console.error(JSON.stringify({event:'workspace_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}}
+    return json({ok:true,accepted:!!invited,invitationSent});
   }
   const shareMatch=path.match(/^\/pages\/([^/]+)\/share$/);
   if(method==='POST'&&shareMatch){
@@ -537,10 +549,12 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const body=await request.json<{email?:string;role?:string}>(),email=clean(body.email,180).toLowerCase(),role=['editor','commenter','viewer'].includes(body.role||'')?body.role!:'viewer';
     if(!emailPattern.test(email))return json({error:'이메일 주소를 확인해 주세요.'},400);
     const target=await env.DB.prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE').bind(email).first<{id:string}>();
-    if(!target){await env.DB.prepare('INSERT INTO page_invites(id,page_id,email,role,invited_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(page_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,accepted_at=NULL').bind(id(),pageId,email,role,user.id,now()).run();return json({ok:true,invited:true});}
-    await env.DB.prepare('INSERT INTO page_members(page_id,user_id,role,granted_by,created_at) VALUES(?,?,?,?,?) ON CONFLICT(page_id,user_id) DO UPDATE SET role=excluded.role,granted_by=excluded.granted_by,created_at=excluded.created_at').bind(pageId,target.id,role,user.id,now()).run();
+    if(!target){await env.DB.prepare('INSERT INTO page_invites(id,page_id,email,role,invited_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(page_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,accepted_at=NULL').bind(id(),pageId,email,role,user.id,now()).run();let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,new URL('/',request.url).toString());}catch(error){console.error(JSON.stringify({event:'page_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}return json({ok:true,invited:true,invitationSent});}
+    const at=now();await env.DB.prepare('INSERT INTO page_members(page_id,user_id,role,granted_by,created_at) VALUES(?,?,?,?,?) ON CONFLICT(page_id,user_id) DO UPDATE SET role=excluded.role,granted_by=excluded.granted_by,created_at=excluded.created_at').bind(pageId,target.id,role,user.id,at).run();
+    await env.DB.prepare('INSERT INTO notifications(id,user_id,workspace_id,page_id,actor_id,kind,body,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(id(),target.id,record.page.workspace_id,pageId,user.id,'page_share',`${user.display_name||user.email}님이 '${record.page.title}' 페이지를 공유했습니다.`,at).run();
     await audit(env,user,record.page.workspace_id,'PAGE_SHARED','page',pageId);
-    return json({ok:true,invited:false});
+    let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,new URL('/',request.url).toString());}catch(error){console.error(JSON.stringify({event:'page_share_email_failed',reason:error instanceof Error?error.message:'unknown'}));}
+    return json({ok:true,invited:false,invitationSent});
   }
   const collabMatch=path.match(/^\/collab\/([^/]+)$/);
   if(method==='GET'&&collabMatch&&request.headers.get('upgrade')?.toLowerCase()==='websocket'){
