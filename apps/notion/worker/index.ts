@@ -417,7 +417,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const database=await env.DB.prepare('SELECT id,page_id,title,CASE WHEN calendar_view=1 THEN \'calendar\' ELSE view_type END AS view_type,created_at,updated_at FROM databases WHERE page_id=?').bind(pageId).first<{id:string;page_id:string;title:string;view_type:string;created_at:string;updated_at:string}>();
     if(!database)return json({database:null,rows:[],views:[]});
     const [rows,views]=await Promise.all([
-      env.DB.prepare('SELECT id,title,status,assignee,due_date,priority,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
+      env.DB.prepare('SELECT id,title,status,assignee,due_date,priority,description,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
       env.DB.prepare('SELECT id,database_id,name,view_type,status_filter,sort_by,group_by,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY created_at').bind(database.id).all(),
     ]);
     return json({database,rows:rows.results,views:views.results});
@@ -468,20 +468,40 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const databaseId=decodeURIComponent(databaseRows[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
     if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'항목을 추가할 권한이 없습니다.'},403);
-    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string;priority?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:'할 일',priority=['긴급','높음','보통','낮음'].includes(body.priority||'')?body.priority!:'보통';
+    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string;priority?:string;description?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:'할 일',priority=['긴급','높음','보통','낮음'].includes(body.priority||'')?body.priority!:'보통';
     const rowId=id(),at=now(),position=(await env.DB.prepare('SELECT COALESCE(MAX(position),-1)+1 AS next FROM database_rows WHERE database_id=?').bind(databaseId).first<{next:number}>())?.next||0;
-    await env.DB.prepare('INSERT INTO database_rows(id,database_id,title,status,assignee,due_date,priority,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(rowId,databaseId,clean(body.title,200)||'새 항목',status,clean(body.assignee,120),clean(body.due_date,20),priority,position,at,at).run();
+    await env.DB.prepare('INSERT INTO database_rows(id,database_id,title,status,assignee,due_date,priority,description,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(rowId,databaseId,clean(body.title,200)||'새 항목',status,clean(body.assignee,120),clean(body.due_date,20),priority,clean(body.description,10000),position,at,at).run();
     return json({ok:true,id:rowId},201);
   }
   const databaseRow=path.match(/^\/database-rows\/([^/]+)$/);
   if(databaseRow&&(method==='PATCH'||method==='DELETE')){
-    const rowId=decodeURIComponent(databaseRow[1]),row=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id,r.title,r.status,r.assignee,r.due_date,r.priority FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(rowId).first<{database_id:string;page_id:string;workspace_id:string;title:string;status:string;assignee:string;due_date:string;priority:string}>();
+    const rowId=decodeURIComponent(databaseRow[1]),row=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id,r.title,r.status,r.assignee,r.due_date,r.priority,r.description FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(rowId).first<{database_id:string;page_id:string;workspace_id:string;title:string;status:string;assignee:string;due_date:string;priority:string;description:string}>();
     if(!row)return json({error:'항목을 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,row.page_id);if(!record||!canWrite(record.access))return json({error:'항목을 수정할 권한이 없습니다.'},403);
     if(method==='DELETE'){await env.DB.prepare('DELETE FROM database_rows WHERE id=?').bind(rowId).run();return json({ok:true});}
-    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string;priority?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:row.status,priority=['긴급','높음','보통','낮음'].includes(body.priority||'')?body.priority!:row.priority;
-    await env.DB.prepare('UPDATE database_rows SET title=?,status=?,assignee=?,due_date=?,priority=?,updated_at=? WHERE id=?').bind(clean(body.title,200)||row.title,status,body.assignee===undefined?row.assignee:clean(body.assignee,120),body.due_date===undefined?row.due_date:clean(body.due_date,20),priority,now(),rowId).run();
+    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string;priority?:string;description?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:row.status,priority=['긴급','높음','보통','낮음'].includes(body.priority||'')?body.priority!:row.priority;
+    await env.DB.prepare('UPDATE database_rows SET title=?,status=?,assignee=?,due_date=?,priority=?,description=?,updated_at=? WHERE id=?').bind(clean(body.title,200)||row.title,status,body.assignee===undefined?row.assignee:clean(body.assignee,120),body.due_date===undefined?row.due_date:clean(body.due_date,20),priority,body.description===undefined?row.description:clean(body.description,10000),now(),rowId).run();
     return json({ok:true});
+  }
+  const rowLinks=path.match(/^\/database-rows\/([^/]+)\/links$/);
+  if(rowLinks&&(method==='GET'||method==='POST')){
+    const sourceId=decodeURIComponent(rowLinks[1]),source=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(sourceId).first<{database_id:string;page_id:string;workspace_id:string}>();
+    if(!source)return json({error:'업무 항목을 찾을 수 없습니다.'},404);
+    const access=await accessFor(env,user,source.page_id);if(!access||!(method==='GET'?canRead(access.access):canWrite(access.access)))return json({error:'업무 항목에 접근할 권한이 없습니다.'},403);
+    if(method==='GET'){const result=await env.DB.prepare('SELECT l.id,l.to_row_id AS row_id,r.title,r.status,r.priority,r.due_date FROM database_row_links l JOIN database_rows r ON r.id=l.to_row_id WHERE l.from_row_id=? ORDER BY l.created_at').bind(sourceId).all();return json({items:result.results});}
+    const body=await request.json<{targetRowId?:string}>(),targetId=clean(body.targetRowId,60),target=await env.DB.prepare('SELECT r.id,database_id,d.page_id FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(targetId).first<{id:string;database_id:string;page_id:string}>();
+    if(!target||target.database_id!==source.database_id)return json({error:'같은 데이터베이스의 업무를 연결해 주세요.'},400);
+    const targetAccess=await accessFor(env,user,target.page_id);if(!targetAccess||!canWrite(targetAccess.access))return json({error:'연결 대상 업무를 수정할 권한이 없습니다.'},403);
+    if(targetId===sourceId)return json({error:'자기 자신은 연결할 수 없습니다.'},400);
+    const linkId=id(),at=now();await env.DB.prepare('INSERT OR IGNORE INTO database_row_links(id,from_row_id,to_row_id,created_by,created_at) VALUES(?,?,?,?,?)').bind(linkId,sourceId,targetId,user.id,at).run();
+    const link=await env.DB.prepare('SELECT id FROM database_row_links WHERE from_row_id=? AND to_row_id=?').bind(sourceId,targetId).first<{id:string}>();return json({ok:true,id:link?.id||linkId},201);
+  }
+  const rowLink=path.match(/^\/database-row-links\/([^/]+)$/);
+  if(rowLink&&method==='DELETE'){
+    const linkId=decodeURIComponent(rowLink[1]),link=await env.DB.prepare('SELECT l.from_row_id,l.to_row_id,dp.page_id AS source_page,tp.page_id AS target_page FROM database_row_links l JOIN database_rows fr ON fr.id=l.from_row_id JOIN databases fd ON fd.id=fr.database_id JOIN database_rows tr ON tr.id=l.to_row_id JOIN databases td ON td.id=tr.database_id JOIN pages dp ON dp.id=fd.page_id JOIN pages tp ON tp.id=td.page_id WHERE l.id=?').bind(linkId).first<{from_row_id:string;to_row_id:string;source_page:string;target_page:string}>();
+    if(!link)return json({error:'업무 연결을 찾을 수 없습니다.'},404);
+    const [sourceAccess,targetAccess]=await Promise.all([accessFor(env,user,link.source_page),accessFor(env,user,link.target_page)]);if(!sourceAccess||!targetAccess||!canWrite(sourceAccess.access)||!canWrite(targetAccess.access))return json({error:'업무 연결을 변경할 권한이 없습니다.'},403);
+    await env.DB.prepare('DELETE FROM database_row_links WHERE id=?').bind(linkId).run();return json({ok:true});
   }
   const commentMatch=path.match(/^\/pages\/([^/]+)\/comments$/);
   if(commentMatch&&method==='GET'){
