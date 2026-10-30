@@ -318,6 +318,81 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     await audit(env,user,source.page.workspace_id,'PAGE_DUPLICATED','page',pageId);
     return json({ok:true,id:pageId,sourceId});
   }
+  const versionsMatch=path.match(/^\/pages\/([^/]+)\/versions$/);
+  if(versionsMatch&&method==='GET'){
+    const pageId=decodeURIComponent(versionsMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const rows=await env.DB.prepare('SELECT v.id,v.label,v.created_at,u.display_name AS actor_name,u.email AS actor_email FROM page_versions v JOIN users u ON u.id=v.actor_id WHERE v.page_id=? ORDER BY v.created_at DESC LIMIT 60').bind(pageId).all();
+    return json({items:rows.results});
+  }
+  if(versionsMatch&&method==='POST'){
+    const pageId=decodeURIComponent(versionsMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canWrite(record.access))return json({error:'변경 이력을 저장할 권한이 없습니다.'},403);
+    const body=await request.json<{content?:unknown;label?:string}>();
+    if(!body.content||typeof body.content!=='object')return json({error:'저장할 문서 내용이 없습니다.'},400);
+    const content=JSON.stringify(body.content);if(content.length>350_000)return json({error:'문서가 너무 커서 이력으로 저장할 수 없습니다.'},413);
+    const versionId=id(),label=clean(body.label,120),at=now();
+    await env.DB.prepare('INSERT INTO page_versions(id,page_id,actor_id,label,content_json,created_at) VALUES(?,?,?,?,?,?)').bind(versionId,pageId,user.id,label,content,at).run();
+    await env.DB.prepare('DELETE FROM page_versions WHERE page_id=? AND id NOT IN (SELECT id FROM page_versions WHERE page_id=? ORDER BY created_at DESC LIMIT 60)').bind(pageId,pageId).run();
+    await audit(env,user,record.page.workspace_id,'PAGE_VERSION_SAVED','page',pageId);
+    return json({ok:true,id:versionId,created_at:at},201);
+  }
+  const versionMatch=path.match(/^\/pages\/([^/]+)\/versions\/([^/]+)$/);
+  if(versionMatch&&method==='GET'){
+    const pageId=decodeURIComponent(versionMatch[1]),versionId=decodeURIComponent(versionMatch[2]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const row=await env.DB.prepare('SELECT id,label,created_at,content_json FROM page_versions WHERE id=? AND page_id=?').bind(versionId,pageId).first<{id:string;label:string;created_at:string;content_json:string}>();
+    if(!row)return json({error:'저장된 버전을 찾을 수 없습니다.'},404);
+    return json({id:row.id,label:row.label,created_at:row.created_at,content:JSON.parse(row.content_json)});
+  }
+  const pageDatabase=path.match(/^\/pages\/([^/]+)\/database$/);
+  if(pageDatabase&&method==='GET'){
+    const pageId=decodeURIComponent(pageDatabase[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const database=await env.DB.prepare('SELECT id,page_id,title,view_type,created_at,updated_at FROM databases WHERE page_id=?').bind(pageId).first<{id:string;page_id:string;title:string;view_type:string;created_at:string;updated_at:string}>();
+    if(!database)return json({database:null,rows:[]});
+    const rows=await env.DB.prepare('SELECT id,title,status,assignee,due_date,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all();
+    return json({database,rows:rows.results});
+  }
+  if(pageDatabase&&method==='POST'){
+    const pageId=decodeURIComponent(pageDatabase[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canWrite(record.access))return json({error:'데이터베이스를 만들 권한이 없습니다.'},403);
+    const existing=await env.DB.prepare('SELECT id FROM databases WHERE page_id=?').bind(pageId).first<{id:string}>();
+    if(existing)return json({ok:true,id:existing.id});
+    const body=await request.json<{title?:string}>(),databaseId=id(),at=now();
+    await env.DB.prepare('INSERT INTO databases(id,page_id,workspace_id,title,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(databaseId,pageId,record.page.workspace_id,clean(body.title,120)||'업무 목록',user.id,at,at).run();
+    await audit(env,user,record.page.workspace_id,'DATABASE_CREATED','database',databaseId);
+    return json({ok:true,id:databaseId},201);
+  }
+  const databaseMatch=path.match(/^\/databases\/([^/]+)$/);
+  if(databaseMatch&&method==='PATCH'){
+    const databaseId=decodeURIComponent(databaseMatch[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
+    if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'데이터베이스 수정 권한이 없습니다.'},403);
+    const body=await request.json<{title?:string;view_type?:string}>(),title=clean(body.title,120)||'업무 목록',viewType=body.view_type==='board'?'board':'table';
+    await env.DB.prepare('UPDATE databases SET title=?,view_type=?,updated_at=? WHERE id=?').bind(title,viewType,now(),databaseId).run();
+    return json({ok:true});
+  }
+  const databaseRows=path.match(/^\/databases\/([^/]+)\/rows$/);
+  if(databaseRows&&method==='POST'){
+    const databaseId=decodeURIComponent(databaseRows[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
+    if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'항목을 추가할 권한이 없습니다.'},403);
+    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:'할 일';
+    const rowId=id(),at=now(),position=(await env.DB.prepare('SELECT COALESCE(MAX(position),-1)+1 AS next FROM database_rows WHERE database_id=?').bind(databaseId).first<{next:number}>())?.next||0;
+    await env.DB.prepare('INSERT INTO database_rows(id,database_id,title,status,assignee,due_date,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(rowId,databaseId,clean(body.title,200)||'새 항목',status,clean(body.assignee,120),clean(body.due_date,20),position,at,at).run();
+    return json({ok:true,id:rowId},201);
+  }
+  const databaseRow=path.match(/^\/database-rows\/([^/]+)$/);
+  if(databaseRow&&(method==='PATCH'||method==='DELETE')){
+    const rowId=decodeURIComponent(databaseRow[1]),row=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id,r.title,r.status,r.assignee,r.due_date FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(rowId).first<{database_id:string;page_id:string;workspace_id:string;title:string;status:string;assignee:string;due_date:string}>();
+    if(!row)return json({error:'항목을 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,row.page_id);if(!record||!canWrite(record.access))return json({error:'항목을 수정할 권한이 없습니다.'},403);
+    if(method==='DELETE'){await env.DB.prepare('DELETE FROM database_rows WHERE id=?').bind(rowId).run();return json({ok:true});}
+    const body=await request.json<{title?:string;status?:string;assignee?:string;due_date?:string}>(),status=['할 일','진행 중','완료'].includes(body.status||'')?body.status!:row.status;
+    await env.DB.prepare('UPDATE database_rows SET title=?,status=?,assignee=?,due_date=?,updated_at=? WHERE id=?').bind(clean(body.title,200)||row.title,status,body.assignee===undefined?row.assignee:clean(body.assignee,120),body.due_date===undefined?row.due_date:clean(body.due_date,20),now(),rowId).run();
+    return json({ok:true});
+  }
   const commentMatch=path.match(/^\/pages\/([^/]+)\/comments$/);
   if(commentMatch&&method==='GET'){
     const pageId=decodeURIComponent(commentMatch[1]),record=await accessFor(env,user,pageId);
@@ -331,9 +406,23 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const body=await request.json<{body?:string}>(),text=clean(body.body,4000);
     if(!text)return json({error:'댓글 내용을 입력해 주세요.'},400);
     const commentId=id(),at=now();await env.DB.prepare('INSERT INTO comments(id,page_id,user_id,body,created_at) VALUES(?,?,?,?,?)').bind(commentId,pageId,user.id,text,at).run();
+    const targets=await env.DB.prepare('SELECT DISTINCT u.id,u.email,u.display_name FROM users u LEFT JOIN workspace_members wm ON wm.user_id=u.id AND wm.workspace_id=? LEFT JOIN page_members pm ON pm.user_id=u.id AND pm.page_id=? WHERE u.id<>? AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL)').bind(record.page.workspace_id,pageId,user.id).all<{id:string;email:string;display_name:string}>();
+    const mentioned=targets.results.filter(target=>{
+      const tokens=text.match(/@[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|@[\p{L}\p{N}._-]+/gu)||[];
+      return tokens.some(token=>{const name=token.slice(1).toLocaleLowerCase();return name===target.email.toLocaleLowerCase()||name===target.email.split('@')[0].toLocaleLowerCase()||name===target.display_name.toLocaleLowerCase();});
+    });
+    if(mentioned.length)await env.DB.batch(mentioned.map(target=>env.DB.prepare('INSERT INTO notifications(id,user_id,workspace_id,page_id,comment_id,actor_id,kind,body,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(id(),target.id,record.page.workspace_id,pageId,commentId,user.id,'mention',text,at)));
     await audit(env,user,record.page.workspace_id,'COMMENT_ADDED','page',pageId);
-    return json({ok:true,id:commentId,createdAt:at},201);
+    return json({ok:true,id:commentId,createdAt:at,notified:mentioned.length},201);
   }
+  if(method==='GET'&&path==='/notifications'){
+    const rows=await env.DB.prepare('SELECT n.id,n.workspace_id,n.page_id,n.comment_id,n.kind,n.body,n.created_at,n.read_at,p.title AS page_title,u.display_name AS actor_name,u.email AS actor_email FROM notifications n JOIN pages p ON p.id=n.page_id JOIN users u ON u.id=n.actor_id LEFT JOIN workspace_members wm ON wm.workspace_id=n.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=n.page_id AND pm.user_id=? WHERE n.user_id=? AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY n.created_at DESC LIMIT 100').bind(user.id,user.id,user.id).all();
+    const unread=await env.DB.prepare('SELECT COUNT(*) AS count FROM notifications WHERE user_id=? AND read_at IS NULL').bind(user.id).first<{count:number}>();
+    return json({items:rows.results,unread:unread?.count||0});
+  }
+  const notificationRead=path.match(/^\/notifications\/([^/]+)\/read$/);
+  if(method==='POST'&&notificationRead){const notificationId=decodeURIComponent(notificationRead[1]);await env.DB.prepare('UPDATE notifications SET read_at=? WHERE id=? AND user_id=?').bind(now(),notificationId,user.id).run();return json({ok:true});}
+  if(method==='POST'&&path==='/notifications/read-all'){await env.DB.prepare('UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL').bind(now(),user.id).run();return json({ok:true});}
   const resolveComment=path.match(/^\/comments\/([^/]+)\/resolve$/);
   if(resolveComment&&method==='POST'){
     const commentId=decodeURIComponent(resolveComment[1]);
@@ -345,11 +434,53 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     return json({ok:true});
   }
   const inviteMatch=path.match(/^\/workspaces\/([^/]+)\/invites$/);
+  const workspaceMembers=path.match(/^\/workspaces\/([^/]+)\/members$/);
+  if(method==='GET'&&workspaceMembers){
+    const workspaceId=decodeURIComponent(workspaceMembers[1]),member=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first();
+    if(!member)return json({error:'워크스페이스에 접근할 수 없습니다.'},403);
+    const [members,invites]=await Promise.all([
+      env.DB.prepare('SELECT u.id,u.email,u.display_name,wm.role,wm.joined_at FROM workspace_members wm JOIN users u ON u.id=wm.user_id WHERE wm.workspace_id=? ORDER BY CASE wm.role WHEN \'owner\' THEN 0 WHEN \'admin\' THEN 1 ELSE 2 END, u.display_name').bind(workspaceId).all(),
+      env.DB.prepare('SELECT id,email,role,created_at FROM workspace_invites WHERE workspace_id=? AND accepted_at IS NULL ORDER BY created_at DESC').bind(workspaceId).all(),
+    ]);
+    return json({members:members.results,invites:invites.results,canManage:['owner','admin'].includes(member.role as string),canAssignAdmin:member.role==='owner'});
+  }
+  const memberMatch=path.match(/^\/workspaces\/([^/]+)\/members\/([^/]+)$/);
+  if(memberMatch&&(method==='PATCH'||method==='DELETE')){
+    const workspaceId=decodeURIComponent(memberMatch[1]),targetId=decodeURIComponent(memberMatch[2]);
+    const actor=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
+    if(!actor||!['owner','admin'].includes(actor.role))return json({error:'워크스페이스 관리자만 멤버를 관리할 수 있습니다.'},403);
+    const target=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,targetId).first<{role:string}>();
+    if(!target)return json({error:'멤버를 찾을 수 없습니다.'},404);
+    if(target.role==='owner')return json({error:'소유자 역할은 이 화면에서 변경하거나 제거할 수 없습니다.'},409);
+    if(actor.role==='admin'&&target.role==='admin')return json({error:'관리자 역할은 소유자만 변경할 수 있습니다.'},403);
+    if(method==='DELETE'){
+      if(targetId===user.id)return json({error:'본인을 제거할 수 없습니다. 다른 소유자에게 먼저 소유권을 이전해 주세요.'},409);
+      await env.DB.prepare('DELETE FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,targetId).run();
+      await audit(env,user,workspaceId,'MEMBER_REMOVED','user',targetId);
+      return json({ok:true});
+    }
+    const body=await request.json<{role?:string}>(),role=body.role;
+    if(!['admin','member','guest'].includes(role||''))return json({error:'관리자·멤버·게스트 중에서 선택해 주세요.'},400);
+    if(role==='admin'&&actor.role!=='owner')return json({error:'관리자 지정은 소유자만 할 수 있습니다.'},403);
+    await env.DB.prepare('UPDATE workspace_members SET role=? WHERE workspace_id=? AND user_id=?').bind(role,workspaceId,targetId).run();
+    await audit(env,user,workspaceId,'MEMBER_ROLE_CHANGED','user',targetId);
+    return json({ok:true,role});
+  }
+  const inviteItem=path.match(/^\/workspaces\/([^/]+)\/invites\/([^/]+)$/);
+  if(method==='DELETE'&&inviteItem){
+    const workspaceId=decodeURIComponent(inviteItem[1]),inviteId=decodeURIComponent(inviteItem[2]);
+    const actor=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
+    if(!actor||!['owner','admin'].includes(actor.role))return json({error:'워크스페이스 관리자만 초대를 취소할 수 있습니다.'},403);
+    await env.DB.prepare('DELETE FROM workspace_invites WHERE id=? AND workspace_id=? AND accepted_at IS NULL').bind(inviteId,workspaceId).run();
+    await audit(env,user,workspaceId,'INVITE_REVOKED','invite',inviteId);
+    return json({ok:true});
+  }
   if(method==='POST'&&inviteMatch){
     const workspaceId=decodeURIComponent(inviteMatch[1]),member=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
     if(!member||!['owner','admin'].includes(member.role))return json({error:'공간 관리자만 초대할 수 있습니다.'},403);
     const body=await request.json<{email?:string;role?:string}>(),email=clean(body.email,180).toLowerCase(),role=['admin','member','guest'].includes(body.role||'')?body.role!:'member';
     if(!emailPattern.test(email))return json({error:'이메일 주소를 확인해 주세요.'},400);
+    if(role==='admin'&&member.role!=='owner')return json({error:'관리자 초대는 소유자만 할 수 있습니다.'},403);
     const invited=await env.DB.prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE').bind(email).first<{id:string}>();
     if(invited){await env.DB.prepare('INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role').bind(workspaceId,invited.id,role,now()).run();}
     else await env.DB.prepare('INSERT INTO workspace_invites(id,workspace_id,email,role,invited_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,accepted_at=NULL').bind(id(),workspaceId,email,role,user.id,now()).run();
