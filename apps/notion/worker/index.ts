@@ -76,7 +76,7 @@ async function currentUser(request: Request, env: Env): Promise<User | null> {
       const jwks = createRemoteJWKSet(new URL(`${domain}/cdn-cgi/access/certs`));
       const { payload } = await jwtVerify(accessToken, jwks, { issuer: domain, audience: env.ACCESS_AUD });
       const email = clean(payload.email, 180).toLowerCase();
-      if (!emailPattern.test(email)) return null;
+      if (!emailPattern.test(email) || !allowedEmailDomain(env,email)) return null;
       return await ensureUser(env, email, clean(email.split('@')[0], 80));
     } catch { return null; }
   }
@@ -88,7 +88,8 @@ async function currentUser(request: Request, env: Env): Promise<User | null> {
     if (!payload || !signature || await hmac(await sessionSecret(env), payload) !== signature) return null;
     const data = decodePayload(payload);
     if (!data.sub || data.exp < Date.now()) return null;
-    return await env.DB.prepare('SELECT id,email,display_name FROM users WHERE id=?').bind(data.sub).first<User>();
+    const user=await env.DB.prepare('SELECT id,email,display_name FROM users WHERE id=?').bind(data.sub).first<User>();
+    return user&&allowedEmailDomain(env,user.email)?user:null;
   } catch { return null; }
 }
 async function ensureUser(env: Env, email: string, name: string) {
