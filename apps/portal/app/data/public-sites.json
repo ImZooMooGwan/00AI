@@ -16,6 +16,18 @@
     "updated_at": "2026-10-29T00:00:00.000Z"
   },
   {
+    "id": "notion-workspace",
+    "name": "00AI Workspace",
+    "description": "korea.kr 계정으로 동료와 문서를 공동 편집하고 업무 데이터베이스와 공공 템플릿을 함께 운영하는 협업 지식공간",
+    "public_url": "https://notion.00ai.kr/",
+    "origin_url": "https://notion.00ai.kr/",
+    "category": "공무원 업무도구",
+    "maker": "00AI",
+    "stack": "실시간 협업 · 문서·위키 · 업무 데이터베이스 · 공공 템플릿",
+    "status": "LIVE",
+    "updated_at": "2026-11-02T00:00:00.000Z"
+  },
+  {
     "id": "youth-policy-data-hub",
     "name": "청년정책데이터허브 Y-HUB",
     "description": "청년정책과 공공데이터를 한곳에서 탐색하고 분석하는 데이터 허브",
