@@ -1,0 +1,29 @@
+name: ATS SaaS tenant-isolation checks
+on:
+  push:
+    paths:
+      - apps/ats/**
+      - .github/workflows/ats-saas-ci.yml
+  pull_request:
+    paths:
+      - apps/ats/**
+      - .github/workflows/ats-saas-ci.yml
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ats
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: python3 scripts/test_saas_schema.py
+      - run: npm run test:saas
+      - run: npm run build
