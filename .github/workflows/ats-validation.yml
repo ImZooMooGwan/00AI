@@ -1,0 +1,25 @@
+name: ATS validation
+on:
+  push:
+    paths:
+      - 'apps/ats/**'
+      - '.github/workflows/ats-validation.yml'
+  pull_request:
+    paths:
+      - 'apps/ats/**'
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ats
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:schema
+      - run: npm run build
