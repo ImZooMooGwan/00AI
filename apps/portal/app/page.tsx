@@ -30,6 +30,17 @@ const services: Service[] = [
     action: "업무실 열기",
   },
   {
+    code: "NOTION",
+    title: "00AI Workspace",
+    category: "업무지원",
+    maturity: "실험실",
+    healthKey: "NOTION",
+    description: "korea.kr 계정으로 동료와 문서·업무 데이터베이스·공공 템플릿을 함께 운영합니다.",
+    tasks: ["공동 문서 편집", "업무 데이터베이스", "공공 템플릿 복제"],
+    href: "https://notion.00ai.kr/",
+    action: "협업공간 열기",
+  },
+  {
     code: "HARNESS",
     title: "00AI Harness",
     category: "문서·보고",
