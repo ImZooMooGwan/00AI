@@ -7,9 +7,10 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:schema": "python3 scripts/test_schema.py"
+    "test:schema": "python3 scripts/test_schema.py",
+    "test:saas": "node scripts/compile-saas.cjs && node --test scripts/test_saas_integration.cjs"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^5.20261029.1",

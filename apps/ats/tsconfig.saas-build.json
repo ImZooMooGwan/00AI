@@ -1,0 +1,9 @@
+{
+ "compilerOptions":{
+  "target":"ES2022", "lib":["ES2022","DOM","DOM.Iterable"],
+  "module":"CommonJS", "moduleResolution":"Node", "strict":true,
+  "skipLibCheck":true, "outDir":".saas-build/worker", "rootDir":"worker",
+  "noEmit":false, "types":["@cloudflare/workers-types"]
+ },
+ "include":["worker/saas.ts","worker/public-auth.ts"]
+}
