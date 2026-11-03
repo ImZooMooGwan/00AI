@@ -13,6 +13,7 @@ export interface Env {
   HASA_MODEL?: string;
   EMAIL_FROM_ADDRESS?: string;
   EMAIL_FROM_NAME?: string;
+  MAIL_FROM?: string;
   SIGNUP_ENABLED?: string;
   ALLOWED_EMAIL_DOMAINS?: string;
   ACCESS_TEAM_DOMAIN?: string;
@@ -50,6 +51,16 @@ async function hmac(secret: string, value: string) {
   const bytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(value)));
   return btoa(String.fromCharCode(...bytes)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
+async function verifyHmac(secret: string, value: string, signature: string) {
+  try {
+    const raw = atob(signature.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - signature.length % 4) % 4));
+    const bytes = Uint8Array.from(raw, character => character.charCodeAt(0));
+    const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    return await crypto.subtle.verify('HMAC', key, bytes, encoder.encode(value));
+  } catch {
+    return false;
+  }
+}
 async function sessionSecret(env: Env) {
   if (env.SESSION_SECRET) return env.SESSION_SECRET;
   const generated = `00ai_${Array.from(crypto.getRandomValues(new Uint8Array(48)), byte => byte.toString(16).padStart(2,'0')).join('')}`;
@@ -85,7 +96,7 @@ async function currentUser(request: Request, env: Env): Promise<User | null> {
   if (!token) return null;
   try {
     const [payload, signature] = token.split('.');
-    if (!payload || !signature || await hmac(await sessionSecret(env), payload) !== signature) return null;
+    if (!payload || !signature || !await verifyHmac(await sessionSecret(env), payload, signature)) return null;
     const data = decodePayload(payload);
     if (!data.sub || data.exp < Date.now()) return null;
     const user=await env.DB.prepare('SELECT id,email,display_name FROM users WHERE id=?').bind(data.sub).first<User>();
@@ -100,14 +111,14 @@ async function ensureUser(env: Env, email: string, name: string) {
   user = { id: userId, email, display_name: name };
   await createPersonalWorkspace(env, user);
   // Accept outstanding workspace invitations after account creation.
-  const invites = await env.DB.prepare('SELECT id,workspace_id,role FROM workspace_invites WHERE email=? COLLATE NOCASE AND accepted_at IS NULL').bind(email).all<{id:string;workspace_id:string;role:string}>();
+  const invites = await env.DB.prepare('SELECT id,workspace_id,role FROM workspace_invites WHERE email=? COLLATE NOCASE AND accepted_at IS NULL AND expires_at>?').bind(email,now()).all<{id:string;workspace_id:string;role:string}>();
   for (const invite of invites.results) {
     await env.DB.batch([
       env.DB.prepare('INSERT OR IGNORE INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)').bind(invite.workspace_id,userId,invite.role,now()),
       env.DB.prepare('UPDATE workspace_invites SET accepted_at=? WHERE id=?').bind(now(),invite.id),
     ]);
   }
-  const pageInvites = await env.DB.prepare('SELECT id,page_id,role FROM page_invites WHERE email=? COLLATE NOCASE AND accepted_at IS NULL').bind(email).all<{id:string;page_id:string;role:string}>();
+  const pageInvites = await env.DB.prepare('SELECT id,page_id,role FROM page_invites WHERE email=? COLLATE NOCASE AND accepted_at IS NULL AND expires_at>?').bind(email,now()).all<{id:string;page_id:string;role:string}>();
   for (const invite of pageInvites.results) {
     await env.DB.batch([
       env.DB.prepare('INSERT OR IGNORE INTO page_members(page_id,user_id,role,granted_by,created_at) SELECT ?,?,?,invited_by,? FROM page_invites WHERE id=?').bind(invite.page_id,userId,invite.role,now(),invite.id),
@@ -142,9 +153,23 @@ function canManage(access: Access) { return ['owner','admin'].includes(access.wo
 async function audit(env: Env, user: User, workspaceId: string, action: string, resourceType: string, resourceId: string) {
   await env.DB.prepare('INSERT INTO audit_log(id,workspace_id,actor_id,action,resource_type,resource_id,created_at) VALUES(?,?,?,?,?,?,?)').bind(id(),workspaceId,user.id,action,resourceType,resourceId,now()).run();
 }
+async function isTemplateModerator(env:Env,user:User){
+  const assigned=await env.DB.prepare('SELECT user_id FROM template_moderators LIMIT 1').first<{user_id:string}>();
+  if(assigned)return assigned.user_id===user.id;
+  const first=await env.DB.prepare('SELECT id FROM users ORDER BY created_at,id LIMIT 1').first<{id:string}>();
+  if(first?.id!==user.id)return false;
+  await env.DB.prepare('INSERT OR IGNORE INTO template_moderators(user_id,created_at) VALUES(?,?)').bind(user.id,now()).run();return true;
+}
 function originAllowed(request: Request) {
   const origin = request.headers.get('origin');
   return !origin || origin === new URL(request.url).origin;
+}
+
+function mailSender(env: Env) {
+  const configured = env.MAIL_FROM?.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+  const email = env.EMAIL_FROM_ADDRESS || configured?.[2] || env.MAIL_FROM?.trim() || 'no-reply@00ai.kr';
+  const name = env.EMAIL_FROM_NAME || configured?.[1]?.trim() || '00AI WORKSPACE';
+  return { email, name };
 }
 
 async function sendLoginCode(env: Env, email: string, code: string) {
@@ -154,14 +179,25 @@ async function sendLoginCode(env: Env, email: string, code: string) {
     method: 'POST',
     headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
-      sender: { email: env.EMAIL_FROM_ADDRESS || 'no-reply@00ai.kr', name: env.EMAIL_FROM_NAME || '00AI WORKSPACE' },
+      sender: mailSender(env),
       to: [{ email }],
       subject: '00AI WORKSPACE 로그인 코드',
       textContent: `로그인 코드 ${code}를 입력하세요. 이 코드는 10분 동안 유효합니다. 요청하지 않았다면 이 메일을 무시하세요.`,
       htmlContent: `<div style="font-family:sans-serif;color:#172033"><h2>00AI WORKSPACE 로그인</h2><p>아래 코드를 입력하세요. 10분 동안 유효합니다.</p><div style="font-size:30px;font-weight:700;letter-spacing:8px;padding:16px 0">${code}</div><p>요청하지 않았다면 이 메일을 무시하세요.</p></div>`,
     }),
   });
-  if (!response.ok) throw new Error(`EMAIL_PROVIDER_${response.status}`);
+  if (!response.ok) {
+    let providerCode = 'unknown';
+    try {
+      const body = await response.json<{code?:string}>();
+      if (body.code && /^[a-z0-9_-]{1,60}$/i.test(body.code)) providerCode = body.code;
+    } catch {}
+    console.error(JSON.stringify({event:'login_email_rejected',status:response.status,providerCode}));
+    throw new Error(`EMAIL_PROVIDER_${response.status}`);
+  }
+  let messageId: string | undefined;
+  try { messageId = (await response.json<{messageId?:string}>()).messageId; } catch {}
+  console.info(JSON.stringify({event:'login_email_accepted',provider:'brevo',messageId:messageId||null}));
 }
 
 async function sendCollaborationInvite(env:Env,email:string,kind:'workspace'|'page',title:string,role:string,url:string){
@@ -173,6 +209,10 @@ async function sendCollaborationInvite(env:Env,email:string,kind:'workspace'|'pa
   const html=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#25312a"><p style="color:#4a7056;font-weight:bold">00AI WORKSPACE</p><h2>${kindName} 초대</h2><p>협업 공간에 초대되었습니다.</p><div style="padding:16px;background:#f4f7f4;border-radius:10px"><b>${safe(title)}</b><br><span>권한: ${safe(roleNames[role]||role)}</span></div><p>초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.</p><p><a href="${safe(url)}" style="display:inline-block;background:#345c42;color:white;padding:11px 16px;border-radius:8px;text-decoration:none">00AI WORKSPACE 열기</a></p></div>`;
   const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI WORKSPACE'},to:[{email}],subject,textContent:text,htmlContent:html})});
   if(!response.ok)throw new Error(`EMAIL_PROVIDER_${response.status}`);return true;
+}
+async function sendCollaborationNotice(env:Env,email:string,subject:string,text:string,url:string){
+  const apiKey=await resolveSecret(env.BREVO_API_KEY);if(!apiKey)return false;const safe=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]||char));
+  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI WORKSPACE'},to:[{email}],subject,textContent:`${text}\n\n${url}`,htmlContent:`<div style="font-family:Arial,sans-serif;color:#25312a"><b>00AI WORKSPACE 알림</b><p>${safe(text)}</p><p><a href="${safe(url)}">문서 열기</a></p></div>`})});return response.ok;
 }
 
 async function routeApi(request: Request, env: Env, user: User | null): Promise<Response> {
@@ -200,7 +240,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if (!rate || Date.now()-rate.window_started >= 60*60_000) await env.DB.prepare('INSERT INTO email_rate_limits(fingerprint,window_started,count) VALUES(?,?,1) ON CONFLICT(fingerprint) DO UPDATE SET window_started=excluded.window_started,count=1').bind(fingerprint,Date.now()).run();
     else await env.DB.prepare('UPDATE email_rate_limits SET count=count+1 WHERE fingerprint=?').bind(fingerprint).run();
     const recent = await env.DB.prepare('SELECT sent_at FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).first<{sent_at:number}>();
-    if (recent && Date.now() - recent.sent_at < 45_000) return json({ ok: true, message: '해당 이메일로 로그인 코드를 보냈다면 잠시 후 도착합니다.' });
+    if (recent && Date.now() - recent.sent_at < 45_000) return json({ error: '방금 코드를 요청했습니다. 기존 메일을 확인하고 45초 후 다시 요청해 주세요.' },429);
     const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6,'0');
     const codeHash = await hmac(secret, `${email}:${code}`);
     await env.DB.prepare('INSERT INTO login_codes(email,code_hash,expires_at,attempts,sent_at) VALUES(?,?,?,0,?) ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash,expires_at=excluded.expires_at,attempts=0,sent_at=excluded.sent_at').bind(email,codeHash,Date.now()+10*60_000,Date.now()).run();
@@ -216,12 +256,14 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if (!allowedEmailDomain(env,email)) return json({error:emailDomainError(env)},403);
     const record = await env.DB.prepare('SELECT code_hash,expires_at,attempts FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).first<{code_hash:string;expires_at:number;attempts:number}>();
     if (!record || record.expires_at < Date.now() || record.attempts >= 5) return json({error:'코드가 만료되었거나 입력 횟수를 초과했습니다. 새 코드를 요청해 주세요.'},401);
-    const actual = await hmac(await sessionSecret(env),`${email}:${code}`);
-    if (actual !== record.code_hash) { await env.DB.prepare('UPDATE login_codes SET attempts=attempts+1 WHERE email=? COLLATE NOCASE').bind(email).run(); return json({error:'인증 코드가 올바르지 않습니다.'},401); }
+    if (!await verifyHmac(await sessionSecret(env),`${email}:${code}`,record.code_hash)) { await env.DB.prepare('UPDATE login_codes SET attempts=attempts+1 WHERE email=? COLLATE NOCASE').bind(email).run(); return json({error:'인증 코드가 올바르지 않습니다.'},401); }
     await env.DB.prepare('DELETE FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).run();
     let account = await env.DB.prepare('SELECT id,email,display_name FROM users WHERE email=? COLLATE NOCASE').bind(email).first<User>();
     if (!account) {
-      if (env.SIGNUP_ENABLED === 'false') return json({error:'현재는 초대된 사용자만 가입할 수 있습니다.'},403);
+      if (env.SIGNUP_ENABLED === 'false') {
+        const pending=await env.DB.prepare('SELECT 1 AS found FROM workspace_invites WHERE email=? COLLATE NOCASE AND accepted_at IS NULL AND expires_at>? UNION ALL SELECT 1 AS found FROM page_invites WHERE email=? COLLATE NOCASE AND accepted_at IS NULL AND expires_at>? LIMIT 1').bind(email,now(),email,now()).first();
+        if(!pending)return json({error:'현재는 유효한 초대를 받은 사용자만 가입할 수 있습니다.'},403);
+      }
       account = await ensureUser(env,email,clean(body.name,80) || email.split('@')[0]);
     }
     await env.DB.prepare('UPDATE users SET last_seen_at=? WHERE id=?').bind(now(),account.id).run();
@@ -230,10 +272,13 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if (method === 'POST' && path === '/auth/logout') return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':'00ai_notion=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'}});
   if (method === 'GET' && path === '/me') return user ? json({user:{id:user.id,email:user.email,display_name:user.display_name,name:user.display_name}}) : json({user:null},401);
   if(method==='GET'&&path==='/templates'){
-    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,t.created_at,COALESCE(u.display_name,t.source_name) AS author_name FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").all();
+    const result=await env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.copy_count,t.version,t.created_at,COALESCE(u.display_name,t.source_name) AS author_name,COALESCE((SELECT ROUND(AVG(r.rating),1) FROM template_ratings r WHERE r.template_id=t.id),0) AS rating_avg,(SELECT COUNT(*) FROM template_ratings r WHERE r.template_id=t.id) AS rating_count,COALESCE((SELECT r.rating FROM template_ratings r WHERE r.template_id=t.id AND r.user_id=?),0) AS my_rating FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.visibility='public' AND t.review_status='published' ORDER BY t.category,t.title").bind(user?.id||'').all();
     return json({items:result.results});
   }
   if (!user) return json({error:'로그인이 필요합니다.'},401);
+
+  const templateRating=path.match(/^\/templates\/([^/]+)\/rating$/);
+  if(method==='POST'&&templateRating){const templateId=decodeURIComponent(templateRating[1]),template=await env.DB.prepare("SELECT id FROM templates WHERE id=? AND visibility='public' AND review_status='published'").bind(templateId).first();if(!template)return json({error:'공개 템플릿을 찾을 수 없습니다.'},404);const body=await request.json<{rating?:number}>(),rating=Math.trunc(Number(body.rating));if(!Number.isInteger(rating)||rating<1||rating>5)return json({error:'1점부터 5점까지 선택해 주세요.'},400);await env.DB.prepare('INSERT INTO template_ratings(template_id,user_id,rating,updated_at) VALUES(?,?,?,?) ON CONFLICT(template_id,user_id) DO UPDATE SET rating=excluded.rating,updated_at=excluded.updated_at').bind(templateId,user.id,rating,now()).run();return json({ok:true,rating});}
 
   if(method==='PATCH'&&path==='/profile'){
     const body=await request.json<{displayName?:string}>(),displayName=clean(body.displayName,80);
@@ -245,6 +290,17 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if (method === 'GET' && path === '/workspaces') {
     const result = await env.DB.prepare('SELECT w.id,w.name,w.slug,wm.role FROM workspaces w JOIN workspace_members wm ON wm.workspace_id=w.id WHERE wm.user_id=? ORDER BY w.created_at').bind(user.id).all();
     return json({items:result.results});
+  }
+  const workspaceMetrics=path.match(/^\/workspaces\/([^/]+)\/metrics$/);
+  if(method==='GET'&&workspaceMetrics){
+    const workspaceId=decodeURIComponent(workspaceMetrics[1]),membership=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
+    if(!membership)return json({error:'워크스페이스에 접근할 권한이 없습니다.'},403);if(!['owner','admin'].includes(membership.role))return json({error:'운영 지표는 워크스페이스 관리자만 볼 수 있습니다.'},403);
+    const [members,pages,work,invites]=await Promise.all([
+      env.DB.prepare('SELECT COUNT(*) AS total FROM workspace_members WHERE workspace_id=?').bind(workspaceId).first<{total:number}>(),
+      env.DB.prepare('SELECT COUNT(*) AS total,SUM(CASE WHEN created_at>=datetime(\'now\',\'-7 days\') THEN 1 ELSE 0 END) AS new_7d FROM pages WHERE workspace_id=? AND archived_at IS NULL').bind(workspaceId).first<{total:number;new_7d:number}>(),
+      env.DB.prepare("SELECT COUNT(*) AS total,SUM(CASE WHEN r.status!='완료' AND r.due_date!='' AND r.due_date<date('now') THEN 1 ELSE 0 END) AS overdue FROM database_rows r JOIN databases d ON d.id=r.database_id JOIN pages p ON p.id=d.page_id WHERE p.workspace_id=? AND p.archived_at IS NULL").bind(workspaceId).first<{total:number;overdue:number}>(),
+      env.DB.prepare("SELECT COUNT(*) AS total FROM workspace_invites WHERE workspace_id=? AND accepted_at IS NULL AND (expires_at IS NULL OR expires_at>?)").bind(workspaceId,now()).first<{total:number}>(),
+    ]);return json({members:members?.total||0,pages:pages?.total||0,new_pages_7d:pages?.new_7d||0,work_items:work?.total||0,overdue_items:work?.overdue||0,pending_invites:invites?.total||0,as_of:now()});
   }
   if (method === 'POST' && path === '/workspaces') {
     const body = await request.json<{name?:string}>(), name = clean(body.name,80);
@@ -263,8 +319,20 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const member=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first();
     const direct=await env.DB.prepare('SELECT 1 AS ok FROM page_members pm JOIN pages p ON p.id=pm.page_id WHERE p.workspace_id=? AND pm.user_id=? LIMIT 1').bind(workspaceId,user.id).first();
     if (!member&&!direct) return json({error:'공간에 접근할 수 없습니다.'},403);
-    const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.created_at,p.updated_at,p.created_by,COALESCE(pm.role,wm.role) AS role,p.starter_json IS NOT NULL AND p.starter_claimed_at IS NULL AS has_starter,CASE WHEN f.page_id IS NULL THEN 0 ELSE 1 END AS favorite FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? LEFT JOIN page_favorites f ON f.page_id=p.id AND f.user_id=? WHERE p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY p.updated_at DESC LIMIT 500').bind(user.id,user.id,user.id,workspaceId).all();
+    const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.created_at,p.updated_at,p.created_by,p.sort_order,COALESCE(pm.role,wm.role) AS role,p.starter_json IS NOT NULL AND p.starter_claimed_at IS NULL AS has_starter,CASE WHEN f.page_id IS NULL THEN 0 ELSE 1 END AS favorite FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? LEFT JOIN page_favorites f ON f.page_id=p.id AND f.user_id=? WHERE p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY p.parent_id,p.sort_order,p.updated_at DESC LIMIT 500').bind(user.id,user.id,user.id,workspaceId).all();
     return json({items:rows.results});
+  }
+  if(method==='GET'&&path==='/trash'){
+    const workspaceId=clean(url.searchParams.get('workspaceId'),60),membership=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first();
+    if(!membership)return json({error:'워크스페이스 휴지통을 볼 권한이 없습니다.'},403);
+    const result=await env.DB.prepare("SELECT p.id,p.parent_id,p.title,p.icon,p.archived_at,p.updated_at FROM pages p LEFT JOIN pages parent ON parent.id=p.parent_id WHERE p.workspace_id=? AND p.archived_at IS NOT NULL AND (p.parent_id IS NULL OR parent.archived_at IS NULL) ORDER BY p.archived_at DESC LIMIT 100").bind(workspaceId).all();return json({items:result.results});
+  }
+  const pageArchive=path.match(/^\/pages\/([^/]+)\/(archive|restore)$/);
+  if(pageArchive&&method==='POST'){
+    const pageId=decodeURIComponent(pageArchive[1]),action=pageArchive[2],page=await env.DB.prepare('SELECT id,workspace_id,archived_at FROM pages WHERE id=?').bind(pageId).first<{id:string;workspace_id:string;archived_at:string|null}>();if(!page)return json({error:'페이지를 찾을 수 없습니다.'},404);
+    if(action==='archive'){const access=await accessFor(env,user,pageId);if(!access||!canWrite(access.access))return json({error:'페이지를 보관할 권한이 없습니다.'},403);const at=now();await env.DB.prepare('WITH RECURSIVE subtree(id) AS (SELECT id FROM pages WHERE id=? UNION ALL SELECT p.id FROM pages p JOIN subtree s ON p.parent_id=s.id WHERE p.archived_at IS NULL) UPDATE pages SET archived_at=? WHERE id IN (SELECT id FROM subtree)').bind(pageId,at).run();await audit(env,user,page.workspace_id,'PAGE_ARCHIVED','page',pageId);return json({ok:true});}
+    const membership=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(page.workspace_id,user.id).first<{role:string}>(),direct=await env.DB.prepare('SELECT role FROM page_members WHERE page_id=? AND user_id=?').bind(pageId,user.id).first<{role:string}>();if(!['owner','admin','member'].includes(membership?.role||'')&&!['editor','owner','admin'].includes(direct?.role||''))return json({error:'페이지를 복원할 권한이 없습니다.'},403);
+    await env.DB.prepare('WITH RECURSIVE subtree(id) AS (SELECT id FROM pages WHERE id=? AND archived_at IS NOT NULL UNION ALL SELECT p.id FROM pages p JOIN subtree s ON p.parent_id=s.id WHERE p.archived_at IS NOT NULL) UPDATE pages SET archived_at=NULL WHERE id IN (SELECT id FROM subtree)').bind(pageId).run();await audit(env,user,page.workspace_id,'PAGE_RESTORED','page',pageId);return json({ok:true});
   }
   if (method === 'GET' && path === '/search') {
     const workspaceId=clean(url.searchParams.get('workspaceId'),60), query=clean(url.searchParams.get('q'),120);
@@ -289,8 +357,20 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const body=await request.json<{parentId?:string|null}>(),parentId=body.parentId?clean(body.parentId,60):null;
     if(parentId===pageId)return json({error:'페이지를 자기 자신 아래로 이동할 수 없습니다.'},400);
     if(parentId){const parent=await accessFor(env,user,parentId);if(!parent||parent.page.workspace_id!==page.workspace_id||!canWrite(parent.access))return json({error:'같은 워크스페이스에서 편집 가능한 상위 페이지를 선택해 주세요.'},403);let cursor:string|null=parentId;const seen=new Set<string>();for(let i=0;i<500&&cursor;i++){if(cursor===pageId)return json({error:'하위 페이지를 상위 페이지로 지정할 수 없습니다.'},400);if(seen.has(cursor))break;seen.add(cursor);cursor=await env.DB.prepare('SELECT parent_id FROM pages WHERE id=? AND workspace_id=? AND archived_at IS NULL').bind(cursor,page.workspace_id).first<{parent_id:string|null}>().then(row=>row?.parent_id||null);}}
-    await env.DB.prepare('UPDATE pages SET parent_id=?,updated_at=? WHERE id=?').bind(parentId,now(),pageId).run();
+    const last=await env.DB.prepare('SELECT COALESCE(MAX(sort_order),-1) AS last FROM pages WHERE workspace_id=? AND parent_id IS ? AND archived_at IS NULL').bind(page.workspace_id,parentId).first<{last:number}>();
+    await env.DB.prepare('UPDATE pages SET parent_id=?,sort_order=?,updated_at=? WHERE id=?').bind(parentId,(last?.last??-1)+1,now(),pageId).run();
     await audit(env,user,page.workspace_id,'PAGE_MOVED','page',pageId);return json({ok:true,parentId});
+  }
+  const pageOrder=path.match(/^\/pages\/([^/]+)\/order$/);
+  if(pageOrder&&method==='PATCH'){
+    const pageId=decodeURIComponent(pageOrder[1]),page=await env.DB.prepare('SELECT id,workspace_id,parent_id FROM pages WHERE id=? AND archived_at IS NULL').bind(pageId).first<{id:string;workspace_id:string;parent_id:string|null}>();
+    if(!page)return json({error:'페이지를 찾을 수 없습니다.'},404);
+    const access=await accessFor(env,user,pageId);if(!access||!canWrite(access.access))return json({error:'페이지 순서를 변경할 권한이 없습니다.'},403);
+    const body=await request.json<{direction?:string}>();if(body.direction!=='up'&&body.direction!=='down')return json({error:'이동 방향을 확인해 주세요.'},400);
+    const siblings=await env.DB.prepare("SELECT p.id FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE p.workspace_id=? AND p.parent_id IS ? AND p.archived_at IS NULL AND COALESCE(pm.role,wm.role) IN ('owner','admin','member','editor') ORDER BY p.sort_order,p.updated_at DESC,p.id").bind(user.id,user.id,page.workspace_id,page.parent_id).all<{id:string}>();
+    const ids=siblings.results.map(item=>item.id),index=ids.indexOf(pageId),other=index+(body.direction==='up'?-1:1);if(index<0)return json({error:'정렬 가능한 형제 페이지를 찾을 수 없습니다.'},403);if(other<0||other>=ids.length)return json({ok:true,unchanged:true});
+    [ids[index],ids[other]]=[ids[other],ids[index]];const updates=ids.map((id,position)=>env.DB.prepare('UPDATE pages SET sort_order=? WHERE id=?').bind(position, id));await env.DB.batch(updates);
+    await audit(env,user,page.workspace_id,'PAGE_REORDERED','page',pageId);return json({ok:true});
   }
   const favoriteMatch=path.match(/^\/pages\/([^/]+)\/favorite$/);
   if(favoriteMatch&&(method==='POST'||method==='DELETE')){
@@ -329,6 +409,29 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     await audit(env,user,workspaceId,'PAGE_CREATED','page',pageId);
     return json({ok:true,id:pageId},201);
   }
+  if(method==='GET'&&path==='/templates/moderation'){
+    if(!await isTemplateModerator(env,user))return json({error:'템플릿 검토 권한이 없습니다.'},403);
+    const [pending,reports]=await Promise.all([
+      env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.created_at,u.display_name AS author_name,u.email AS author_email,(SELECT COUNT(*) FROM template_reports r WHERE r.template_id=t.id AND r.resolved_at IS NULL) AS open_reports FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.owner_id IS NOT NULL AND t.visibility='public' AND t.review_status='pending' ORDER BY t.created_at").all(),
+      env.DB.prepare("SELECT r.id,r.template_id,r.reason,r.created_at,t.title AS template_title,t.visibility,t.review_status,u.display_name AS reporter_name,u.email AS reporter_email FROM template_reports r JOIN templates t ON t.id=r.template_id JOIN users u ON u.id=r.reporter_id WHERE r.resolved_at IS NULL ORDER BY r.created_at").all(),
+    ]);return json({pending:pending.results,reports:reports.results});
+  }
+  const moderationTemplate=path.match(/^\/templates\/moderation\/templates\/([^/]+)$/);
+  if(method==='PATCH'&&moderationTemplate){
+    if(!await isTemplateModerator(env,user))return json({error:'템플릿 검토 권한이 없습니다.'},403);
+    const templateId=decodeURIComponent(moderationTemplate[1]),body=await request.json<{decision?:string}>();if(!['approve','reject'].includes(body.decision||''))return json({error:'승인 또는 반려를 선택해 주세요.'},400);
+    const template=await env.DB.prepare('SELECT id FROM templates WHERE id=?').bind(templateId).first();if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);
+    const approved=body.decision==='approve';await env.DB.prepare('UPDATE templates SET review_status=?,visibility=?,updated_at=? WHERE id=?').bind(approved?'published':'rejected',approved?'public':'private',now(),templateId).run();return json({ok:true,review_status:approved?'published':'rejected'});
+  }
+  const moderationReport=path.match(/^\/templates\/moderation\/reports\/([^/]+)$/);
+  if(method==='PATCH'&&moderationReport){
+    if(!await isTemplateModerator(env,user))return json({error:'템플릿 검토 권한이 없습니다.'},403);
+    const reportId=decodeURIComponent(moderationReport[1]),body=await request.json<{decision?:string}>();if(!['dismiss','hide'].includes(body.decision||''))return json({error:'신고를 기각하거나 템플릿을 숨겨 주세요.'},400);
+    const report=await env.DB.prepare('SELECT template_id FROM template_reports WHERE id=? AND resolved_at IS NULL').bind(reportId).first<{template_id:string}>();if(!report)return json({error:'미처리 신고를 찾을 수 없습니다.'},404);
+    if(body.decision==='hide'){await env.DB.batch([env.DB.prepare("UPDATE templates SET visibility='private',review_status='rejected',updated_at=? WHERE id=?").bind(now(),report.template_id),env.DB.prepare('UPDATE template_reports SET resolved_at=? WHERE template_id=? AND resolved_at IS NULL').bind(now(),report.template_id)]);}
+    else await env.DB.prepare('UPDATE template_reports SET resolved_at=? WHERE id=?').bind(now(),reportId).run();
+    return json({ok:true});
+  }
   if(method==='GET'&&path==='/templates/mine'){
     const result=await env.DB.prepare("SELECT id,title,description,category,icon,license,source_name,source_url,review_status,version,copy_count,visibility FROM templates WHERE owner_id=? ORDER BY updated_at DESC").bind(user.id).all();
     return json({items:result.results});
@@ -341,9 +444,9 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(blocks.length>350_000)return json({error:'템플릿 내용이 너무 큽니다.'},413);
     if(sourceUrl&&!/^https:\/\//i.test(sourceUrl))return json({error:'출처 URL은 https 주소를 입력해 주세요.'},400);
     const templateId=id(),at=now(),publish=body.publish===true;
-    await env.DB.prepare('INSERT INTO templates(id,title,description,category,icon,visibility,license,blocks_json,created_at,updated_at,owner_id,source_name,source_url,review_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,at,at,user.id,sourceName,sourceUrl,publish?'published':'pending').run();
+    await env.DB.prepare('INSERT INTO templates(id,title,description,category,icon,visibility,license,blocks_json,created_at,updated_at,owner_id,source_name,source_url,review_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,at,at,user.id,sourceName,sourceUrl,publish?'pending':'pending').run();
     await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,created_by,created_at) VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,sourceName,sourceUrl,user.id,at).run();
-    return json({ok:true,id:templateId,review_status:publish?'published':'pending'},201);
+    return json({ok:true,id:templateId,review_status:'pending'},201);
   }
   const templateHistory=path.match(/^\/templates\/([^/]+)\/versions$/);
   if(templateHistory&&method==='GET'){
@@ -357,7 +460,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(template.owner_id!==user.id)return json({error:'작성한 템플릿만 복원할 수 있습니다.'},403);
     const snapshot=await env.DB.prepare('SELECT title,description,category,icon,visibility,license,blocks_json,source_name,source_url FROM template_versions WHERE id=? AND template_id=?').bind(versionId,templateId).first<{title:string;description:string;category:string;icon:string;visibility:string;license:string;blocks_json:string;source_name:string;source_url:string}>();
     if(!snapshot)return json({error:'저장 버전을 찾을 수 없습니다.'},404);const at=now(),nextVersion=template.version+1;
-    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,icon=?,visibility=?,license=?,blocks_json=?,source_name=?,source_url=?,review_status=CASE WHEN ?='public' THEN 'published' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.source_name,snapshot.source_url,snapshot.visibility,nextVersion,at,templateId).run();
+    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,icon=?,visibility=?,license=?,blocks_json=?,source_name=?,source_url=?,review_status=CASE WHEN ?='public' THEN 'pending' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.source_name,snapshot.source_url,snapshot.visibility,nextVersion,at,templateId).run();
     await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,nextVersion,snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.source_name,snapshot.source_url,user.id,at).run();return json({ok:true,version:nextVersion});
   }
   const templateMatch=path.match(/^\/templates\/([^/]+)$/);
@@ -365,7 +468,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,version FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null;title:string;description:string;category:string;icon:string;visibility:string;license:string;blocks_json:string;source_name:string;source_url:string;version:number}>();
     if(!current)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(current.owner_id!==user.id)return json({error:'작성한 템플릿만 수정할 수 있습니다.'},403);
     const body=await request.json<{title?:string;description?:string;category?:string;visibility?:string}>(),visibility=['public','private','unlisted'].includes(body.visibility||'')?body.visibility!:'private',title=clean(body.title,120)||'템플릿',description=clean(body.description,500),category=clean(body.category,60)||'기타',at=now(),nextVersion=current.version+1;
-    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,visibility=?,review_status=CASE WHEN ?='public' THEN 'published' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(title,description,category,visibility,visibility,nextVersion,at,templateId).run();
+    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,visibility=?,review_status=CASE WHEN ?='public' THEN 'pending' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(title,description,category,visibility,visibility,nextVersion,at,templateId).run();
     await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,source_name,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,nextVersion,title,description,category,current.icon,visibility,current.license,current.blocks_json,current.source_name,current.source_url,user.id,at).run();
     return json({ok:true,version:nextVersion});
   }
@@ -407,8 +510,12 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if (method === 'POST' && duplicateMatch) {
     const sourceId=decodeURIComponent(duplicateMatch[1]), source=await accessFor(env,user,sourceId);
     if(!source||!canRead(source.access)||!['owner','admin','member'].includes(source.access.workspaceRole))return json({error:'복제 권한이 없습니다.'},403);
+    const body=await request.json<{content?:unknown}>();
+    if(!body.content||typeof body.content!=='object'||(body.content as {type?:unknown}).type!=='doc'||!Array.isArray((body.content as {content?:unknown}).content))return json({error:'복제할 문서 내용을 확인할 수 없습니다.'},400);
+    const content=JSON.stringify(body.content);
+    if(content.length>350_000)return json({error:'문서가 너무 커서 복제할 수 없습니다.'},413);
     const pageId=id(),at=now();
-    await env.DB.prepare('INSERT INTO pages(id,workspace_id,parent_id,title,icon,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(pageId,source.page.workspace_id,null,`${source.page.title} 사본`,source.page.icon,user.id,at,at).run();
+    await env.DB.prepare('INSERT INTO pages(id,workspace_id,parent_id,title,icon,created_by,created_at,updated_at,starter_json) VALUES(?,?,?,?,?,?,?,?,?)').bind(pageId,source.page.workspace_id,null,`${source.page.title} 사본`,source.page.icon,user.id,at,at,content).run();
     await audit(env,user,source.page.workspace_id,'PAGE_DUPLICATED','page',pageId);
     return json({ok:true,id:pageId,sourceId});
   }
@@ -447,7 +554,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(!database)return json({database:null,rows:[],views:[]});
     const [rows,views]=await Promise.all([
       env.DB.prepare('SELECT id,title,status,assignee,due_date,priority,description,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
-      env.DB.prepare('SELECT id,database_id,name,view_type,status_filter,sort_by,group_by,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY created_at').bind(database.id).all(),
+      env.DB.prepare('SELECT id,database_id,name,view_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY created_at').bind(database.id).all(),
     ]);
     return json({database,rows:rows.results,views:views.results});
   }
@@ -475,24 +582,31 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const databaseId=decodeURIComponent(databaseViews[1]),database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string}>();
     if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
     const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'저장 뷰를 만들 권한이 없습니다.'},403);
-    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;group_by?:string}>(),name=clean(body.name,60);
+    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;sort_by_field?:string;sort_by_2?:string;group_by?:string;group_by_field?:string;due_filter?:string;search_query?:string;priority_filter?:string}>(),name=clean(body.name,60);
     if(!name)return json({error:'저장 뷰 이름을 입력해 주세요.'},400);
-    const viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:'table',statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:'전체',sortBy=['manual','due_date','title'].includes(body.sort_by||'')?body.sort_by!:'manual',groupBy=body.group_by==='status'?'status':'none',viewId=id(),at=now();
-    await env.DB.prepare('INSERT INTO database_views(id,database_id,name,view_type,status_filter,sort_by,group_by,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(viewId,databaseId,name,viewType,statusFilter,sortBy,groupBy,user.id,at,at).run();
-    return json({ok:true,view:{id:viewId,database_id:databaseId,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,group_by:groupBy,created_at:at,updated_at:at}},201);
+    const viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:'table',statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:'전체',sortByField=['manual','due_date','title','status','priority','assignee'].includes(body.sort_by_field||'')?body.sort_by_field!:['manual','due_date','title','status','priority','assignee'].includes(body.sort_by||'')?body.sort_by!:'manual',sortBy=['manual','due_date','title'].includes(sortByField)?sortByField:'manual',sortBy2=['none','due_date','title','status','priority','assignee'].includes(body.sort_by_2||'')?body.sort_by_2!:'none',groupByField=['none','status','priority','assignee'].includes(body.group_by_field||'')?body.group_by_field!:body.group_by==='status'?'status':'none',groupBy=groupByField==='status'?'status':'none',dueFilter=['all','overdue','next7','no_date'].includes(body.due_filter||'')?body.due_filter!:'all',searchQuery=clean(body.search_query,120),priorityFilter=['all','긴급','높음','보통','낮음'].includes(body.priority_filter||'')?body.priority_filter!:'all',viewId=id(),at=now();
+    await env.DB.prepare('INSERT INTO database_views(id,database_id,name,view_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(viewId,databaseId,name,viewType,statusFilter,sortBy,sortByField,sortBy2,groupBy,groupByField,dueFilter,searchQuery,priorityFilter,user.id,at,at).run();
+    return json({ok:true,view:{id:viewId,database_id:databaseId,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,sort_by_field:sortByField,sort_by_2:sortBy2,group_by:groupBy,group_by_field:groupByField,due_filter:dueFilter,search_query:searchQuery,priority_filter:priorityFilter,created_at:at,updated_at:at}},201);
   }
   const databaseView=path.match(/^\/database-views\/([^/]+)$/);
   if(databaseView&&(method==='PATCH'||method==='DELETE')){
-    const viewId=decodeURIComponent(databaseView[1]),view=await env.DB.prepare('SELECT database_id,name,view_type,status_filter,sort_by,group_by FROM database_views WHERE id=?').bind(viewId).first<{database_id:string;name:string;view_type:string;status_filter:string;sort_by:string;group_by:string}>();
+    const viewId=decodeURIComponent(databaseView[1]),view=await env.DB.prepare('SELECT database_id,name,view_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter FROM database_views WHERE id=?').bind(viewId).first<{database_id:string;name:string;view_type:string;status_filter:string;sort_by:string;sort_by_field:string;sort_by_2:string;group_by:string;group_by_field:string;due_filter:string;search_query:string;priority_filter:string}>();
     if(!view)return json({error:'저장 뷰를 찾을 수 없습니다.'},404);
     const database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(view.database_id).first<{page_id:string}>(),record=database?await accessFor(env,user,database.page_id):null;
     if(!record||!canWrite(record.access))return json({error:'저장 뷰를 수정할 권한이 없습니다.'},403);
     if(method==='DELETE'){await env.DB.prepare('DELETE FROM database_views WHERE id=?').bind(viewId).run();return json({ok:true});}
-    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;group_by?:string}>(),name=clean(body.name,60)||view.name,viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:view.view_type,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:view.status_filter,sortBy=['manual','due_date','title'].includes(body.sort_by||'')?body.sort_by!:view.sort_by,groupBy=body.group_by==='status'?'status':'none',at=now();
-    await env.DB.prepare('UPDATE database_views SET name=?,view_type=?,status_filter=?,sort_by=?,group_by=?,updated_at=? WHERE id=?').bind(name,viewType,statusFilter,sortBy,groupBy,at,viewId).run();
-    return json({ok:true,view:{id:viewId,database_id:view.database_id,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,group_by:groupBy,updated_at:at}});
+    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;sort_by_field?:string;sort_by_2?:string;group_by?:string;group_by_field?:string;due_filter?:string;search_query?:string;priority_filter?:string}>(),name=clean(body.name,60)||view.name,viewType=['table','board','calendar'].includes(body.view_type||'')?body.view_type!:view.view_type,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:view.status_filter,sortByField=['manual','due_date','title','status','priority','assignee'].includes(body.sort_by_field||'')?body.sort_by_field!:['manual','due_date','title','status','priority','assignee'].includes(body.sort_by||'')?body.sort_by!:view.sort_by_field,sortBy=['manual','due_date','title'].includes(sortByField)?sortByField:'manual',sortBy2=['none','due_date','title','status','priority','assignee'].includes(body.sort_by_2||'')?body.sort_by_2!:view.sort_by_2,groupByField=['none','status','priority','assignee'].includes(body.group_by_field||'')?body.group_by_field!:body.group_by==='status'?'status':view.group_by_field,groupBy=groupByField==='status'?'status':'none',dueFilter=['all','overdue','next7','no_date'].includes(body.due_filter||'')?body.due_filter!:view.due_filter,searchQuery=body.search_query===undefined?view.search_query:clean(body.search_query,120),priorityFilter=['all','긴급','높음','보통','낮음'].includes(body.priority_filter||'')?body.priority_filter!:view.priority_filter,at=now();
+    await env.DB.prepare('UPDATE database_views SET name=?,view_type=?,status_filter=?,sort_by=?,sort_by_field=?,sort_by_2=?,group_by=?,group_by_field=?,due_filter=?,search_query=?,priority_filter=?,updated_at=? WHERE id=?').bind(name,viewType,statusFilter,sortBy,sortByField,sortBy2,groupBy,groupByField,dueFilter,searchQuery,priorityFilter,at,viewId).run();
+    return json({ok:true,view:{id:viewId,database_id:view.database_id,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,sort_by_field:sortByField,sort_by_2:sortBy2,group_by:groupBy,group_by_field:groupByField,due_filter:dueFilter,search_query:searchQuery,priority_filter:priorityFilter,updated_at:at}});
   }
   const databaseRows=path.match(/^\/databases\/([^/]+)\/rows$/);
+  const relatedRows=path.match(/^\/databases\/([^/]+)\/related-rows$/);
+  if(relatedRows&&method==='GET'){
+    const databaseId=decodeURIComponent(relatedRows[1]),source=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();if(!source)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const access=await accessFor(env,user,source.page_id);if(!access||!canRead(access.access))return json({error:'데이터베이스 접근 권한이 없습니다.'},403);
+    const rows=await env.DB.prepare('SELECT r.id AS row_id,r.title,r.status,r.priority,r.due_date,d.title AS database_title FROM database_rows r JOIN databases d ON d.id=r.database_id JOIN pages p ON p.id=d.page_id LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE d.workspace_id=? AND d.id<>? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY p.updated_at DESC,r.position LIMIT 200').bind(user.id,user.id,source.workspace_id,databaseId).all();
+    return json({items:rows.results});
+  }
   if(databaseRows&&method==='POST'){
     const databaseId=decodeURIComponent(databaseRows[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
     if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
@@ -517,10 +631,10 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const sourceId=decodeURIComponent(rowLinks[1]),source=await env.DB.prepare('SELECT r.database_id,d.page_id,d.workspace_id FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(sourceId).first<{database_id:string;page_id:string;workspace_id:string}>();
     if(!source)return json({error:'업무 항목을 찾을 수 없습니다.'},404);
     const access=await accessFor(env,user,source.page_id);if(!access||!(method==='GET'?canRead(access.access):canWrite(access.access)))return json({error:'업무 항목에 접근할 권한이 없습니다.'},403);
-    if(method==='GET'){const result=await env.DB.prepare('SELECT l.id,l.to_row_id AS row_id,r.title,r.status,r.priority,r.due_date FROM database_row_links l JOIN database_rows r ON r.id=l.to_row_id WHERE l.from_row_id=? ORDER BY l.created_at').bind(sourceId).all();return json({items:result.results});}
-    const body=await request.json<{targetRowId?:string}>(),targetId=clean(body.targetRowId,60),target=await env.DB.prepare('SELECT r.id,database_id,d.page_id FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(targetId).first<{id:string;database_id:string;page_id:string}>();
-    if(!target||target.database_id!==source.database_id)return json({error:'같은 데이터베이스의 업무를 연결해 주세요.'},400);
-    const targetAccess=await accessFor(env,user,target.page_id);if(!targetAccess||!canWrite(targetAccess.access))return json({error:'연결 대상 업무를 수정할 권한이 없습니다.'},403);
+    if(method==='GET'){const result=await env.DB.prepare("SELECT l.id,l.to_row_id AS row_id,r.title,r.status,r.priority,r.due_date,d.title AS database_title,'outgoing' AS relation_direction FROM database_row_links l JOIN database_rows r ON r.id=l.to_row_id JOIN databases d ON d.id=r.database_id JOIN pages p ON p.id=d.page_id LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE l.from_row_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) UNION ALL SELECT l.id,l.from_row_id AS row_id,r.title,r.status,r.priority,r.due_date,d.title AS database_title,'incoming' AS relation_direction FROM database_row_links l JOIN database_rows r ON r.id=l.from_row_id JOIN databases d ON d.id=r.database_id JOIN pages p ON p.id=d.page_id LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE l.to_row_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY title").bind(user.id,user.id,sourceId,user.id,user.id,sourceId).all();return json({items:result.results});}
+    const body=await request.json<{targetRowId?:string}>(),targetId=clean(body.targetRowId,60),target=await env.DB.prepare('SELECT r.id,database_id,d.page_id,d.workspace_id FROM database_rows r JOIN databases d ON d.id=r.database_id WHERE r.id=?').bind(targetId).first<{id:string;database_id:string;page_id:string;workspace_id:string}>();
+    if(!target||target.workspace_id!==source.workspace_id)return json({error:'같은 워크스페이스의 업무만 연결할 수 있습니다.'},400);
+    const targetAccess=await accessFor(env,user,target.page_id);if(!targetAccess||!canRead(targetAccess.access))return json({error:'연결 대상 업무를 볼 권한이 없습니다.'},403);
     if(targetId===sourceId)return json({error:'자기 자신은 연결할 수 없습니다.'},400);
     const linkId=id(),at=now();await env.DB.prepare('INSERT OR IGNORE INTO database_row_links(id,from_row_id,to_row_id,created_by,created_at) VALUES(?,?,?,?,?)').bind(linkId,sourceId,targetId,user.id,at).run();
     const link=await env.DB.prepare('SELECT id FROM database_row_links WHERE from_row_id=? AND to_row_id=?').bind(sourceId,targetId).first<{id:string}>();return json({ok:true,id:link?.id||linkId},201);
@@ -529,7 +643,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   if(rowLink&&method==='DELETE'){
     const linkId=decodeURIComponent(rowLink[1]),link=await env.DB.prepare('SELECT l.from_row_id,l.to_row_id,dp.page_id AS source_page,tp.page_id AS target_page FROM database_row_links l JOIN database_rows fr ON fr.id=l.from_row_id JOIN databases fd ON fd.id=fr.database_id JOIN database_rows tr ON tr.id=l.to_row_id JOIN databases td ON td.id=tr.database_id JOIN pages dp ON dp.id=fd.page_id JOIN pages tp ON tp.id=td.page_id WHERE l.id=?').bind(linkId).first<{from_row_id:string;to_row_id:string;source_page:string;target_page:string}>();
     if(!link)return json({error:'업무 연결을 찾을 수 없습니다.'},404);
-    const [sourceAccess,targetAccess]=await Promise.all([accessFor(env,user,link.source_page),accessFor(env,user,link.target_page)]);if(!sourceAccess||!targetAccess||!canWrite(sourceAccess.access)||!canWrite(targetAccess.access))return json({error:'업무 연결을 변경할 권한이 없습니다.'},403);
+    const sourceAccess=await accessFor(env,user,link.source_page);if(!sourceAccess||!canWrite(sourceAccess.access))return json({error:'업무 연결을 변경할 권한이 없습니다.'},403);
     await env.DB.prepare('DELETE FROM database_row_links WHERE id=?').bind(linkId).run();return json({ok:true});
   }
   const commentMatch=path.match(/^\/pages\/([^/]+)\/comments$/);
@@ -556,12 +670,12 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
   }
   if(path==='/notification-preferences'&&method==='GET'){
     await env.DB.prepare('INSERT OR IGNORE INTO notification_preferences(user_id,updated_at) VALUES(?,?)').bind(user.id,now()).run();
-    const preferences=await env.DB.prepare('SELECT mentions_enabled,page_shares_enabled FROM notification_preferences WHERE user_id=?').bind(user.id).first<{mentions_enabled:number;page_shares_enabled:number}>();
-    return json({mentions:Boolean(preferences?.mentions_enabled),pageShares:Boolean(preferences?.page_shares_enabled)});
+    const preferences=await env.DB.prepare('SELECT mentions_enabled,page_shares_enabled,mentions_email_enabled,page_shares_email_enabled FROM notification_preferences WHERE user_id=?').bind(user.id).first<{mentions_enabled:number;page_shares_enabled:number;mentions_email_enabled:number;page_shares_email_enabled:number}>();
+    return json({mentions:Boolean(preferences?.mentions_enabled),pageShares:Boolean(preferences?.page_shares_enabled),mentionsEmail:Boolean(preferences?.mentions_email_enabled),pageSharesEmail:Boolean(preferences?.page_shares_email_enabled)});
   }
   if(path==='/notification-preferences'&&method==='PATCH'){
-    const body=await request.json<{mentions?:boolean;pageShares?:boolean}>();
-    await env.DB.prepare('INSERT INTO notification_preferences(user_id,mentions_enabled,page_shares_enabled,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET mentions_enabled=excluded.mentions_enabled,page_shares_enabled=excluded.page_shares_enabled,updated_at=excluded.updated_at').bind(user.id,body.mentions===false?0:1,body.pageShares===false?0:1,now()).run();
+    const body=await request.json<{mentions?:boolean;pageShares?:boolean;mentionsEmail?:boolean;pageSharesEmail?:boolean}>();
+    await env.DB.prepare('INSERT INTO notification_preferences(user_id,mentions_enabled,page_shares_enabled,mentions_email_enabled,page_shares_email_enabled,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET mentions_enabled=excluded.mentions_enabled,page_shares_enabled=excluded.page_shares_enabled,mentions_email_enabled=excluded.mentions_email_enabled,page_shares_email_enabled=excluded.page_shares_email_enabled,updated_at=excluded.updated_at').bind(user.id,body.mentions===false?0:1,body.pageShares===false?0:1,body.mentionsEmail?1:0,body.pageSharesEmail?1:0,now()).run();
     return json({ok:true});
   }
   if(method==='GET'&&path==='/notifications'){
@@ -589,7 +703,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(!member)return json({error:'워크스페이스에 접근할 수 없습니다.'},403);
     const [members,invites]=await Promise.all([
       env.DB.prepare('SELECT u.id,u.email,u.display_name,wm.role,wm.joined_at FROM workspace_members wm JOIN users u ON u.id=wm.user_id WHERE wm.workspace_id=? ORDER BY CASE wm.role WHEN \'owner\' THEN 0 WHEN \'admin\' THEN 1 ELSE 2 END, u.display_name').bind(workspaceId).all(),
-      env.DB.prepare('SELECT id,email,role,created_at FROM workspace_invites WHERE workspace_id=? AND accepted_at IS NULL ORDER BY created_at DESC').bind(workspaceId).all(),
+      env.DB.prepare('SELECT id,email,role,created_at,expires_at FROM workspace_invites WHERE workspace_id=? AND accepted_at IS NULL ORDER BY created_at DESC').bind(workspaceId).all(),
     ]);
     return json({members:members.results,invites:invites.results,canManage:['owner','admin'].includes(member.role as string),canAssignAdmin:member.role==='owner'});
   }
@@ -616,6 +730,17 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     return json({ok:true,role});
   }
   const inviteItem=path.match(/^\/workspaces\/([^/]+)\/invites\/([^/]+)$/);
+  const inviteResend=path.match(/^\/workspaces\/([^/]+)\/invites\/([^/]+)\/resend$/);
+  if(method==='POST'&&inviteResend){
+    const workspaceId=decodeURIComponent(inviteResend[1]),inviteId=decodeURIComponent(inviteResend[2]),actor=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
+    if(!actor||!['owner','admin'].includes(actor.role))return json({error:'워크스페이스 관리자만 초대를 재발송할 수 있습니다.'},403);
+    const invite=await env.DB.prepare('SELECT email,role FROM workspace_invites WHERE id=? AND workspace_id=? AND accepted_at IS NULL').bind(inviteId,workspaceId).first<{email:string;role:string}>();
+    if(!invite)return json({error:'대기 중인 초대를 찾을 수 없습니다.'},404);
+    const expiresAt=new Date(Date.now()+7*24*60*60_000).toISOString();await env.DB.prepare('UPDATE workspace_invites SET expires_at=? WHERE id=?').bind(expiresAt,inviteId).run();
+    const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();let invitationSent=false;
+    try{invitationSent=await sendCollaborationInvite(env,invite.email,'workspace',workspace?.name||'공공 협업 공간',invite.role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'workspace_invite_resend_failed',reason:error instanceof Error?error.message:'unknown'}));}
+    await audit(env,user,workspaceId,'INVITE_RESENT','invite',inviteId);return json({ok:true,invitationSent,expiresAt});
+  }
   if(method==='DELETE'&&inviteItem){
     const workspaceId=decodeURIComponent(inviteItem[1]),inviteId=decodeURIComponent(inviteItem[2]);
     const actor=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
@@ -629,26 +754,55 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     if(!member||!['owner','admin'].includes(member.role))return json({error:'공간 관리자만 초대할 수 있습니다.'},403);
     const body=await request.json<{email?:string;role?:string}>(),email=clean(body.email,180).toLowerCase(),role=['admin','member','guest'].includes(body.role||'')?body.role!:'member';
     if(!emailPattern.test(email))return json({error:'이메일 주소를 확인해 주세요.'},400);
+    if(!allowedEmailDomain(env,email))return json({error:emailDomainError(env)},403);
     if(role==='admin'&&member.role!=='owner')return json({error:'관리자 초대는 소유자만 할 수 있습니다.'},403);
     const invited=await env.DB.prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE').bind(email).first<{id:string}>();
     if(invited){await env.DB.prepare('INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role').bind(workspaceId,invited.id,role,now()).run();}
-    else await env.DB.prepare('INSERT INTO workspace_invites(id,workspace_id,email,role,invited_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,accepted_at=NULL').bind(id(),workspaceId,email,role,user.id,now()).run();
+    else await env.DB.prepare('INSERT INTO workspace_invites(id,workspace_id,email,role,invited_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(workspace_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL').bind(id(),workspaceId,email,role,user.id,now(),new Date(Date.now()+7*24*60*60_000).toISOString()).run();
     await audit(env,user,workspaceId,'MEMBER_INVITED','workspace',workspaceId);
-    let invitationSent=false;{const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();try{invitationSent=await sendCollaborationInvite(env,email,'workspace',workspace?.name||'공공 협업 공간',role,new URL('/',request.url).toString());}catch(error){console.error(JSON.stringify({event:'workspace_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}}
+    let invitationSent=false;{const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();try{invitationSent=await sendCollaborationInvite(env,email,'workspace',workspace?.name||'공공 협업 공간',role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'workspace_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}}
     return json({ok:true,accepted:!!invited,invitationSent});
   }
   const shareMatch=path.match(/^\/pages\/([^/]+)\/share$/);
+  const pageShares=path.match(/^\/pages\/([^/]+)\/shares$/);
+  if(method==='GET'&&pageShares){
+    const pageId=decodeURIComponent(pageShares[1]),record=await accessFor(env,user,pageId);if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const [members,invites]=await Promise.all([
+      env.DB.prepare('SELECT pm.user_id AS id,u.email,u.display_name,pm.role,pm.created_at AS created_at FROM page_members pm JOIN users u ON u.id=pm.user_id WHERE pm.page_id=? ORDER BY pm.created_at').bind(pageId).all(),
+      env.DB.prepare('SELECT id,email,role,created_at,expires_at FROM page_invites WHERE page_id=? AND accepted_at IS NULL ORDER BY created_at DESC').bind(pageId).all(),
+    ]);
+    return json({members:members.results,invites:invites.results,canManage:canManage(record.access)});
+  }
+  const pageInviteResend=path.match(/^\/pages\/([^/]+)\/invites\/([^/]+)\/resend$/);
+  if(method==='POST'&&pageInviteResend){
+    const pageId=decodeURIComponent(pageInviteResend[1]),inviteId=decodeURIComponent(pageInviteResend[2]),record=await accessFor(env,user,pageId);if(!record||!canManage(record.access))return json({error:'공간 관리자만 페이지 초대를 재발송할 수 있습니다.'},403);
+    const invite=await env.DB.prepare('SELECT email,role FROM page_invites WHERE id=? AND page_id=? AND accepted_at IS NULL').bind(inviteId,pageId).first<{email:string;role:string}>();if(!invite)return json({error:'대기 중인 페이지 초대를 찾을 수 없습니다.'},404);
+    const expiresAt=new Date(Date.now()+7*24*60*60_000).toISOString();await env.DB.prepare('UPDATE page_invites SET expires_at=? WHERE id=?').bind(expiresAt,inviteId).run();let invitationSent=false;
+    try{invitationSent=await sendCollaborationInvite(env,invite.email,'page',record.page.title,invite.role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_invite_resend_failed',reason:error instanceof Error?error.message:'unknown'}));}
+    await audit(env,user,record.page.workspace_id,'PAGE_INVITE_RESENT','page',pageId);return json({ok:true,invitationSent,expiresAt});
+  }
+  const pageInviteItem=path.match(/^\/pages\/([^/]+)\/invites\/([^/]+)$/);
+  if(method==='DELETE'&&pageInviteItem){
+    const pageId=decodeURIComponent(pageInviteItem[1]),inviteId=decodeURIComponent(pageInviteItem[2]),record=await accessFor(env,user,pageId);if(!record||!canManage(record.access))return json({error:'공간 관리자만 페이지 초대를 취소할 수 있습니다.'},403);
+    await env.DB.prepare('DELETE FROM page_invites WHERE id=? AND page_id=? AND accepted_at IS NULL').bind(inviteId,pageId).run();await audit(env,user,record.page.workspace_id,'PAGE_INVITE_REVOKED','page',pageId);return json({ok:true});
+  }
+  const pageMember=path.match(/^\/pages\/([^/]+)\/members\/([^/]+)$/);
+  if(method==='DELETE'&&pageMember){
+    const pageId=decodeURIComponent(pageMember[1]),memberId=decodeURIComponent(pageMember[2]),record=await accessFor(env,user,pageId);if(!record||!canManage(record.access))return json({error:'공간 관리자만 페이지 접근 권한을 회수할 수 있습니다.'},403);
+    await env.DB.prepare('DELETE FROM page_members WHERE page_id=? AND user_id=?').bind(pageId,memberId).run();await audit(env,user,record.page.workspace_id,'PAGE_ACCESS_REVOKED','page',pageId);return json({ok:true});
+  }
   if(method==='POST'&&shareMatch){
     const pageId=decodeURIComponent(shareMatch[1]),record=await accessFor(env,user,pageId);
     if(!record||!canManage(record.access))return json({error:'공간 관리자만 공유 권한을 설정할 수 있습니다.'},403);
     const body=await request.json<{email?:string;role?:string}>(),email=clean(body.email,180).toLowerCase(),role=['editor','commenter','viewer'].includes(body.role||'')?body.role!:'viewer';
     if(!emailPattern.test(email))return json({error:'이메일 주소를 확인해 주세요.'},400);
+    if(!allowedEmailDomain(env,email))return json({error:emailDomainError(env)},403);
     const target=await env.DB.prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE').bind(email).first<{id:string}>();
-    if(!target){await env.DB.prepare('INSERT INTO page_invites(id,page_id,email,role,invited_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(page_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,accepted_at=NULL').bind(id(),pageId,email,role,user.id,now()).run();let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,new URL('/',request.url).toString());}catch(error){console.error(JSON.stringify({event:'page_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}return json({ok:true,invited:true,invitationSent});}
+    if(!target){await env.DB.prepare('INSERT INTO page_invites(id,page_id,email,role,invited_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(page_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL').bind(id(),pageId,email,role,user.id,now(),new Date(Date.now()+7*24*60*60_000).toISOString()).run();let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}return json({ok:true,invited:true,invitationSent});}
     const at=now();await env.DB.prepare('INSERT INTO page_members(page_id,user_id,role,granted_by,created_at) VALUES(?,?,?,?,?) ON CONFLICT(page_id,user_id) DO UPDATE SET role=excluded.role,granted_by=excluded.granted_by,created_at=excluded.created_at').bind(pageId,target.id,role,user.id,at).run();
     await env.DB.prepare('INSERT INTO notifications(id,user_id,workspace_id,page_id,actor_id,kind,body,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(id(),target.id,record.page.workspace_id,pageId,user.id,'page_share',`${user.display_name||user.email}님이 '${record.page.title}' 페이지를 공유했습니다.`,at).run();
     await audit(env,user,record.page.workspace_id,'PAGE_SHARED','page',pageId);
-    let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,new URL('/',request.url).toString());}catch(error){console.error(JSON.stringify({event:'page_share_email_failed',reason:error instanceof Error?error.message:'unknown'}));}
+    let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_share_email_failed',reason:error instanceof Error?error.message:'unknown'}));}
     return json({ok:true,invited:false,invitationSent});
   }
   const collabMatch=path.match(/^\/collab\/([^/]+)$/);
@@ -710,32 +864,69 @@ export class DocumentRoom extends DurableObject<Env> {
     if(this.ctx.getWebSockets().length>=80)return new Response('Room capacity reached',{status:503});
     const pair=new WebSocketPair(),server=pair[1];
     this.ctx.acceptWebSocket(server,[JSON.stringify({actor,name,role,pageId})]);
-    this.send(server,'presence',{users:this.onlineUsers()});
-    this.broadcast('presence',{users:this.onlineUsers()},server);
+    const users=await this.onlineUsers();
+    this.send(server,'presence',{users});
+    await this.broadcastPresence(users,server);
     return new Response(null,{status:101,webSocket:pair[0]});
   }
-  private onlineUsers(){
+  private async onlineUsers(){
     const users=new Map<string,string>();
-    for(const socket of this.ctx.getWebSockets()){try{const meta=JSON.parse(this.ctx.getTags(socket)[0]||'{}') as {actor?:string;name?:string};if(meta.actor)users.set(meta.actor,meta.name||'협업자');}catch{}}
+    for(const socket of this.ctx.getWebSockets()){
+      try{
+        const meta=JSON.parse(this.ctx.getTags(socket)[0]||'{}') as {actor?:string;name?:string};
+        if(meta.actor&&await this.canRead(socket))users.set(meta.actor,meta.name||'협업자');
+        else socket.close(1008,'Permission revoked');
+      }catch{try{socket.close(1011,'Unable to confirm access');}catch{}}
+    }
     return [...users].map(([id,name])=>({id,name}));
   }
-  private broadcast(type:string,data:Record<string,unknown>,except?:WebSocket){
-    const message=JSON.stringify({type,...data});
-    for(const peer of this.ctx.getWebSockets())if(peer!==except){try{peer.send(message);}catch{}}
+  private async broadcastPresence(users:Array<{id:string;name:string}>,except?:WebSocket){
+    const message=JSON.stringify({type:'presence',users});
+    for(const peer of this.ctx.getWebSockets())if(peer!==except){try{if(await this.canRead(peer))peer.send(message);else peer.close(1008,'Permission revoked');}catch{try{peer.close(1011,'Unable to confirm access');}catch{}}}
   }
-  private async canWrite(socket:WebSocket){
+  private async roleFor(socket:WebSocket){
     try{
       const identity=JSON.parse(this.ctx.getTags(socket)[0]||'{}') as {actor:string;pageId:string;role:string};
       const page=await this.env.DB.prepare("SELECT p.workspace_id,wm.role AS workspace_role,pm.role AS page_role FROM pages p LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE p.id=? AND p.archived_at IS NULL").bind(identity.actor,identity.actor,identity.pageId).first<{workspace_id:string;workspace_role:string|null;page_role:string|null}>();
-      const role=page?.page_role||page?.workspace_role;
-      return Boolean(page&&role&&['owner','admin','member','editor'].includes(role));
-    }catch{return false;}
+      return page?.page_role||page?.workspace_role||null;
+    }catch{return null;}
+  }
+  private async canRead(socket:WebSocket){
+    const role=await this.roleFor(socket);
+    return Boolean(role&&['owner','admin','member','guest','editor','commenter','viewer'].includes(role));
+  }
+  private async canWrite(socket:WebSocket){
+    const role=await this.roleFor(socket);
+    return Boolean(role&&['owner','admin','member','editor'].includes(role));
+  }
+  private async broadcastAuthorizedUpdate(data:Record<string,unknown>,except:WebSocket){
+    const peers=this.ctx.getWebSockets().filter(peer=>peer!==except);
+    if(!peers.length)return;
+    const identities=peers.map(peer=>{
+      try{return {socket:peer,identity:JSON.parse(this.ctx.getTags(peer)[0]||'{}') as {actor?:string;pageId?:string}};}catch{return {socket:peer,identity:{}};}
+    });
+    const actorIds=[...new Set(identities.map(({identity})=>identity.actor).filter((actor):actor is string=>Boolean(actor)))];
+    if(!actorIds.length){for(const {socket} of identities)try{socket.close(1008,'Invalid session');}catch{};return;}
+    try{
+      const placeholders=actorIds.map(()=>'(?)').join(',');
+      const rows=await this.env.DB.prepare(`WITH active(user_id) AS (VALUES ${placeholders}) SELECT DISTINCT active.user_id AS id FROM active JOIN pages p ON p.id=? AND p.archived_at IS NULL LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=active.user_id LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=active.user_id WHERE wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL`).bind(...actorIds,identities[0].identity.pageId||'').all<{id:string}>();
+      const allowed=new Set(rows.results.map(row=>row.id));
+      const message=JSON.stringify({type:'update',...data});
+      for(const {socket,identity} of identities){
+        if(identity.actor&&allowed.has(identity.actor)){try{socket.send(message);}catch{}}
+        else try{socket.close(1008,'Permission revoked');}catch{}
+      }
+    }catch(error){
+      console.error(JSON.stringify({event:'collaboration_access_check_failed',error:error instanceof Error?error.message:'unknown'}));
+      for(const {socket} of identities)try{socket.close(1011,'Unable to confirm access');}catch{}
+    }
   }
   async webSocketMessage(socket:WebSocket,message:string|ArrayBuffer){
     if(typeof message!=='string'||message.length>100_000){this.send(socket,'error',{reason:'입력 크기가 제한을 초과했습니다.'});return;}
     let request:{type?:string;data?:string};try{request=JSON.parse(message);}catch{this.send(socket,'error',{reason:'잘못된 메시지입니다.'});return;}
     let identity:{actor:string;name:string;role:string;pageId:string};try{identity=JSON.parse(this.ctx.getTags(socket)[0]||'{}');}catch{socket.close(1008,'Invalid session');return;}
     if(request.type==='sync'){
+      if(!await this.canRead(socket)){this.send(socket,'error',{reason:'문서 접근 권한이 회수되었습니다.'});socket.close(1008,'Permission revoked');return;}
       try{await this.indexSearchContent(identity.pageId);}catch(error){console.error(JSON.stringify({event:'search_index_backfill_failed',pageId:identity.pageId,error:error instanceof Error?error.message:'unknown'}));}
       const state=this.encode(Y.encodeStateAsUpdate(this.doc));
       if(state.length<60_000)this.send(socket,'update',{seq:this.sequence,data:state});
@@ -755,12 +946,12 @@ export class DocumentRoom extends DurableObject<Env> {
       } catch(error) { console.error(JSON.stringify({event:'search_index_update_failed',pageId:identity.pageId,error:error instanceof Error?error.message:'unknown'})); }
       if(this.sequence%100===0){const state=this.encode(Y.encodeStateAsUpdate(this.doc));this.ctx.storage.sql.exec('INSERT INTO snapshots(id,payload,seq) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,seq=excluded.seq',state,this.sequence);this.ctx.storage.sql.exec('DELETE FROM updates WHERE seq<=?',this.sequence);}
       this.send(socket,'ack',{seq:this.sequence});
-      this.broadcast('update',{seq:this.sequence,data:request.data,actor:identity.actor,name:identity.name},socket);return;
+      await this.broadcastAuthorizedUpdate({seq:this.sequence,data:request.data,actor:identity.actor,name:identity.name},socket);return;
     }
     this.send(socket,'error',{reason:'지원하지 않는 작업입니다.'});
   }
-  webSocketClose(socket:WebSocket){try{socket.close();}catch{}this.broadcast('presence',{users:this.onlineUsers()});}
-  webSocketError(socket:WebSocket){try{socket.close(1011,'Connection error');}catch{}this.broadcast('presence',{users:this.onlineUsers()});}
+  async webSocketClose(socket:WebSocket){try{socket.close();}catch{}const users=await this.onlineUsers();await this.broadcastPresence(users);}
+  async webSocketError(socket:WebSocket){try{socket.close(1011,'Connection error');}catch{}const users=await this.onlineUsers();await this.broadcastPresence(users);}
 }
 
 export default {
