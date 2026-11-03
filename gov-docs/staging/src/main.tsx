@@ -59,6 +59,19 @@ function App(){
     return()=>window.removeEventListener('beforeunload',handler);
   },[pending]);
 
+  function downloadSnapshot(format:'html'|'json'){
+    if(!editor)return;
+    const filename=(doc?.title||'00ai-docs').replace(/[\\/:*?"<>|]/g,'_').slice(0,70);
+    const data=format==='json'
+      ? JSON.stringify({format:'00ai-docs-yjs-pilot-backup-v1',documentId:docId,createdAt:new Date().toISOString(),revision:doc?.rev,editorJSON:editor.getJSON()},null,2)
+      : '<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>'+filename.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</title></head><body>'+editor.getHTML()+'</body></html>';
+    const blob=new Blob([data],{type:format==='json'?'application/json;charset=utf-8':'text/html;charset=utf-8'});
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);
+    link.download=filename+'-realtime-backup.'+format;
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(link.href),5000);
+  }
   function run(cb:()=>void){if(!editor||!editor.isEditable)return;cb()}
   const tableActions=[
     {name:'표 추가',ok:()=>true,run:()=>editor?.chain().focus().insertTable({rows:3,cols:4,withHeaderRow:false}).run()},
@@ -75,6 +88,11 @@ function App(){
       <div className="heading"><h1>{doc?.title||'문서 확인 중'}</h1><a href={'/?doc='+encodeURIComponent(docId)}>기존 문서로 돌아가기</a></div>
       <div className="warning"><b>시험용 편집기:</b> Yjs 기반으로 문단·표·제목을 동시에 편집하지만 현재 정식 문서 본문(documents/D1)과 별도로 저장됩니다. 기존 한글문서 자동 변환·버전 복원은 연결되지 않았습니다. 공개·가상자료로만 시험하세요.</div>
       <div className="metrics"><span>문서 권한: {role}</span><span>서버 업데이트: {sequence}</span><span>미확인 전송: {pending}건</span></div>
+      <div className="metrics" role="group" aria-label="공동편집 임시 복구 파일">
+        <button type="button" disabled={!editor} onClick={()=>downloadSnapshot('html')}>HTML 백업</button>
+        <button type="button" disabled={!editor} onClick={()=>downloadSnapshot('json')}>JSON 백업</button>
+        <span>현재 열린 공동편집 내용의 로컬 사본입니다. 정식 문서 이력과 별개입니다.</span>
+      </div>
       <nav className="toolbar" aria-label="문서 편집 도구">
         <button disabled={!editor?.isEditable} onClick={()=>run(()=>editor?.chain().focus().toggleBold().run())}><b>B</b></button>
         <button disabled={!editor?.isEditable} onClick={()=>run(()=>editor?.chain().focus().toggleItalic().run())}><i>I</i></button>
