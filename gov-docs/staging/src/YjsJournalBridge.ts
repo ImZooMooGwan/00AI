@@ -13,13 +13,15 @@ const fromBase64=(text:string)=>{
 
 export class YjsJournalBridge {
   private ws:WebSocket|null=null;
-  private pending:string[]=[];
+  private pending:Array<{id:string;data:string}>=[];
   private awaiting=false;
   private generation=0;
   private disposed=false;
   private attempts=0;
   private ackedSeq=0;
   private synced=false;
+  private readonly clientId=crypto.randomUUID();
+  private requestCounter=0;
   private snapshotParts:string[]=[];
   private snapshotExpected=0;
   public onStatus:(status:Status,message:string)=>void=()=>{};
@@ -31,7 +33,7 @@ export class YjsJournalBridge {
     if(origin==='remote')return;
     const data=asBase64(update);
     if(data.length>89000){this.onStatus('error','단일 수정이 제한 크기를 초과했습니다.');return;}
-    this.pending.push(data);
+    this.pending.push({id:this.clientId+'-'+(++this.requestCounter),data});
     this.onPending(this.pending.length);
     this.flush();
   };
@@ -68,6 +70,8 @@ export class YjsJournalBridge {
       }
       if(msg.type==='ack'){
         if(this.awaiting && this.pending.length){
+          // Only the matching server acknowledgement may remove a queued edit.
+          if((msg as Message & {requestId?:string}).requestId && (msg as Message & {requestId?:string}).requestId!==this.pending[0].id)return;
           this.pending.shift();this.awaiting=false;this.onPending(this.pending.length);this.flush();
         }
       }
@@ -87,7 +91,7 @@ export class YjsJournalBridge {
   private flush(){
     if(!this.synced||this.awaiting||!this.pending.length||this.ws?.readyState!==WebSocket.OPEN)return;
     this.awaiting=true;
-    this.ws.send(JSON.stringify({type:'update',data:this.pending[0]}));
+    this.ws.send(JSON.stringify({type:'update',requestId:this.pending[0].id,data:this.pending[0].data}));
   }
   public get pendingCount(){return this.pending.length;}
   public get serverSequence(){return this.ackedSeq;}
