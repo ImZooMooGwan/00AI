@@ -8508,6 +8508,7 @@ var DocumentCollaborationRoom = class {
         const payload = encode(encodeStateAsUpdate(this.doc));
         this.ctx.storage.sql.exec("INSERT INTO snapshots(id,payload,seq) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,seq=excluded.seq", payload, this.seq);
         this.ctx.storage.sql.exec("DELETE FROM updates WHERE seq<=?", this.seq);
+        this.ctx.storage.sql.exec("DELETE FROM request_receipts WHERE saved_at<?", Date.now() - 30 * 24 * 60 * 60 * 1e3);
       }
       send(socket, "ack", { seq: this.seq, requestId });
       const update = JSON.stringify({ type: "update", seq: this.seq, data: request.data });
