@@ -8537,9 +8537,25 @@ var DocumentCollaborationRoom = class {
     if (request.type === "awareness") {
       if (typeof request.data !== "string" || request.data.length > 2e3) return send(socket, "error", { reason: "Awareness too large" });
       const notice = JSON.stringify({ type: "awareness", data: request.data, actor: ident.actor });
-      for (const peer of this.ctx.getWebSockets()) if (peer !== socket) try {
-        peer.send(notice);
-      } catch {
+      for (const peer of this.ctx.getWebSockets()) if (peer !== socket) {
+        let target;
+        try {
+          target = JSON.parse(this.ctx.getTags(peer)[0]);
+        } catch {
+          continue;
+        }
+        if (target.docId !== ident.docId || !await this.permitted(target.actor, target.docId, false)) {
+          try {
+            peer.close(1008, "Access revoked");
+          } catch {
+          }
+          ;
+          continue;
+        }
+        try {
+          peer.send(notice);
+        } catch {
+        }
       }
       return;
     }
