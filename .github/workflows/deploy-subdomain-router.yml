@@ -43,7 +43,7 @@ jobs:
           )' "$manifest" >/dev/null
 
           {
-            jq -r '.[] | .id, ((.aliases // [])[])' "$manifest"
+            jq -r '.[] | select(.subdomain_router != false) | .id, ((.aliases // [])[])' "$manifest"
             echo drop
           } | awk 'NF && !seen[$0]++' | sort > /tmp/00ai-slugs.txt
 

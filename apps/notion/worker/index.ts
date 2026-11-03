@@ -172,9 +172,22 @@ function mailSender(env: Env) {
   return { email, name };
 }
 
-async function sendLoginCode(env: Env, email: string, code: string) {
+async function inspectBrevoDomain(env:Env){
+  const apiKey=await resolveSecret(env.BREVO_API_KEY);if(!apiKey)return;
+  try{
+    const response=await fetch('https://api.brevo.com/v3/senders/domains/00ai.kr',{headers:{'api-key':apiKey,accept:'application/json'}});
+    if(response.status===404){console.warn(JSON.stringify({event:'login_email_domain_missing',domain:'00ai.kr'}));return;}
+    if(!response.ok){console.warn(JSON.stringify({event:'login_email_domain_check_failed',status:response.status}));return;}
+    const data=await response.json<{verified?:boolean;authenticated?:boolean;dns_records?:Record<string,{type?:string;host_name?:string;value?:string;status?:boolean}>}>();
+    const records=Object.entries(data.dns_records||{}).map(([kind,value])=>({kind,type:value.type||'',host:value.host_name||'',value:value.value||'',status:Boolean(value.status)}));
+    console.info(JSON.stringify({event:'login_email_domain_auth',verified:Boolean(data.verified),authenticated:Boolean(data.authenticated),records}));
+  }catch(error){console.warn(JSON.stringify({event:'login_email_domain_check_failed',reason:error instanceof Error?error.message:'unknown'}));}
+}
+
+async function sendLoginCode(env: Env, email: string, code: string): Promise<string | undefined> {
   const apiKey = await resolveSecret(env.BREVO_API_KEY);
   if (!apiKey) throw new Error('EMAIL_NOT_CONFIGURED');
+  await inspectBrevoDomain(env);
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
@@ -198,6 +211,23 @@ async function sendLoginCode(env: Env, email: string, code: string) {
   let messageId: string | undefined;
   try { messageId = (await response.json<{messageId?:string}>()).messageId; } catch {}
   console.info(JSON.stringify({event:'login_email_accepted',provider:'brevo',messageId:messageId||null}));
+  return messageId;
+}
+
+async function trackLoginEmail(env:Env,messageId:string){
+  const apiKey=await resolveSecret(env.BREVO_API_KEY);if(!apiKey)return;
+  for(const delay of [1500,5000,12000]){
+    await new Promise(resolve=>setTimeout(resolve,delay));
+    try{
+      const query=new URLSearchParams({messageId,days:'1',limit:'10'});
+      const response=await fetch(`https://api.brevo.com/v3/smtp/statistics/events?${query}`,{headers:{'api-key':apiKey,accept:'application/json'}});
+      if(!response.ok){console.warn(JSON.stringify({event:'login_email_status_unavailable',status:response.status}));return;}
+      const data=await response.json<{events?:Array<{event?:string;reason?:string}>}>();
+      const events=(data.events||[]).map(item=>({event:clean(item.event,40),reason:clean(item.reason,160)})).filter(item=>item.event);
+      if(events.length){console.info(JSON.stringify({event:'login_email_delivery_status',events}));return;}
+    }catch(error){console.warn(JSON.stringify({event:'login_email_status_error',reason:error instanceof Error?error.message:'unknown'}));return;}
+  }
+  console.info(JSON.stringify({event:'login_email_status_pending'}));
 }
 
 async function sendCollaborationInvite(env:Env,email:string,kind:'workspace'|'page',title:string,role:string,url:string){
@@ -215,7 +245,7 @@ async function sendCollaborationNotice(env:Env,email:string,subject:string,text:
   const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI WORKSPACE'},to:[{email}],subject,textContent:`${text}\n\n${url}`,htmlContent:`<div style="font-family:Arial,sans-serif;color:#25312a"><b>00AI WORKSPACE 알림</b><p>${safe(text)}</p><p><a href="${safe(url)}">문서 열기</a></p></div>`})});return response.ok;
 }
 
-async function routeApi(request: Request, env: Env, user: User | null): Promise<Response> {
+async function routeApi(request: Request, env: Env, user: User | null, ctx?:ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api/, '');
   const method = request.method;
@@ -244,7 +274,7 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6,'0');
     const codeHash = await hmac(secret, `${email}:${code}`);
     await env.DB.prepare('INSERT INTO login_codes(email,code_hash,expires_at,attempts,sent_at) VALUES(?,?,?,0,?) ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash,expires_at=excluded.expires_at,attempts=0,sent_at=excluded.sent_at').bind(email,codeHash,Date.now()+10*60_000,Date.now()).run();
-    try { await sendLoginCode(env,email,code); }
+    try { const messageId=await sendLoginCode(env,email,code);if(messageId)ctx?.waitUntil(trackLoginEmail(env,messageId)); }
     catch (error) { await env.DB.prepare('DELETE FROM login_codes WHERE email=? COLLATE NOCASE').bind(email).run(); console.error(JSON.stringify({event:'login_email_failed',reason:error instanceof Error?error.message:'unknown'})); return json({error:'인증 메일을 보내지 못했습니다. 발신 설정을 확인해 주세요.'},503); }
     return json({ok:true,message:'로그인 코드를 이메일로 보냈습니다.'});
   }
@@ -276,6 +306,48 @@ async function routeApi(request: Request, env: Env, user: User | null): Promise<
     return json({items:result.results});
   }
   if (!user) return json({error:'로그인이 필요합니다.'},401);
+
+  const pageAttachments=path.match(/^\/pages\/([^/]+)\/attachments$/);
+  if(pageAttachments){
+    const pageId=decodeURIComponent(pageAttachments[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'페이지 접근 권한이 없습니다.'},403);
+    if(method==='GET'){
+      const rows=await env.DB.prepare('SELECT id,filename,mime_type,byte_size,uploaded_by,created_at FROM page_attachments WHERE page_id=? ORDER BY created_at DESC LIMIT 100').bind(pageId).all();
+      return json({items:rows.results});
+    }
+    if(method==='POST'){
+      if(!canWrite(record.access))return json({error:'첨부파일을 추가할 권한이 없습니다.'},403);
+      const form=await request.formData(),file=form.get('file');
+      if(!(file instanceof File))return json({error:'첨부할 파일을 선택해 주세요.'},400);
+      if(file.size<1||file.size>1_000_000)return json({error:'파일은 1MB 이하로 첨부할 수 있습니다.'},413);
+      const filename=clean(file.name,180).replace(/[\\/\u0000-\u001f\u007f]/g,'_').replace(/^\.+/,'')||'첨부파일';
+      const extension=filename.split('.').pop()?.toLowerCase()||'';
+      const types:Record<string,string>={pdf:'application/pdf',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',txt:'text/plain',csv:'text/csv',md:'text/markdown',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',zip:'application/zip'};
+      const mimeType=types[extension];if(!mimeType)return json({error:'PDF, 이미지, TXT, CSV, Markdown, Office 문서, ZIP 파일만 첨부할 수 있습니다.'},415);
+      const used=await env.DB.prepare('SELECT COALESCE(SUM(byte_size),0) AS used FROM page_attachments WHERE workspace_id=?').bind(record.page.workspace_id).first<{used:number}>();
+      if((used?.used||0)+file.size>10_000_000)return json({error:'워크스페이스 첨부파일 한도(10MB)에 도달했습니다. 불필요한 첨부를 삭제해 주세요.'},413);
+      const attachmentId=id(),bytes=new Uint8Array(await file.arrayBuffer()),at=now();
+      await env.DB.prepare('INSERT INTO page_attachments(id,page_id,workspace_id,uploaded_by,filename,mime_type,byte_size,file_blob,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(attachmentId,pageId,record.page.workspace_id,user.id,filename,mimeType,file.size,bytes,at).run();
+      await audit(env,user,record.page.workspace_id,'ATTACHMENT_ADDED','attachment',attachmentId);
+      return json({id:attachmentId,filename,mime_type:mimeType,byte_size:file.size,created_at:at,url:`/api/attachments/${attachmentId}`},201);
+    }
+  }
+  const attachmentMatch=path.match(/^\/attachments\/([^/]+)$/);
+  if(attachmentMatch){
+    const attachmentId=decodeURIComponent(attachmentMatch[1]),attachment=await env.DB.prepare('SELECT id,page_id,workspace_id,filename,mime_type,byte_size,file_blob FROM page_attachments WHERE id=?').bind(attachmentId).first<{id:string;page_id:string;workspace_id:string;filename:string;mime_type:string;byte_size:number;file_blob:ArrayBuffer}>();
+    if(!attachment)return json({error:'첨부파일을 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,attachment.page_id);if(!record||!canRead(record.access))return json({error:'첨부파일 접근 권한이 없습니다.'},403);
+    if(method==='DELETE'){
+      if(!canWrite(record.access))return json({error:'첨부파일을 삭제할 권한이 없습니다.'},403);
+      await env.DB.prepare('DELETE FROM page_attachments WHERE id=?').bind(attachmentId).run();
+      await audit(env,user,attachment.workspace_id,'ATTACHMENT_DELETED','attachment',attachmentId);
+      return json({ok:true});
+    }
+    if(method==='GET'||method==='HEAD'){
+      const safeName=encodeURIComponent(attachment.filename).replace(/['()*]/g,char=>`%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+      return new Response(method==='HEAD'?null:attachment.file_blob,{headers:{'content-type':attachment.mime_type,'content-length':String(attachment.byte_size),'content-disposition':`attachment; filename*=UTF-8''${safeName}`,'cache-control':'private, no-store','x-content-type-options':'nosniff'}});
+    }
+  }
 
   const templateRating=path.match(/^\/templates\/([^/]+)\/rating$/);
   if(method==='POST'&&templateRating){const templateId=decodeURIComponent(templateRating[1]),template=await env.DB.prepare("SELECT id FROM templates WHERE id=? AND visibility='public' AND review_status='published'").bind(templateId).first();if(!template)return json({error:'공개 템플릿을 찾을 수 없습니다.'},404);const body=await request.json<{rating?:number}>(),rating=Math.trunc(Number(body.rating));if(!Number.isInteger(rating)||rating<1||rating>5)return json({error:'1점부터 5점까지 선택해 주세요.'},400);await env.DB.prepare('INSERT INTO template_ratings(template_id,user_id,rating,updated_at) VALUES(?,?,?,?) ON CONFLICT(template_id,user_id) DO UPDATE SET rating=excluded.rating,updated_at=excluded.updated_at').bind(templateId,user.id,rating,now()).run();return json({ok:true,rating});}
@@ -955,15 +1027,15 @@ export class DocumentRoom extends DurableObject<Env> {
 }
 
 export default {
-  async fetch(request:Request,env:Env):Promise<Response>{
+  async fetch(request:Request,env:Env,ctx:ExecutionContext):Promise<Response>{
     const url=new URL(request.url);
     if(url.pathname.startsWith('/api/')){
       if(!['GET','HEAD','OPTIONS'].includes(request.method)&&!originAllowed(request))return json({error:'요청 출처를 확인해 주세요.'},403);
       if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':url.origin,'access-control-allow-methods':'GET,POST,PATCH,DELETE,OPTIONS','access-control-allow-headers':'content-type','access-control-max-age':'86400'}});
       if(request.method==='POST'&&['/api/auth/request-code','/api/auth/verify-code','/api/auth/logout'].includes(url.pathname)){
-        try{return await routeApi(request,env,null);}catch(error){console.error(JSON.stringify({event:'auth_request_error',path:url.pathname,error:error instanceof Error?error.message:'unknown'}));return json({error:'요청을 처리하지 못했습니다.'},500);}
+        try{return await routeApi(request,env,null,ctx);}catch(error){console.error(JSON.stringify({event:'auth_request_error',path:url.pathname,error:error instanceof Error?error.message:'unknown'}));return json({error:'요청을 처리하지 못했습니다.'},500);}
       }
-      try{return await routeApi(request,env,await currentUser(request,env));}
+      try{return await routeApi(request,env,await currentUser(request,env),ctx);}
       catch(error){console.error(JSON.stringify({event:'api_error',path:url.pathname,error:error instanceof Error?error.message:'unknown'}));return json({error:'요청을 처리하지 못했습니다.'},500);}
     }
     const response=await env.ASSETS.fetch(request);

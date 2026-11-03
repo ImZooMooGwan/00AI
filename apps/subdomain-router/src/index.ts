@@ -11,6 +11,7 @@ type PublicSite = {
   origin_url?: string;
   aliases?: string[];
   status?: string;
+  subdomain_router?: boolean;
 };
 
 type GitHubProject = {
@@ -171,6 +172,7 @@ function registerSlug(slug: string, site: PublicSite) {
 }
 
 for (const site of publicSites as PublicSite[]) {
+  if (site.subdomain_router === false) continue;
   registerSlug(site.id, site);
   for (const alias of site.aliases ?? []) registerSlug(alias, site);
 }
@@ -247,7 +249,7 @@ async function resolveRemoteRoute(slug: string): Promise<Route | null> {
         (alias) => alias.toLowerCase() === slug,
       );
     });
-    if (site) return routeFromSite(site);
+    if (site) return site.subdomain_router === false ? null : routeFromSite(site);
 
     const repository = (registry.githubProjects ?? []).find(
       (candidate) => candidate.name.toLowerCase() === slug,
