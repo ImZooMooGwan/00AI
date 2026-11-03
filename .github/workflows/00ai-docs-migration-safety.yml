@@ -1,0 +1,22 @@
+name: 00AI DOCS Migration Safety CI
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'gov-docs/worker.js'
+      - 'gov-docs/tests/migration-safety.test.mjs'
+      - '.github/workflows/00ai-docs-migration-safety.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check Cloudflare Worker
+        run: node --check gov-docs/worker.js
+      - name: Verify migration safety guards
+        run: node --test gov-docs/tests/migration-safety.test.mjs
