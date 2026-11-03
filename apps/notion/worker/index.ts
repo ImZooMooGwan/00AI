@@ -179,7 +179,7 @@ async function inspectBrevoDomain(env:Env){
     if(response.status===404){console.warn(JSON.stringify({event:'login_email_domain_missing',domain:'00ai.kr'}));return;}
     if(!response.ok){console.warn(JSON.stringify({event:'login_email_domain_check_failed',status:response.status}));return;}
     const data=await response.json<{verified?:boolean;authenticated?:boolean;dns_records?:Record<string,{type?:string;host_name?:string;value?:string;status?:boolean}>}>();
-    const records=Object.entries(data.dns_records||{}).map(([kind,value])=>({kind,type:value.type||'',host:value.host_name||'',value:value.value||'',status:Boolean(value.status)}));
+    const records=Object.entries(data.dns_records||{}).map(([kind,value])=>({kind,type:value.type||'',host:value.host_name||'',status:Boolean(value.status),valuePresent:Boolean(value.value)}));
     console.info(JSON.stringify({event:'login_email_domain_auth',verified:Boolean(data.verified),authenticated:Boolean(data.authenticated),records}));
   }catch(error){console.warn(JSON.stringify({event:'login_email_domain_check_failed',reason:error instanceof Error?error.message:'unknown'}));}
 }
@@ -223,7 +223,7 @@ async function trackLoginEmail(env:Env,messageId:string){
       const response=await fetch(`https://api.brevo.com/v3/smtp/statistics/events?${query}`,{headers:{'api-key':apiKey,accept:'application/json'}});
       if(!response.ok){console.warn(JSON.stringify({event:'login_email_status_unavailable',status:response.status}));return;}
       const data=await response.json<{events?:Array<{event?:string;reason?:string}>}>();
-      const events=(data.events||[]).map(item=>({event:clean(item.event,40),reason:clean(item.reason,160)})).filter(item=>item.event);
+      const events=(data.events||[]).map(item=>({event:clean(item.event,40),reason:clean(item.reason,160).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[email]')})).filter(item=>item.event);
       if(events.length){console.info(JSON.stringify({event:'login_email_delivery_status',events}));return;}
     }catch(error){console.warn(JSON.stringify({event:'login_email_status_error',reason:error instanceof Error?error.message:'unknown'}));return;}
   }
