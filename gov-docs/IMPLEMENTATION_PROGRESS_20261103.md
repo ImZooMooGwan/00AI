@@ -43,3 +43,15 @@ Updated 2026-11-03. Reference baseline: estimated 43/100 Google Docs feature-com
 ## Operating rule
 
 Do not treat Cloudflare HTTP 200 or source commits as proof that end-user functionality passed. Do not feed private government documents to this experimental service. Never overwrite the canonical HTML document with an experimental Y.Doc until explicit per-document conversion has passed validation. Preserve D1/DO bindings and deployed secrets during updates.
+
+## 2026-11-03 follow-up: collaboration correctness and recovery (deployed)
+
+- **Fail-closed ACK handling**: the client removes an unacknowledged edit only when the server's `requestId` matches the front queued edit; a stray ACK no longer removes work.
+- **Fail-closed sync**: incomplete, malformed or unappliable Yjs snapshot data prevents the editor from entering a writable connected state; the socket reconnects.
+- **Unsendable local edits**: an update exceeding the protocol frame cap now produces a persistent unsaved-change indication and participates in the unload warning rather than being silently ignored.
+- **Awareness ACL**: Durable Objects re-check the recipient's read permission before broadcasting presence updates.
+- **Recovery exports**: the experimental real-time editor can download local HTML and ProseMirror JSON copies. These are recovery artifacts and are not canonical document versions or fully verified round-trip formats.
+- **Automated source guards**: collaboration tests now include invalid sync/ACK, large update, presence ACL, and HTML/JSON export checks; the GitHub Actions build produced the packaged frontend.
+- **Deployment validation**: Cloudflare `00ai-gov-docs` and `00ai-docs-collab-canary` deploy APIs succeeded; both show 100% traffic on the latest revision. The original D1, DO, authentication, mail and HASA bindings remain configured.
+
+Unverified: authenticated multi-user live-browser E2E, session revocation under concurrent editing, crash/reconnect test, DOCX round trip, enterprise security test and migration to a single canonical document editor. These must pass before raising the Google Docs parity score or allowing sensitive official documents.
