@@ -75,6 +75,8 @@ export class DocumentCollaborationRoom {
     const payload=encode(Y.encodeStateAsUpdate(this.doc));
     this.ctx.storage.sql.exec('INSERT INTO snapshots(id,payload,seq) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,seq=excluded.seq',payload,this.seq);
     this.ctx.storage.sql.exec('DELETE FROM updates WHERE seq<=?',this.seq);
+    // Retain replay receipts for 30 days while bounding receipt storage growth.
+    this.ctx.storage.sql.exec('DELETE FROM request_receipts WHERE saved_at<?',Date.now()-30*24*60*60*1000);
    }
    send(socket,'ack',{seq:this.seq,requestId});
    const update=JSON.stringify({type:'update',seq:this.seq,data:request.data});
