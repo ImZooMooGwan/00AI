@@ -5,6 +5,7 @@ on:
     paths:
       - 'gov-docs/worker.js'
       - 'gov-docs/tests/migration-safety.test.mjs'
+      - 'gov-docs/tests/editor-runtime.test.mjs'
       - '.github/workflows/00ai-docs-migration-safety.yml'
 permissions:
   contents: read
@@ -19,4 +20,4 @@ jobs:
       - name: Syntax check Cloudflare Worker
         run: node --check gov-docs/worker.js
       - name: Verify migration safety guards
-        run: node --test gov-docs/tests/migration-safety.test.mjs
+        run: node --test gov-docs/tests/*.test.mjs
