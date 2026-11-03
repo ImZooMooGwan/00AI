@@ -41,9 +41,9 @@ const emailPattern = /^[^\s@]{1,100}@[^\s@.]{1,100}(?:\.[^\s@.]{1,24})+$/;
 function allowedEmailDomain(env: Env, email: string) {
   const configured=allowedEmailDomains(env);
   const domain=email.slice(email.lastIndexOf('@')+1).toLowerCase();
-  return configured.includes(domain);
+  return configured.some(allowed=>allowed.startsWith('*.')?domain.endsWith(allowed.slice(1)):domain===allowed);
 }
-function allowedEmailDomains(env: Env) { return (env.ALLOWED_EMAIL_DOMAINS||'korea.kr').split(',').map(domain=>domain.trim().toLowerCase().replace(/^@/, '')).filter(Boolean); }
+function allowedEmailDomains(env: Env) { return (env.ALLOWED_EMAIL_DOMAINS||'korea.kr,*.go.kr').split(',').map(domain=>domain.trim().toLowerCase().replace(/^@/, '')).filter(Boolean); }
 function emailDomainError(env: Env) { return `허용된 기관 이메일 도메인(${allowedEmailDomains(env).join(', ')})로만 로그인할 수 있습니다.`; }
 
 async function hmac(secret: string, value: string) {
