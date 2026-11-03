@@ -68,3 +68,16 @@ console.log('PASS Yjs convergence, journal replay, shared XML document');
  assert.match(server,/send\(socket,'ack',\{seq:this\.seq,requestId\}\)/);
 }
 console.log('PASS idempotent update receipts and replay guard');
+
+// Reconnect guard: never stop permanently after a fixed number of outages.
+{
+ const fs=await import('node:fs');
+ const client=fs.readFileSync(new URL('../src/YjsJournalBridge.ts',import.meta.url),'utf8');
+ const view=fs.readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ assert.match(client,/Math\.min\(30000,1000\*2\*\*/);
+ assert.match(client,/window\.addEventListener\('online',this\.handleOnline\)/);
+ assert.match(client,/window\.removeEventListener\('online',this\.handleOnline\)/);
+ assert.doesNotMatch(client,/this\.attempts\+\+<6/);
+ assert.match(view,/다시 연결/);
+}
+console.log('PASS reconnection and manual recovery guard');
