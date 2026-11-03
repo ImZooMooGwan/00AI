@@ -22,6 +22,11 @@ Updated 2026-11-03. Reference baseline: estimated 43/100 Google Docs feature-com
 - Both Cloudflare workers confirmed on versions receiving 100% traffic; original account bindings retained.
 - Full multi-account end-to-end editing remains unverified and is not counted as completed.
 
+## Additional delivered functionality
+
+- Added a native `.docx` Open XML download route in the legacy editor using JSZip: paragraphs, headings, inline basic marks, lists and simple tables. Includes OOXML content types and relationships. This is **not full-fidelity HWPX/DOCX round-trip**, and multi-format visual QA is outstanding.
+- Added an editor inline-script parse test and DOCX packaging assertions to GitHub CI.
+
 ## Remaining gates before 100% claim
 
 1. **Canonical document migration** — approved HTML -> ProseMirror JSON -> Y.Doc; preserve original with export and deterministic rollback.
