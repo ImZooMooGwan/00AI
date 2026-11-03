@@ -95,3 +95,15 @@ console.log('PASS reconnection and manual recovery guard');
  assert.match(server,/target\.docId!==ident\.docId\|\|!\(await this\.permitted\(target\.actor,target\.docId,false\)\)/, 'revoked peers must not receive awareness');
 }
 console.log('PASS fail-closed snapshot, acknowledgement, oversize update and peer ACL guards');
+
+{
+ const fs=await import('node:fs');
+ const ui=fs.readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ assert.match(ui,/downloadSnapshot\(format:'html'\|'json'\)/);
+ assert.match(ui,/editor\.getHTML\(\)/);
+ assert.match(ui,/editor\.getJSON\(\)/);
+ assert.match(ui,/HTML 백업/);
+ assert.match(ui,/JSON 백업/);
+ assert.match(ui,/URL\.revokeObjectURL/);
+}
+console.log('PASS local realtime recovery exports');
