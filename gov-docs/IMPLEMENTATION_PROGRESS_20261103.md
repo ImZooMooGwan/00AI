@@ -12,11 +12,15 @@ Updated 2026-11-03. Reference baseline: estimated 43/100 Google Docs feature-com
 - Updated bundled client and server uploaded to Cloudflare Workers with existing bindings preserved.
 - No automatic migration of legacy content; the old canonical D1 HTML remains unmodified.
 
-## Changes in source awaiting a fresh validated Vite build and redeploy
+## Newly built and deployed follow-up changes
 
 - Client: online recovery, capped 30-second exponential reconnect, timer cleanup.
 - Realtime UI: explicit manual reconnect button.
 - Additional automated assertions for reconnect behavior.
+- Vite client bundle `index-D9G6sQae.js` deployed in `00ai-gov-docs`.
+- Rebuilt Durable Object server bundle deployed in `00ai-docs-collab-canary`, including 30-day dedupe receipt cleanup at snapshot intervals.
+- Both Cloudflare workers confirmed on versions receiving 100% traffic; original account bindings retained.
+- Full multi-account end-to-end editing remains unverified and is not counted as completed.
 
 ## Remaining gates before 100% claim
 
