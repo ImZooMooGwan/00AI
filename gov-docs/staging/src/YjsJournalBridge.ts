@@ -21,6 +21,8 @@ export class YjsJournalBridge {
   private ackedSeq=0;
   private synced=false;
   private readonly clientId=crypto.randomUUID();
+  private reconnectTimer:ReturnType<typeof setTimeout>|null=null;
+  private readonly handleOnline=()=>{if(!this.disposed&&!this.synced)this.connect()};
   private requestCounter=0;
   private snapshotParts:string[]=[];
   private snapshotExpected=0;
@@ -28,6 +30,7 @@ export class YjsJournalBridge {
   public onPending:(count:number)=>void=()=>{};
   constructor(public readonly ydoc:Y.Doc, private readonly documentId:string) {
     this.ydoc.on('update',this.onUpdate);
+    window.addEventListener('online',this.handleOnline);
   }
   private onUpdate=(update:Uint8Array,origin:any)=>{
     if(origin==='remote')return;
@@ -39,6 +42,8 @@ export class YjsJournalBridge {
   };
   public connect(){
     if(this.disposed)return;
+    if(this.reconnectTimer){clearTimeout(this.reconnectTimer);this.reconnectTimer=null;}
+    if(this.synced&&this.ws?.readyState===WebSocket.OPEN)return;
     const generation=++this.generation;
     this.awaiting=false;
     this.synced=false;
@@ -84,7 +89,9 @@ export class YjsJournalBridge {
       if(this.disposed||generation!==this.generation)return;
       this.synced=false;this.awaiting=false;
       this.onStatus('disconnected','연결이 끊겼습니다. 편집을 잠급니다.');
-      if(this.attempts++<6) setTimeout(()=>this.connect(),Math.min(15000,1500*this.attempts));
+      this.attempts++;
+      const delay=Math.min(30000,1000*2**Math.min(this.attempts,5));
+      this.reconnectTimer=setTimeout(()=>this.connect(),delay);
     };
     ws.onerror=()=>this.onStatus('error','연결 장애');
   }
@@ -95,5 +102,5 @@ export class YjsJournalBridge {
   }
   public get pendingCount(){return this.pending.length;}
   public get serverSequence(){return this.ackedSeq;}
-  public destroy(){this.disposed=true;this.ws?.close();this.ydoc.off('update',this.onUpdate);}
+  public destroy(){this.disposed=true;if(this.reconnectTimer)clearTimeout(this.reconnectTimer);window.removeEventListener('online',this.handleOnline);this.ws?.close();this.ydoc.off('update',this.onUpdate);}
 }
