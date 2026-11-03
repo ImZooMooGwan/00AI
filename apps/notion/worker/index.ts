@@ -178,8 +178,8 @@ async function inspectBrevoDomain(env:Env){
     const response=await fetch('https://api.brevo.com/v3/senders/domains/00ai.kr',{headers:{'api-key':apiKey,accept:'application/json'}});
     if(response.status===404){console.warn(JSON.stringify({event:'login_email_domain_missing',domain:'00ai.kr'}));return;}
     if(!response.ok){console.warn(JSON.stringify({event:'login_email_domain_check_failed',status:response.status}));return;}
-    const data=await response.json<{verified?:boolean;authenticated?:boolean;dns_records?:Record<string,{type?:string;host_name?:string;value?:string;status?:boolean}>}>();
-    const records=Object.entries(data.dns_records||{}).map(([kind,value])=>({kind,type:value.type||'',host:value.host_name||'',status:Boolean(value.status),valuePresent:Boolean(value.value)}));
+    const data=await response.json<{verified?:boolean;authenticated?:boolean;dns_records?:Record<string,{type?:string;host_name?:string;value?:string;status?:boolean}|null>} >();
+    const records=Object.entries(data.dns_records||{}).map(([kind,value])=>{const record=value&&typeof value==='object'?value:{};return{kind,type:typeof record.type==='string'?record.type:'',hostPresent:typeof record.host_name==='string'&&Boolean(record.host_name),status:record.status===true,valuePresent:typeof record.value==='string'&&Boolean(record.value)};});
     console.info(JSON.stringify({event:'login_email_domain_auth',verified:Boolean(data.verified),authenticated:Boolean(data.authenticated),records}));
   }catch(error){console.warn(JSON.stringify({event:'login_email_domain_check_failed',reason:error instanceof Error?error.message:'unknown'}));}
 }
