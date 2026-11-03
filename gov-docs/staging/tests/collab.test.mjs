@@ -81,3 +81,17 @@ console.log('PASS idempotent update receipts and replay guard');
  assert.match(view,/다시 연결/);
 }
 console.log('PASS reconnection and manual recovery guard');
+
+// Fail-closed collaboration protocol and authorization regression checks.
+{
+ const fs=await import('node:fs');
+ const client=fs.readFileSync(new URL('../src/YjsJournalBridge.ts',import.meta.url),'utf8');
+ const server=fs.readFileSync(new URL('../src/collab-server.js',import.meta.url),'utf8');
+ assert.match(client,/msg\.requestId!==this\.pending\[0\]\.id/, 'stale or unidentified ACKs cannot discard a queued edit');
+ assert.match(client,/this\.snapshotFailed/, 'invalid snapshot must block connected state');
+ assert.match(client,/if\(this\.snapshotFailed\)/, 'sync must not be announced after a snapshot failure');
+ assert.match(client,/this\.fatalLocalEdit=true/, 'oversize local edits are not silently discarded');
+ assert.match(client,/this\.pending\.length\+\(this\.fatalLocalEdit\?1:0\)/, 'unsent oversize edits must trigger navigation guard');
+ assert.match(server,/target\.docId!==ident\.docId\|\|!\(await this\.permitted\(target\.actor,target\.docId,false\)\)/, 'revoked peers must not receive awareness');
+}
+console.log('PASS fail-closed snapshot, acknowledgement, oversize update and peer ACL guards');
