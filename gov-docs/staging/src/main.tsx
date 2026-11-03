@@ -70,7 +70,7 @@ function App(){
     {name:'열 삭제',ok:()=>Boolean(editor?.can().deleteColumn()),run:()=>editor?.chain().focus().deleteColumn().run()}
   ];
   return <div className="app">
-    <header><strong>✦ 00AI DOCS</strong><span>구조화 공동편집 실험실</span><div className={'status '+status}>{statusText}</div></header>
+    <header><strong>✦ 00AI DOCS</strong><span>구조화 공동편집 실험실</span><div className={'status '+status}>{statusText}</div><button type="button" disabled={connected||!checkId} onClick={()=>((window as any).__collabBridge as YjsJournalBridge|undefined)?.connect()} aria-label="공동편집 서버 다시 연결">다시 연결</button></header>
     <main>
       <div className="heading"><h1>{doc?.title||'문서 확인 중'}</h1><a href={'/?doc='+encodeURIComponent(docId)}>기존 문서로 돌아가기</a></div>
       <div className="warning"><b>시험용 편집기:</b> Yjs 기반으로 문단·표·제목을 동시에 편집하지만 현재 정식 문서 본문(documents/D1)과 별도로 저장됩니다. 기존 한글문서 자동 변환·버전 복원은 연결되지 않았습니다. 공개·가상자료로만 시험하세요.</div>
