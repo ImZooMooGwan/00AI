@@ -9,6 +9,7 @@ export class DocumentCollaborationRoom {
    const sql=ctx.storage.sql;
    sql.exec('CREATE TABLE IF NOT EXISTS updates(seq INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT NOT NULL,payload TEXT NOT NULL,saved_at INTEGER NOT NULL)');
    sql.exec('CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY CHECK(id=1),payload TEXT NOT NULL,seq INTEGER NOT NULL)');
+   sql.exec('CREATE TABLE IF NOT EXISTS request_receipts(actor TEXT NOT NULL,request_id TEXT NOT NULL,seq INTEGER NOT NULL,saved_at INTEGER NOT NULL,PRIMARY KEY(actor,request_id))');
    const rows=sql.exec('SELECT payload,seq FROM snapshots WHERE id=1').toArray();
    let cursor=0;
    if(rows.length){const row=rows[0];Y.applyUpdate(this.doc,decode(row.payload),'remote');cursor=row.seq}
@@ -56,16 +57,26 @@ export class DocumentCollaborationRoom {
   if(request.type==='update'){
    if(!['owner','editor'].includes(ident.role)||!(await this.permitted(ident.actor,ident.docId,true))){send(socket,'error',{reason:'Read-only or locked'});return}
    if(typeof request.data!=='string'||request.data.length>90000||!/^[a-zA-Z0-9_-]+$/.test(request.data))return send(socket,'error',{reason:'Malformed CRDT frame'});
+   const requestId=request.requestId;
+   if(requestId!==undefined && (typeof requestId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(requestId)))return send(socket,'error',{reason:'Invalid request ID'});
+   if(requestId){
+    const existing=this.ctx.storage.sql.exec('SELECT seq FROM request_receipts WHERE actor=? AND request_id=?',ident.actor,requestId).toArray();
+    if(existing.length){send(socket,'ack',{seq:existing[0].seq,requestId});return}
+   }
    let bytes;try{bytes=decode(request.data);const test=new Y.Doc();Y.applyUpdate(test,bytes)}catch{return send(socket,'error',{reason:'Corrupt Yjs update'})}
    // The journal is durable before acknowledgement or broadcast.
-   const row=this.ctx.storage.sql.exec('INSERT INTO updates(actor,payload,saved_at) VALUES (?,?,?) RETURNING seq',ident.actor,request.data,Date.now()).one();
+   const row=this.ctx.storage.transactionSync(()=>{
+    const entry=this.ctx.storage.sql.exec('INSERT INTO updates(actor,payload,saved_at) VALUES (?,?,?) RETURNING seq',ident.actor,request.data,Date.now()).one();
+    if(requestId)this.ctx.storage.sql.exec('INSERT INTO request_receipts(actor,request_id,seq,saved_at) VALUES (?,?,?,?)',ident.actor,requestId,entry.seq,Date.now());
+    return entry;
+   });
    this.seq=row.seq;Y.applyUpdate(this.doc,bytes,'remote');
    if(this.seq%200===0){
     const payload=encode(Y.encodeStateAsUpdate(this.doc));
     this.ctx.storage.sql.exec('INSERT INTO snapshots(id,payload,seq) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,seq=excluded.seq',payload,this.seq);
     this.ctx.storage.sql.exec('DELETE FROM updates WHERE seq<=?',this.seq);
    }
-   send(socket,'ack',{seq:this.seq});
+   send(socket,'ack',{seq:this.seq,requestId});
    const update=JSON.stringify({type:'update',seq:this.seq,data:request.data});
    for(const peer of this.ctx.getWebSockets())if(peer!==socket){
     let target;try{target=JSON.parse(this.ctx.getTags(peer)[0])}catch{continue}
