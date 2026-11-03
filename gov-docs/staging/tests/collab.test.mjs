@@ -34,3 +34,37 @@ import * as Y from 'yjs';
  assert.deepEqual(Y.encodeStateVector(a),Y.encodeStateVector(b));
 }
 console.log('PASS Yjs convergence, journal replay, shared XML document');
+
+
+// Retransmitting a durable Yjs update must never change the shared document twice.
+{
+ const source=new Y.Doc(),replica=new Y.Doc(),receipts=new Map();
+ source.getText('text').insert(0,'행정 AI 공동편집');
+ const update=Y.encodeStateAsUpdate(source);
+ const sameId='client-77-edit-1';
+ function receive(requestId,payload){
+  if(receipts.has(requestId))return {seq:receipts.get(requestId),duplicate:true};
+  const seq=receipts.size+1;
+  Y.applyUpdate(replica,payload);
+  receipts.set(requestId,seq);
+  return {seq,duplicate:false};
+ }
+ const first=receive(sameId,update),again=receive(sameId,update);
+ assert.deepEqual(again,{seq:first.seq,duplicate:true});
+ assert.equal(receipts.size,1);
+ assert.equal(replica.getText('text').toString(),'행정 AI 공동편집');
+}
+
+// Source guard: each queued update has an ID; server stores a durable receipt.
+{
+ const fs=await import('node:fs');
+ const client=fs.readFileSync(new URL('../src/YjsJournalBridge.ts',import.meta.url),'utf8');
+ const server=fs.readFileSync(new URL('../src/collab-server.js',import.meta.url),'utf8');
+ assert.match(client,/requestId:this\.pending\[0\]\.id/);
+ assert.match(client,/requestId.*pending\[0\]\.id/);
+ assert.match(server,/CREATE TABLE IF NOT EXISTS request_receipts/);
+ assert.match(server,/SELECT seq FROM request_receipts WHERE actor=\? AND request_id=\?/);
+ assert.match(server,/transactionSync/);
+ assert.match(server,/send\(socket,'ack',\{seq:this\.seq,requestId\}\)/);
+}
+console.log('PASS idempotent update receipts and replay guard');
