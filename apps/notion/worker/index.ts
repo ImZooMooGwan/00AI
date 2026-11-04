@@ -170,7 +170,7 @@ function originAllowed(request: Request) {
 function mailSender(env: Env) {
   const configured = env.MAIL_FROM?.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
   const email = env.EMAIL_FROM_ADDRESS || configured?.[2] || env.MAIL_FROM?.trim() || 'no-reply@00ai.kr';
-  const name = env.EMAIL_FROM_NAME || configured?.[1]?.trim() || '00AI WORKSPACE';
+  const name = env.EMAIL_FROM_NAME || configured?.[1]?.trim() || '00AI NOTE';
   return { email, name };
 }
 
@@ -196,9 +196,9 @@ async function sendLoginCode(env: Env, email: string, code: string): Promise<str
     body: JSON.stringify({
       sender: mailSender(env),
       to: [{ email }],
-      subject: '00AI WORKSPACE 로그인 코드',
+      subject: '00AI NOTE 로그인 코드',
       textContent: `로그인 코드 ${code}를 입력하세요. 이 코드는 10분 동안 유효합니다. 요청하지 않았다면 이 메일을 무시하세요.`,
-      htmlContent: `<div style="font-family:sans-serif;color:#172033"><h2>00AI WORKSPACE 로그인</h2><p>아래 코드를 입력하세요. 10분 동안 유효합니다.</p><div style="font-size:30px;font-weight:700;letter-spacing:8px;padding:16px 0">${code}</div><p>요청하지 않았다면 이 메일을 무시하세요.</p></div>`,
+      htmlContent: `<div style="font-family:sans-serif;color:#172033"><h2>00AI NOTE 로그인</h2><p>아래 코드를 입력하세요. 10분 동안 유효합니다.</p><div style="font-size:30px;font-weight:700;letter-spacing:8px;padding:16px 0">${code}</div><p>요청하지 않았다면 이 메일을 무시하세요.</p></div>`,
     }),
   });
   if (!response.ok) {
@@ -236,15 +236,15 @@ async function sendCollaborationInvite(env:Env,email:string,kind:'workspace'|'pa
   const apiKey=await resolveSecret(env.BREVO_API_KEY);if(!apiKey)return false;
   const safe=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]||char));
   const roleNames:Record<string,string>={owner:'소유자',admin:'관리자',member:'멤버',guest:'게스트',editor:'편집자',commenter:'댓글 작성자',viewer:'열람자'};
-  const kindName=kind==='workspace'?'워크스페이스':'페이지',subject=`00AI WORKSPACE ${kindName} 초대: ${title}`;
-  const text=`00AI WORKSPACE ${kindName}에 초대되었습니다.\n\n${title}\n권한: ${roleNames[role]||role}\n\n${url}\n\n초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.`;
-  const html=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#25312a"><p style="color:#4a7056;font-weight:bold">00AI WORKSPACE</p><h2>${kindName} 초대</h2><p>협업 공간에 초대되었습니다.</p><div style="padding:16px;background:#f4f7f4;border-radius:10px"><b>${safe(title)}</b><br><span>권한: ${safe(roleNames[role]||role)}</span></div><p>초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.</p><p><a href="${safe(url)}" style="display:inline-block;background:#345c42;color:white;padding:11px 16px;border-radius:8px;text-decoration:none">00AI WORKSPACE 열기</a></p></div>`;
-  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI WORKSPACE'},to:[{email}],subject,textContent:text,htmlContent:html})});
+  const kindName=kind==='workspace'?'워크스페이스':'페이지',subject=`00AI NOTE ${kindName} 초대: ${title}`;
+  const text=`00AI NOTE ${kindName}에 초대되었습니다.\n\n${title}\n권한: ${roleNames[role]||role}\n\n${url}\n\n초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.`;
+  const html=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#25312a"><p style="color:#4a7056;font-weight:bold">00AI NOTE</p><h2>${kindName} 초대</h2><p>협업 공간에 초대되었습니다.</p><div style="padding:16px;background:#f4f7f4;border-radius:10px"><b>${safe(title)}</b><br><span>권한: ${safe(roleNames[role]||role)}</span></div><p>초대받은 이메일 주소로 로그인하면 권한이 연결됩니다.</p><p><a href="${safe(url)}" style="display:inline-block;background:#345c42;color:white;padding:11px 16px;border-radius:8px;text-decoration:none">00AI NOTE 열기</a></p></div>`;
+  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI NOTE'},to:[{email}],subject,textContent:text,htmlContent:html})});
   if(!response.ok)throw new Error(`EMAIL_PROVIDER_${response.status}`);return true;
 }
 async function sendCollaborationNotice(env:Env,email:string,subject:string,text:string,url:string){
   const apiKey=await resolveSecret(env.BREVO_API_KEY);if(!apiKey)return false;const safe=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]||char));
-  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI WORKSPACE'},to:[{email}],subject,textContent:`${text}\n\n${url}`,htmlContent:`<div style="font-family:Arial,sans-serif;color:#25312a"><b>00AI WORKSPACE 알림</b><p>${safe(text)}</p><p><a href="${safe(url)}">문서 열기</a></p></div>`})});return response.ok;
+  const response=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':apiKey,'content-type':'application/json',accept:'application/json'},body:JSON.stringify({sender:{email:env.EMAIL_FROM_ADDRESS||'no-reply@00ai.kr',name:env.EMAIL_FROM_NAME||'00AI NOTE'},to:[{email}],subject,textContent:`${text}\n\n${url}`,htmlContent:`<div style="font-family:Arial,sans-serif;color:#25312a"><b>00AI NOTE 알림</b><p>${safe(text)}</p><p><a href="${safe(url)}">문서 열기</a></p></div>`})});return response.ok;
 }
 
 async function routeApi(request: Request, env: Env, user: User | null, ctx?:ExecutionContext): Promise<Response> {
@@ -254,7 +254,7 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
 
   if (method === 'GET' && path === '/health') {
     const [mailKey, aiKey] = await Promise.all([resolveSecret(env.BREVO_API_KEY), resolveSecret(env.HASA_API_KEY)]);
-    return json({ ok: true, app: '00AI WORKSPACE', auth: Boolean(mailKey), ai: Boolean(aiKey), database: true, realtime: true });
+    return json({ ok: true, app: '00AI NOTE', auth: Boolean(mailKey), ai: Boolean(aiKey), database: true, realtime: true });
   }
 
   if (method === 'POST' && path === '/auth/request-code') {
@@ -765,7 +765,7 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
       await env.DB.batch(mentioned.map(target=>env.DB.prepare('INSERT INTO notifications(id,user_id,workspace_id,page_id,comment_id,actor_id,kind,body,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(id(),target.id,record.page.workspace_id,pageId,commentId,user.id,'mention',text,at)));
       for(const target of mentioned){
         const pref=await env.DB.prepare('SELECT mentions_email_enabled FROM notification_preferences WHERE user_id=?').bind(target.id).first<{mentions_email_enabled:number}>();
-        if(pref?.mentions_email_enabled){const mention=`${user.display_name||user.email.split('@')[0]}님이 ${record.page.title} 페이지 댓글에서 회원님을 언급했습니다.`;ctx?.waitUntil(sendCollaborationNotice(env,target.email,'00AI WORKSPACE 댓글에서 언급되었습니다',mention,`https://notion.00ai.kr/?workspaceId=${encodeURIComponent(record.page.workspace_id)}&page=${encodeURIComponent(pageId)}`));}
+        if(pref?.mentions_email_enabled){const mention=`${user.display_name||user.email.split('@')[0]}님이 ${record.page.title} 페이지 댓글에서 회원님을 언급했습니다.`;ctx?.waitUntil(sendCollaborationNotice(env,target.email,'00AI NOTE 댓글에서 언급되었습니다',mention,`https://note.00ai.kr/?workspaceId=${encodeURIComponent(record.page.workspace_id)}&page=${encodeURIComponent(pageId)}`));}
       }
     }
     await audit(env,user,record.page.workspace_id,'COMMENT_ADDED','page',pageId);
@@ -841,7 +841,7 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
     if(!invite)return json({error:'대기 중인 초대를 찾을 수 없습니다.'},404);
     const expiresAt=new Date(Date.now()+7*24*60*60_000).toISOString();await env.DB.prepare('UPDATE workspace_invites SET expires_at=? WHERE id=?').bind(expiresAt,inviteId).run();
     const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();let invitationSent=false;
-    try{invitationSent=await sendCollaborationInvite(env,invite.email,'workspace',workspace?.name||'공공 협업 공간',invite.role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'workspace_invite_resend_failed',reason:error instanceof Error?error.message:'unknown'}));}
+    try{invitationSent=await sendCollaborationInvite(env,invite.email,'workspace',workspace?.name||'공공 협업 공간',invite.role,'https://note.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'workspace_invite_resend_failed',reason:error instanceof Error?error.message:'unknown'}));}
     await audit(env,user,workspaceId,'INVITE_RESENT','invite',inviteId);return json({ok:true,invitationSent,expiresAt});
   }
   if(method==='DELETE'&&inviteItem){
@@ -863,7 +863,7 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
     if(invited){await env.DB.prepare('INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role').bind(workspaceId,invited.id,role,now()).run();}
     else await env.DB.prepare('INSERT INTO workspace_invites(id,workspace_id,email,role,invited_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(workspace_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL').bind(id(),workspaceId,email,role,user.id,now(),new Date(Date.now()+7*24*60*60_000).toISOString()).run();
     await audit(env,user,workspaceId,'MEMBER_INVITED','workspace',workspaceId);
-    let invitationSent=false;{const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();try{invitationSent=await sendCollaborationInvite(env,email,'workspace',workspace?.name||'공공 협업 공간',role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'workspace_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}}
+    let invitationSent=false;{const workspace=await env.DB.prepare('SELECT name FROM workspaces WHERE id=?').bind(workspaceId).first<{name:string}>();try{invitationSent=await sendCollaborationInvite(env,email,'workspace',workspace?.name||'공공 협업 공간',role,'https://note.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'workspace_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}}
     return json({ok:true,accepted:!!invited,invitationSent});
   }
   const shareMatch=path.match(/^\/pages\/([^/]+)\/share$/);
@@ -881,7 +881,7 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
     const pageId=decodeURIComponent(pageInviteResend[1]),inviteId=decodeURIComponent(pageInviteResend[2]),record=await accessFor(env,user,pageId);if(!record||!canManage(record.access))return json({error:'공간 관리자만 페이지 초대를 재발송할 수 있습니다.'},403);
     const invite=await env.DB.prepare('SELECT email,role FROM page_invites WHERE id=? AND page_id=? AND accepted_at IS NULL').bind(inviteId,pageId).first<{email:string;role:string}>();if(!invite)return json({error:'대기 중인 페이지 초대를 찾을 수 없습니다.'},404);
     const expiresAt=new Date(Date.now()+7*24*60*60_000).toISOString();await env.DB.prepare('UPDATE page_invites SET expires_at=? WHERE id=?').bind(expiresAt,inviteId).run();let invitationSent=false;
-    try{invitationSent=await sendCollaborationInvite(env,invite.email,'page',record.page.title,invite.role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_invite_resend_failed',reason:error instanceof Error?error.message:'unknown'}));}
+    try{invitationSent=await sendCollaborationInvite(env,invite.email,'page',record.page.title,invite.role,'https://note.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_invite_resend_failed',reason:error instanceof Error?error.message:'unknown'}));}
     await audit(env,user,record.page.workspace_id,'PAGE_INVITE_RESENT','page',pageId);return json({ok:true,invitationSent,expiresAt});
   }
   const pageInviteItem=path.match(/^\/pages\/([^/]+)\/invites\/([^/]+)$/);
@@ -901,12 +901,12 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
     if(!emailPattern.test(email))return json({error:'이메일 주소를 확인해 주세요.'},400);
     if(!allowedEmailDomain(env,email))return json({error:emailDomainError(env)},403);
     const target=await env.DB.prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE').bind(email).first<{id:string}>();
-    if(!target){await env.DB.prepare('INSERT INTO page_invites(id,page_id,email,role,invited_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(page_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL').bind(id(),pageId,email,role,user.id,now(),new Date(Date.now()+7*24*60*60_000).toISOString()).run();let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,'https://notion.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}return json({ok:true,invited:true,invitationSent});}
+    if(!target){await env.DB.prepare('INSERT INTO page_invites(id,page_id,email,role,invited_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(page_id,email) DO UPDATE SET role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL').bind(id(),pageId,email,role,user.id,now(),new Date(Date.now()+7*24*60*60_000).toISOString()).run();let invitationSent=false;try{invitationSent=await sendCollaborationInvite(env,email,'page',record.page.title,role,'https://note.00ai.kr/');}catch(error){console.error(JSON.stringify({event:'page_invite_email_failed',reason:error instanceof Error?error.message:'unknown'}));}return json({ok:true,invited:true,invitationSent});}
     const at=now();await env.DB.prepare('INSERT INTO page_members(page_id,user_id,role,granted_by,created_at) VALUES(?,?,?,?,?) ON CONFLICT(page_id,user_id) DO UPDATE SET role=excluded.role,granted_by=excluded.granted_by,created_at=excluded.created_at').bind(pageId,target.id,role,user.id,at).run();
     await env.DB.prepare('INSERT INTO notifications(id,user_id,workspace_id,page_id,actor_id,kind,body,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(id(),target.id,record.page.workspace_id,pageId,user.id,'page_share',`${user.display_name||user.email}님이 '${record.page.title}' 페이지를 공유했습니다.`,at).run();
     await audit(env,user,record.page.workspace_id,'PAGE_SHARED','page',pageId);
     const preferences=await env.DB.prepare('SELECT page_shares_email_enabled FROM notification_preferences WHERE user_id=?').bind(target.id).first<{page_shares_email_enabled:number}>();
-    if(preferences?.page_shares_email_enabled){ctx?.waitUntil(sendCollaborationNotice(env,email,'00AI WORKSPACE 페이지가 공유되었습니다',`${user.display_name||user.email.split('@')[0]}님이 '${record.page.title}' 페이지를 공유했습니다.`, `https://notion.00ai.kr/?workspaceId=${encodeURIComponent(record.page.workspace_id)}&page=${encodeURIComponent(pageId)}`));}
+    if(preferences?.page_shares_email_enabled){ctx?.waitUntil(sendCollaborationNotice(env,email,'00AI NOTE 페이지가 공유되었습니다',`${user.display_name||user.email.split('@')[0]}님이 '${record.page.title}' 페이지를 공유했습니다.`, `https://note.00ai.kr/?workspaceId=${encodeURIComponent(record.page.workspace_id)}&page=${encodeURIComponent(pageId)}`));}
     return json({ok:true,invited:false,notificationEmailQueued:Boolean(preferences?.page_shares_email_enabled)});
   }
   const collabMatch=path.match(/^\/collab\/([^/]+)$/);
