@@ -77,3 +77,5 @@ button,input,select,textarea{font-family:inherit}
 @media(max-width:680px){.database-view-switch{width:100%}.database-gallery{grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}.database-timeline{overflow-x:auto}.database-chart-row{grid-template-columns:72px minmax(50px,1fr) 32px 42px;gap:7px}}
 
 .database-card[draggable="true"]{cursor:grab}.database-card[draggable="true"]:active{cursor:grabbing}.database-lane{transition:background-color .15s ease}.database-lane:has(.database-card[draggable="true"]){min-height:140px}
+
+.block-menu-search{width:100%;margin:4px 0 8px;padding:8px 10px;border:1px solid #e5e5e5;border-radius:6px;background:#fff;font-size:12px}.block-menu-search:focus{outline:2px solid #171717;outline-offset:1px}.block-menu-empty{padding:14px 9px;color:#737373;font-size:12px}
