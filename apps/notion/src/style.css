@@ -81,3 +81,19 @@ button,input,select,textarea{font-family:inherit}
 .block-menu-search{width:100%;margin:4px 0 8px;padding:8px 10px;border:1px solid #e5e5e5;border-radius:6px;background:#fff;font-size:12px}.block-menu-search:focus{outline:2px solid #171717;outline-offset:1px}.block-menu-empty{padding:14px 9px;color:#737373;font-size:12px}
 
 .page-icon-wrap{position:relative;display:flex;flex:none}.page-icon-picker{position:absolute;z-index:12;left:0;top:calc(100% + 8px);width:280px;padding:10px;background:#fff;border:1px solid #e5e5e5;border-radius:9px;box-shadow:0 8px 28px #00000014}.page-icon-picker-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 8px;font-size:12px}.page-icon-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:210px;overflow:auto}.page-icon-grid button{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:5px;background:transparent;font-size:17px}.page-icon-grid button:hover,.page-icon-grid button:focus-visible{background:#f0f0ee}
+
+/* Notion-style block affordances and right-side database page peek */
+.canvas-inner{position:relative;max-width:920px;padding-left:58px;padding-right:58px}
+.tiptap-content>*{position:relative;border-radius:3px;transition:background-color .12s ease}
+.tiptap-content>*:hover{background-color:#f8f8f7}
+.block-hover-controls{position:absolute;z-index:5;display:flex;align-items:center;gap:1px;height:26px}
+.block-hover-controls>button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:5px;background:transparent;color:#8a8f87;cursor:pointer}
+.block-hover-controls>button:hover{background:#efefed;color:#252823}
+.block-action-menu{position:absolute;left:25px;top:0;z-index:8;width:142px;padding:5px;background:white;border:1px solid #e6e6e3;border-radius:7px;box-shadow:0 6px 20px #0002}
+.block-action-menu button{display:flex;width:100%;align-items:center;gap:8px;padding:7px 8px;border:0;border-radius:4px;background:white;color:#373a36;text-align:left;font:12px inherit;cursor:pointer}
+.block-action-menu button:hover{background:#f3f3f1}.block-action-menu .danger-action{color:#c23b32}
+.row-detail-overlay{justify-content:flex-end;align-items:stretch;padding:0}
+.row-detail-peek{width:min(480px,92vw);height:100%;max-height:100%;margin:0;border:0;border-left:1px solid #e8e8e6;border-radius:0;overflow:auto;animation:peek-in .16s ease-out}
+@keyframes peek-in{from{transform:translateX(18px);opacity:.8}to{transform:translateX(0);opacity:1}}
+@media(max-width:700px){.canvas-inner{padding-left:24px;padding-right:24px}.block-hover-controls{display:none}.row-detail-peek{width:100%;max-height:100%;border-radius:0}}
+@media(prefers-reduced-motion:reduce){.block-hover-controls>button,.tiptap-content>*{transition:none}.row-detail-peek{animation:none}}
