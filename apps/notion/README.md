@@ -1,6 +1,6 @@
-# 00AI Workspace
+# 00AI NOTE Beta
 
-협업 문서와 공공 템플릿을 위한 Cloudflare 기반 워크스페이스. 프론트엔드는 React/Tiptap, 편집 상태는 Yjs, 동시 접속 조정과 영속화는 Durable Objects SQLite, 계정·공간·페이지 메타데이터는 D1을 사용합니다.
+메모·문서·데이터베이스·협업을 한 공간에서 제공하는 00AI NOTE Beta. 프론트엔드는 React/Tiptap, 편집 상태는 Yjs, 동시 접속 조정과 영속화는 Durable Objects SQLite, 계정·공간·페이지 메타데이터는 D1을 사용합니다.
 
 ## 제품 범위
 
@@ -17,7 +17,7 @@
 3. Brevo/HASA 키는 계정 Secrets Store에서 Worker 바인딩으로 연결합니다. 세션 서명 키는 첫 로그인 시 D1에 생성·보관합니다.
 4. `npm run deploy`
 
-`wrangler.jsonc`는 `notion.00ai.kr/*` Worker Route와 기존 계정 D1/Workers 리소스를 참조합니다. DNS에 해당 호스트가 없다면 `00ai.kr` zone의 기존 wildcard DNS/서브도메인 라우터 규칙을 확인한 뒤 `notion` 호스트를 Cloudflare proxied DNS에 연결해야 합니다. `MAIL_FROM` 도메인은 Brevo에서 발신 인증되어야 합니다.
+`wrangler.jsonc`는 대표 주소 `note.00ai.kr/*`와 호환용 `notion.00ai.kr/*` Worker Route를 기존 계정 D1/Workers 리소스에 연결합니다. 기존 D1 ID와 Durable Objects를 유지하므로 기존 사용자·문서 데이터는 같은 저장소를 사용합니다. `MAIL_FROM` 도메인은 Brevo에서 발신 인증되어야 합니다.
 
 GitHub Actions 배포에는 저장소 Actions secret `CLOUDFLARE_API_TOKEN`이 필요합니다. 배포 토큰 권한에는 Workers Scripts 편집, D1 편집, DNS/Workers Route 편집, Account Secrets Store 편집이 포함되어야 합니다. Brevo/HASA 키는 GitHub로 복사하지 않습니다.
 
