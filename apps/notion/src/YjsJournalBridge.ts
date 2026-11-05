@@ -14,13 +14,16 @@ export class YjsJournalBridge {
   private attempts=0;
   private synced=false;
   private connected=false;
+  private retryTimer:number|null=null;
   private snapshotParts:string[]=[];
   private snapshotExpected=0;
   private saveWaiters=new Set<{resolve:()=>void;reject:(error:Error)=>void;timer:number}>();
   onStatus:(status:ConnectionStatus,label:string)=>void=()=>{};
   onPending:(count:number)=>void=()=>{};
   onPresence:(users:Array<{id:string;name:string}>)=>void=()=>{};
-  constructor(private readonly ydoc:Y.Doc,private readonly pageId:string){ydoc.on('update',this.onUpdate);}
+  constructor(private readonly ydoc:Y.Doc,private readonly pageId:string){ydoc.on('update',this.onUpdate);window.addEventListener('online',this.onOnline);window.addEventListener('offline',this.onOffline);}
+  private onOnline=()=>{if(this.disposed)return;this.attempts=0;if(this.retryTimer!==null){window.clearTimeout(this.retryTimer);this.retryTimer=null;}this.connect();};
+  private onOffline=()=>{if(this.disposed)return;this.synced=false;this.connected=false;this.onStatus('disconnected','인터넷 연결이 없습니다. 이 기기에 임시 저장하고 연결을 기다립니다.');this.socket?.close();};
   waitForSaved(timeout=15000){
     if(this.connected&&this.pending.length===0&&!this.awaiting)return Promise.resolve();
     return new Promise<void>((resolve,reject)=>{const waiter={resolve,reject,timer:window.setTimeout(()=>{this.saveWaiters.delete(waiter);reject(new Error('대상 문서 저장 확인 시간이 초과되었습니다. 원본 블록은 그대로 유지했습니다.'));},timeout)};this.saveWaiters.add(waiter);});
@@ -38,6 +41,8 @@ export class YjsJournalBridge {
   };
   connect(){
     if(this.disposed)return;
+    if(this.retryTimer!==null){window.clearTimeout(this.retryTimer);this.retryTimer=null;}
+    if(typeof navigator!=='undefined'&&!navigator.onLine){this.synced=false;this.connected=false;this.onStatus('disconnected','인터넷 연결이 없습니다. 이 기기에 임시 저장하고 연결을 기다립니다.');return;}
     const generation=++this.generation;this.synced=false;this.connected=false;this.awaiting=false;this.socket?.close();
     this.onStatus('connecting','협업 공간에 연결 중');
     const scheme=location.protocol==='https:'?'wss':'ws';
@@ -62,10 +67,11 @@ export class YjsJournalBridge {
     socket.onclose=()=>{
       if(this.disposed||generation!==this.generation)return;
       this.synced=false;this.connected=false;this.awaiting=false;this.onStatus('disconnected','연결이 끊겼습니다. 로컬 변경은 보관하고 다시 연결합니다.');
-      if(this.attempts<8){const delay=Math.min(20_000,1000*2**this.attempts++);setTimeout(()=>this.connect(),delay);}
+      if(typeof navigator!=='undefined'&&!navigator.onLine)return;
+      const delay=Math.min(30_000,1000*2**Math.min(this.attempts++,5));this.retryTimer=window.setTimeout(()=>{this.retryTimer=null;this.connect();},delay);
     };
     socket.onerror=()=>this.onStatus('error','서버 연결에 문제가 있습니다.');
   }
   private flush(){if(!this.synced||this.awaiting||this.socket?.readyState!==WebSocket.OPEN)return;if(!this.pending.length){this.settleSaveWaiters();return;}this.awaiting=true;this.socket.send(JSON.stringify({type:'update',data:this.pending[0]}));}
-  destroy(){this.disposed=true;this.generation++;this.socket?.close();this.ydoc.off('update',this.onUpdate);this.settleSaveWaiters(new Error('대상 문서 연결이 종료되어 저장 확인을 마치지 못했습니다.'));}
+  destroy(){this.disposed=true;this.generation++;if(this.retryTimer!==null)window.clearTimeout(this.retryTimer);window.removeEventListener('online',this.onOnline);window.removeEventListener('offline',this.onOffline);this.socket?.close();this.ydoc.off('update',this.onUpdate);this.settleSaveWaiters(new Error('대상 문서 연결이 종료되어 저장 확인을 마치지 못했습니다.'));}
 }
