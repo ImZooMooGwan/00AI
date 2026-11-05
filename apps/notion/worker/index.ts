@@ -31,7 +31,7 @@ async function resolveSecret(value?: SecretsStoreSecret | string): Promise<strin
   try { return await value.get(); } catch { return undefined; }
 }
 const id = () => crypto.randomUUID();
-const cleanVisibleProperties=(values:unknown):string[]=>Array.isArray(values)?[...new Set(values.filter((value):value is string=>typeof value==='string').map(value=>clean(value,80)).filter(value=>/^(title|status|priority|assignee|due_date|custom:[a-z0-9-]{8,40})$/i.test(value))].slice(0,40):[];
+const cleanVisibleProperties=(values:unknown):string[]=>Array.isArray(values)?[...new Set(values.filter((value):value is string=>typeof value==='string').map(value=>clean(value,80)).filter(value=>/^(title|status|priority|assignee|due_date|custom:[a-z0-9-]{8,40})$/i.test(value)))].slice(0,40):[];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
