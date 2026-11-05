@@ -122,3 +122,5 @@ button,input,select,textarea{font-family:inherit}
 
 .tiptap-content [data-block-bg="#f1f1ef"]{background:#f1f1ef}.tiptap-content [data-block-bg="#fdf2c8"]{background:#fdf2c8}.tiptap-content [data-block-bg="#e5f2df"]{background:#e5f2df}.tiptap-content [data-block-bg="#e3efff"]{background:#e3efff}.tiptap-content [data-block-bg="#fbe4e2"]{background:#fbe4e2}
 .block-color-palette{display:flex;gap:7px;padding:7px 5px}.block-color-palette button{width:22px;height:22px;border:1px solid #d9d9d6;border-radius:50%;cursor:pointer}.block-color-palette button:hover{outline:2px solid #888;outline-offset:1px}
+
+.comment-target-label{display:block;margin-top:3px;color:#8b9289;font-size:10px}.comment-block-link{display:inline-flex;align-items:center;gap:4px;margin:2px 0 6px 33px;padding:4px 7px;border:1px solid #e7ebe5;border-radius:5px;background:#fff;color:#647361;font-size:9px}.comment-block-link:hover{background:#f2f5f0;color:#354934}.block-action-menu>button{display:flex;align-items:center;gap:7px}.block-action-menu>button:hover{background:#f3f5f1}
