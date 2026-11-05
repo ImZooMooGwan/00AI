@@ -19,6 +19,18 @@ type Service = {
 
 const services: Service[] = [
   {
+    code: "UPSCALING",
+    title: "00Upscaling",
+    category: "업무지원",
+    maturity: "서비스",
+    healthKey: "UPSCALING",
+    description: "사진·문서·로고 이미지를 브라우저에서 최대 4배까지 확대하고 전후 화질을 비교합니다.",
+    tasks: ["사진·문서 확대", "원본·결과 비교", "PNG·JPG·WEBP 저장"],
+    href: "https://upscaling.00ai.kr/",
+    action: "이미지 업스케일링",
+  },
+
+  {
     code: "WORKSPACE",
     title: "00AI 업무실",
     category: "문서·보고",
