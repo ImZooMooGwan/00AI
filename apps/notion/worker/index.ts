@@ -747,15 +747,15 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
   if(commentMatch&&method==='GET'){
     const pageId=decodeURIComponent(commentMatch[1]),record=await accessFor(env,user,pageId);
     if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
-    const rows=await env.DB.prepare('SELECT c.id,c.body,c.created_at,c.resolved_at,u.email,u.display_name FROM comments c JOIN users u ON u.id=c.user_id WHERE c.page_id=? ORDER BY c.created_at ASC LIMIT 300').bind(pageId).all();
+    const rows=await env.DB.prepare('SELECT c.id,c.body,c.block_id,c.created_at,c.resolved_at,u.email,u.display_name FROM comments c JOIN users u ON u.id=c.user_id WHERE c.page_id=? ORDER BY c.created_at ASC LIMIT 300').bind(pageId).all();
     return json({items:rows.results});
   }
   if(commentMatch&&method==='POST'){
     const pageId=decodeURIComponent(commentMatch[1]),record=await accessFor(env,user,pageId);
     if(!record||!canRead(record.access)||record.access.role==='viewer')return json({error:'댓글 권한이 없습니다.'},403);
-    const body=await request.json<{body?:string}>(),text=clean(body.body,4000);
+    const body=await request.json<{body?:string;blockId?:string|null}>(),text=clean(body.body,4000),blockId=typeof body.blockId==='string'?clean(body.blockId,64)||null:null;
     if(!text)return json({error:'댓글 내용을 입력해 주세요.'},400);
-    const commentId=id(),at=now();await env.DB.prepare('INSERT INTO comments(id,page_id,user_id,body,created_at) VALUES(?,?,?,?,?)').bind(commentId,pageId,user.id,text,at).run();
+    const commentId=id(),at=now();await env.DB.prepare('INSERT INTO comments(id,page_id,user_id,body,block_id,created_at) VALUES(?,?,?,?,?,?)').bind(commentId,pageId,user.id,text,blockId,at).run();
     const targets=await env.DB.prepare('SELECT DISTINCT u.id,u.email,u.display_name FROM users u LEFT JOIN workspace_members wm ON wm.user_id=u.id AND wm.workspace_id=? LEFT JOIN page_members pm ON pm.user_id=u.id AND pm.page_id=? WHERE u.id<>? AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL)').bind(record.page.workspace_id,pageId,user.id).all<{id:string;email:string;display_name:string}>();
     const mentioned=targets.results.filter(target=>{
       const tokens=text.match(/@[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|@[\p{L}\p{N}._-]+/gu)||[];
