@@ -1,5 +1,21 @@
 [
   {
+    "id": "00ai-upscaling",
+    "name": "00Upscaling",
+    "description": "사진·문서·로고 이미지를 서버 전송 없이 브라우저에서 업스케일링하는 도구",
+    "public_url": "https://upscaling.00ai.kr/",
+    "origin_url": "https://upscaling.00ai.kr/",
+    "aliases": [
+      "upscaling",
+      "upscale"
+    ],
+    "category": "공무원 업무도구",
+    "maker": "00AI",
+    "stack": "브라우저 로컬 처리 · Lanczos3 · Bicubic · Edge-directed",
+    "status": "LIVE",
+    "updated_at": "2026-11-05T07:14:06.000Z"
+  },
+  {
     "id": "00ai-ats",
     "name": "00AI ATS",
     "description": "지원자 등록·채용 단계 관리와 불합격 안내 이메일 예약을 제공하는 채용 파이프라인",
