@@ -1,6 +1,6 @@
 {
-  "checked_at": "2026-11-05T04:59:19Z",
-  "commit": "23546c362b0de7cd7ff1385421b83955ad100dbc",
+  "checked_at": "2026-11-05T07:31:09Z",
+  "commit": "89916394ac060c3248bac6957c540f403f14415e",
   "domains": {
     "00ai.kr": {"resolved": true, "http": "200", "healthy": true},
     "harness.00ai.kr": {"resolved": true, "http": "200", "healthy": true},
