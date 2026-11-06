@@ -72,6 +72,10 @@ button,input,select,textarea{font-family:inherit}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
 /* Template center: keep its navigation and cards inside the dialog at every viewport. */
+.overlay{overflow:auto;overscroll-behavior:contain}
+.dialog{min-width:0;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow:auto;overscroll-behavior:contain}
+.dialog-head>div{min-width:0;overflow-wrap:anywhere}
+.dialog-head>.mini-icon{flex:none}
 .template-dialog{width:min(860px,calc(100vw - 40px));max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .template-dialog>.dialog-head,.template-dialog>.template-view-tabs,.template-dialog>.template-discovery,.template-dialog>.template-audience-filter,.template-dialog>.category-tabs,.template-dialog>.template-result-count,.template-dialog>.dialog-note{flex:none;min-width:0}
 .template-dialog>.dialog-head{gap:16px}
