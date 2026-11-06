@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 34567)
-Total output lines: 1134
-
 import { DurableObject } from 'cloudflare:workers';
 import * as Y from 'yjs';
 import { jwtVerify, createRemoteJWKSet } from 'jose';
@@ -486,7 +483,269 @@ async function routeApi(request: Request, env: Env, user: User | null, ctx?:Exec
     const rows=await env.DB.prepare('SELECT p.id,p.parent_id,p.title,p.icon,p.updated_at,COALESCE(pm.role,wm.role) AS role,f.created_at AS favorited_at FROM page_favorites f JOIN pages p ON p.id=f.page_id LEFT JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=? LEFT JOIN page_members pm ON pm.page_id=p.id AND pm.user_id=? WHERE f.user_id=? AND p.workspace_id=? AND p.archived_at IS NULL AND (wm.user_id IS NOT NULL OR pm.user_id IS NOT NULL) ORDER BY f.created_at DESC LIMIT 100').bind(user.id,user.id,user.id,workspaceId).all();
     return json({items:rows.results});
   }
-  if (method === 'POST' && path…9567 tokens truncated…ring;priority_filter?:string;row_open_mode?:string;visible_properties?:string[]}>(),name=clean(body.name,60)||view.name,viewType=['table','board','calendar','list','gallery','timeline','chart'].includes(body.view_type||'')?body.view_type!:view.view_type,legacyViewType=viewType==='board'?'board':'table',layoutType=['list','gallery','timeline','chart'].includes(viewType)?viewType:null,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:view.status_filter,sortByField=['manual','due_date','title','status','priority','assignee'].includes(body.sort_by_field||'')?body.sort_by_field!:['manual','due_date','title','status','priority','assignee'].includes(body.sort_by||'')?body.sort_by!:view.sort_by_field,sortBy=['manual','due_date','title'].includes(sortByField)?sortByField:'manual',sortBy2=['none','due_date','title','status','priority','assignee'].includes(body.sort_by_2||'')?body.sort_by_2!:view.sort_by_2,groupByField=body.group_by_field===undefined&&body.group_by===undefined?(view.group_by_field||'none'):cleanGroupByField(body.group_by_field??body.group_by),groupBy=groupByField==='status'?'status':'none',dueFilter=['all','overdue','next7','no_date'].includes(body.due_filter||'')?body.due_filter!:view.due_filter,searchQuery=body.search_query===undefined?view.search_query:clean(body.search_query,120),priorityFilter=['all','긴급','높음','보통','낮음'].includes(body.priority_filter||'')?body.priority_filter!:view.priority_filter,rowOpenMode=['side','center','full'].includes(body.row_open_mode||'')?body.row_open_mode!:view.row_open_mode,visibleProperties=body.visible_properties===undefined?cleanVisibleProperties(JSON.parse(view.visible_properties_json||'[]')):cleanVisibleProperties(body.visible_properties),at=now();
+  if (method === 'POST' && path === '/pages') {
+    const body=await request.json<{workspaceId?:string;parentId?:string|null;title?:string;icon?:string;templateId?:string}>();
+    const workspaceId=clean(body.workspaceId,60), parentId=body.parentId?clean(body.parentId,60):null;
+    const member=await env.DB.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').bind(workspaceId,user.id).first<{role:string}>();
+    if (!member || !['owner','admin','member'].includes(member.role)) return json({error:'페이지 생성 권한이 없습니다.'},403);
+    if (parentId) { const parent=await accessFor(env,user,parentId); if(!parent||parent.page.workspace_id!==workspaceId||!canWrite(parent.access))return json({error:'상위 페이지 권한이 없습니다.'},403); }
+    const pageId=id(),at=now(),title=clean(body.title,200)||'새 페이지',icon=clean(body.icon,8)||'📄';
+    let starterJson:string|null=null,templatePackage:any={};
+    if (body.templateId) {
+      const template=await env.DB.prepare("SELECT blocks_json,database_json FROM templates WHERE id=? AND visibility='public' AND review_status='published'").bind(clean(body.templateId,100)).first<{blocks_json:string;database_json:string}>();
+      if (!template) return json({error:'템플릿을 찾을 수 없습니다.'},404);
+      starterJson=template.blocks_json;
+      try{templatePackage=JSON.parse(template.database_json||'{}');}catch{return json({error:'템플릿 데이터 구성이 올바르지 않습니다.'},500);}
+    }
+    const statements:D1PreparedStatement[]=[
+      env.DB.prepare('INSERT INTO pages(id,workspace_id,parent_id,title,icon,created_by,created_at,updated_at,starter_json) VALUES(?,?,?,?,?,?,?,?,?)').bind(pageId,workspaceId,parentId,title,icon,user.id,at,at,starterJson),
+    ];
+    if(body.templateId){
+      const templateId=clean(body.templateId,100),pack=templatePackage?.database||(Array.isArray(templatePackage?.properties)?templatePackage:null);
+      statements.push(env.DB.prepare('UPDATE templates SET copy_count=copy_count+1 WHERE id=?').bind(templateId));
+      statements.push(env.DB.prepare('INSERT INTO audit_log(id,workspace_id,actor_id,action,resource_type,resource_id,created_at) VALUES(?,?,?,?,?,?,?)').bind(id(),workspaceId,user.id,'TEMPLATE_COPIED','template',templateId,at));
+      if(pack&&typeof pack==='object'&&Array.isArray(pack.properties)){
+        const databaseId=id(),properties=JSON.stringify(pack.properties).slice(0,20000),layout=['table','board','calendar','list','gallery','timeline','chart'].includes(pack.layout_type)?pack.layout_type:'table',legacyView=layout==='board'?'board':'table';
+        statements.push(env.DB.prepare('INSERT INTO databases(id,page_id,workspace_id,title,view_type,created_by,created_at,updated_at,properties_json,layout_type) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(databaseId,pageId,workspaceId,clean(pack.title,120)||'업무 목록',legacyView,user.id,at,at,properties,layout==='table'||layout==='board'?null:layout));
+        const rows=Array.isArray(pack.rows)?pack.rows.slice(0,250):[];
+        rows.forEach((row:any,index:number)=>{
+          const status=['할 일','진행 중','완료'].includes(row.status)?row.status:'할 일',priority=['긴급','높음','보통','낮음'].includes(row.priority)?row.priority:'보통';
+          statements.push(env.DB.prepare('INSERT INTO database_rows(id,database_id,title,status,assignee,due_date,priority,description,position,created_at,updated_at,custom_values) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),databaseId,clean(row.title,200)||'새 항목',status,clean(row.assignee,120),clean(row.due_date,20),priority,clean(row.description,10000),index,at,at,JSON.stringify(row.customValues&&typeof row.customValues==='object'?row.customValues:{}).slice(0,10000)));
+        });
+        const views=Array.isArray(pack.views)?pack.views.slice(0,12):[];
+        views.forEach((view:any,index:number)=>{
+          const viewType=['table','board','calendar','list','gallery','timeline','chart'].includes(view.view_type)?view.view_type:'table',legacy=viewType==='board'?'board':'table',layoutType=['list','gallery','timeline','chart'].includes(viewType)?viewType:null,statusFilter=['전체','할 일','진행 중','완료'].includes(view.status_filter)?view.status_filter:'전체',sortField=['manual','due_date','title','status','priority','assignee'].includes(view.sort_by_field)?view.sort_by_field:'manual',sortBy=['manual','due_date','title'].includes(sortField)?sortField:'manual',sortBy2=['none','due_date','title','status','priority','assignee'].includes(view.sort_by_2)?view.sort_by_2:'none',groupField=['none','status','priority','assignee'].includes(view.group_by_field)?view.group_by_field:'none',groupBy=groupField==='status'?'status':'none',due=['all','overdue','next7','no_date'].includes(view.due_filter)?view.due_filter:'all',search=clean(view.search_query,120),priorityFilter=['all','긴급','높음','보통','낮음'].includes(view.priority_filter)?view.priority_filter:'all',openMode=['side','center','full'].includes(view.row_open_mode)?view.row_open_mode:'side',visible=Array.isArray(view.visible_properties)?view.visible_properties.filter((value:any)=>typeof value==='string').slice(0,40):[];
+          statements.push(env.DB.prepare('INSERT INTO database_views(id,database_id,name,view_type,layout_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter,row_open_mode,visible_properties_json,created_by,created_at,updated_at,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),databaseId,clean(view.name,60)||`보기 ${index+1}`,legacy,layoutType,statusFilter,sortBy,sortField,sortBy2,groupBy,groupField,due,search,priorityFilter,openMode,JSON.stringify(visible),user.id,at,at,index));
+        });
+      }
+    }
+    statements.push(env.DB.prepare('INSERT INTO audit_log(id,workspace_id,actor_id,action,resource_type,resource_id,created_at) VALUES(?,?,?,?,?,?,?)').bind(id(),workspaceId,user.id,'PAGE_CREATED','page',pageId,at));
+    try{await env.DB.batch(statements);}catch(error){console.error(JSON.stringify({event:'template_copy_failed',reason:error instanceof Error?error.message:'unknown'}));return json({error:'템플릿 복제 중 저장에 실패했습니다. 원본 문서는 생성되지 않았습니다.'},500);}
+    return json({ok:true,id:pageId},201);
+  }
+  if(method==='GET'&&path==='/templates/moderation'){
+    if(!await isTemplateModerator(env,user))return json({error:'템플릿 검토 권한이 없습니다.'},403);
+    const [pending,reports]=await Promise.all([
+      env.DB.prepare("SELECT t.id,t.title,t.description,t.category,t.icon,t.license,t.source_name,t.source_url,t.created_at,u.display_name AS author_name,u.email AS author_email,(SELECT COUNT(*) FROM template_reports r WHERE r.template_id=t.id AND r.resolved_at IS NULL) AS open_reports FROM templates t LEFT JOIN users u ON u.id=t.owner_id WHERE t.owner_id IS NOT NULL AND t.visibility='public' AND t.review_status='pending' ORDER BY t.created_at").all(),
+      env.DB.prepare("SELECT r.id,r.template_id,r.reason,r.created_at,t.title AS template_title,t.visibility,t.review_status,u.display_name AS reporter_name,u.email AS reporter_email FROM template_reports r JOIN templates t ON t.id=r.template_id JOIN users u ON u.id=r.reporter_id WHERE r.resolved_at IS NULL ORDER BY r.created_at").all(),
+    ]);return json({pending:pending.results,reports:reports.results});
+  }
+  const moderationTemplate=path.match(/^\/templates\/moderation\/templates\/([^/]+)$/);
+  if(method==='PATCH'&&moderationTemplate){
+    if(!await isTemplateModerator(env,user))return json({error:'템플릿 검토 권한이 없습니다.'},403);
+    const templateId=decodeURIComponent(moderationTemplate[1]),body=await request.json<{decision?:string}>();if(!['approve','reject'].includes(body.decision||''))return json({error:'승인 또는 반려를 선택해 주세요.'},400);
+    const template=await env.DB.prepare('SELECT id FROM templates WHERE id=?').bind(templateId).first();if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);
+    const approved=body.decision==='approve';await env.DB.prepare('UPDATE templates SET review_status=?,visibility=?,updated_at=? WHERE id=?').bind(approved?'published':'rejected',approved?'public':'private',now(),templateId).run();return json({ok:true,review_status:approved?'published':'rejected'});
+  }
+  const moderationReport=path.match(/^\/templates\/moderation\/reports\/([^/]+)$/);
+  if(method==='PATCH'&&moderationReport){
+    if(!await isTemplateModerator(env,user))return json({error:'템플릿 검토 권한이 없습니다.'},403);
+    const reportId=decodeURIComponent(moderationReport[1]),body=await request.json<{decision?:string}>();if(!['dismiss','hide'].includes(body.decision||''))return json({error:'신고를 기각하거나 템플릿을 숨겨 주세요.'},400);
+    const report=await env.DB.prepare('SELECT template_id FROM template_reports WHERE id=? AND resolved_at IS NULL').bind(reportId).first<{template_id:string}>();if(!report)return json({error:'미처리 신고를 찾을 수 없습니다.'},404);
+    if(body.decision==='hide'){await env.DB.batch([env.DB.prepare("UPDATE templates SET visibility='private',review_status='rejected',updated_at=? WHERE id=?").bind(now(),report.template_id),env.DB.prepare('UPDATE template_reports SET resolved_at=? WHERE template_id=? AND resolved_at IS NULL').bind(now(),report.template_id)]);}
+    else await env.DB.prepare('UPDATE template_reports SET resolved_at=? WHERE id=?').bind(now(),reportId).run();
+    return json({ok:true});
+  }
+  if(method==='GET'&&path==='/templates/mine'){
+    const result=await env.DB.prepare("SELECT id,title,description,category,icon,license,source_name,source_url,review_status,version,copy_count,visibility,audience,tags_json,difficulty,setup_minutes,featured,CASE WHEN database_json='{}' THEN 0 ELSE 1 END AS has_database FROM templates WHERE owner_id=? ORDER BY updated_at DESC").bind(user.id).all();
+    return json({items:result.results});
+  }
+  if(method==='POST'&&path==='/templates'){
+    const body=await request.json<{title?:string;description?:string;category?:string;icon?:string;license?:string;sourceName?:string;sourceUrl?:string;blocks?:unknown;pageId?:string;includeSampleRows?:boolean;publish?:boolean}>();
+    const title=clean(body.title,120),description=clean(body.description,500),category=clean(body.category,60)||'기타',license=clean(body.license,80),sourceName=clean(body.sourceName,120),sourceUrl=clean(body.sourceUrl,500);
+    if(!title||!description||!sourceName||!license||!body.blocks||typeof body.blocks!=='object')return json({error:'제목, 설명, 작성자/출처, 이용조건과 문서 내용은 필수입니다.'},400);
+    let blocks:string;try{blocks=JSON.stringify(body.blocks);}catch{return json({error:'문서 내용을 읽을 수 없습니다.'},400);}
+    if(blocks.length>350_000)return json({error:'템플릿 내용이 너무 큽니다.'},413);
+    if(sourceUrl&&!/^https:\/\//i.test(sourceUrl))return json({error:'출처 URL은 https 주소를 입력해 주세요.'},400);
+    const templateId=id(),at=now(),publish=body.publish===true;let databasePackage={};
+    if(body.pageId){
+      const pageId=clean(body.pageId,60),record=await accessFor(env,user,pageId);
+      if(!record||!canWrite(record.access))return json({error:'템플릿 원본 페이지를 읽을 권한이 없습니다.'},403);
+      const database=await env.DB.prepare('SELECT id,title,view_type,layout_type,properties_json FROM databases WHERE page_id=?').bind(pageId).first<{id:string;title:string;view_type:string;layout_type:string|null;properties_json:string}>();
+      if(database){const [rows,views]=await Promise.all([
+        body.includeSampleRows?env.DB.prepare('SELECT title,status,assignee,due_date,priority,description,custom_values FROM database_rows WHERE database_id=? ORDER BY position,created_at LIMIT 100').bind(database.id).all():Promise.resolve({results:[] as any[]}),
+        env.DB.prepare('SELECT name,COALESCE(layout_type,view_type) AS view_type,status_filter,sort_by_field,sort_by_2,group_by_field,due_filter,search_query,priority_filter,row_open_mode,visible_properties_json FROM database_views WHERE database_id=? ORDER BY position,created_at,id LIMIT 12').bind(database.id).all()
+      ]);databasePackage={database:{title:database.title,view_type:database.view_type,layout_type:database.layout_type||database.view_type,properties:JSON.parse(database.properties_json||'[]'),rows:rows.results.map((row:any)=>({title:row.title,status:row.status,assignee:row.assignee,due_date:row.due_date,priority:row.priority,description:row.description,customValues:JSON.parse(row.custom_values||'{}')})),views:views.results.map((view:any)=>({...view,visible_properties:JSON.parse(view.visible_properties_json||'[]')}))}};}
+    }
+    const databaseJson=JSON.stringify(databasePackage);if(databaseJson.length>200_000)return json({error:'템플릿 데이터베이스 구성이 너무 큽니다.'},413);
+    await env.DB.prepare('INSERT INTO templates(id,title,description,category,icon,visibility,license,blocks_json,database_json,created_at,updated_at,owner_id,source_name,source_url,review_status,audience,tags_json,difficulty,setup_minutes,featured) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,databaseJson,at,at,user.id,sourceName,sourceUrl,'pending','team','[]','쉬움',5,0).run();
+    await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,database_json,audience,tags_json,difficulty,setup_minutes,featured,source_name,source_url,created_by,created_at) VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?,?)').bind(id(),templateId,title,description,category,clean(body.icon,8)||'📄',publish?'public':'private',license,blocks,databaseJson,'team','[]','쉬움',5,0,sourceName,sourceUrl,user.id,at).run();
+    return json({ok:true,id:templateId,review_status:'pending'},201);
+  }
+  const templateHistory=path.match(/^\/templates\/([^/]+)\/versions$/);
+  if(templateHistory&&method==='GET'){
+    const templateId=decodeURIComponent(templateHistory[1]),template=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
+    if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(template.owner_id!==user.id)return json({error:'작성한 템플릿만 이력을 볼 수 있습니다.'},403);
+    const result=await env.DB.prepare('SELECT id,version,title,description,category,visibility,license,created_at FROM template_versions WHERE template_id=? ORDER BY version DESC').bind(templateId).all();return json({items:result.results});
+  }
+  const templateRestore=path.match(/^\/templates\/([^/]+)\/versions\/([^/]+)\/restore$/);
+  if(templateRestore&&method==='POST'){
+    const templateId=decodeURIComponent(templateRestore[1]),versionId=decodeURIComponent(templateRestore[2]),template=await env.DB.prepare('SELECT owner_id,version FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null;version:number}>();
+    if(!template)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(template.owner_id!==user.id)return json({error:'작성한 템플릿만 복원할 수 있습니다.'},403);
+    const snapshot=await env.DB.prepare('SELECT title,description,category,icon,visibility,license,blocks_json,database_json,source_name,source_url FROM template_versions WHERE id=? AND template_id=?').bind(versionId,templateId).first<{title:string;description:string;category:string;icon:string;visibility:string;license:string;blocks_json:string;database_json:string;source_name:string;source_url:string}>();
+    if(!snapshot)return json({error:'저장 버전을 찾을 수 없습니다.'},404);const at=now(),nextVersion=template.version+1;
+    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,icon=?,visibility=?,license=?,blocks_json=?,database_json=?,source_name=?,source_url=?,review_status=CASE WHEN ?='public' THEN 'pending' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.database_json,snapshot.source_name,snapshot.source_url,snapshot.visibility,nextVersion,at,templateId).run();
+    await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,database_json,audience,tags_json,difficulty,setup_minutes,featured,source_name,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,nextVersion,snapshot.title,snapshot.description,snapshot.category,snapshot.icon,snapshot.visibility,snapshot.license,snapshot.blocks_json,snapshot.database_json,'team','[]','쉬움',5,0,snapshot.source_name,snapshot.source_url,user.id,at).run();return json({ok:true,version:nextVersion});
+  }
+  const templateMatch=path.match(/^\/templates\/([^/]+)$/);
+  if(templateMatch&&method==='PATCH'){
+    const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id,title,description,category,icon,visibility,license,blocks_json,database_json,source_name,source_url,version FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null;title:string;description:string;category:string;icon:string;visibility:string;license:string;blocks_json:string;database_json:string;source_name:string;source_url:string;version:number}>();
+    if(!current)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(current.owner_id!==user.id)return json({error:'작성한 템플릿만 수정할 수 있습니다.'},403);
+    const body=await request.json<{title?:string;description?:string;category?:string;visibility?:string}>(),visibility=['public','private','unlisted'].includes(body.visibility||'')?body.visibility!:'private',title=clean(body.title,120)||'템플릿',description=clean(body.description,500),category=clean(body.category,60)||'기타',at=now(),nextVersion=current.version+1;
+    await env.DB.prepare("UPDATE templates SET title=?,description=?,category=?,visibility=?,review_status=CASE WHEN ?='public' THEN 'pending' ELSE review_status END,version=?,updated_at=? WHERE id=?").bind(title,description,category,visibility,visibility,nextVersion,at,templateId).run();
+    await env.DB.prepare('INSERT INTO template_versions(id,template_id,version,title,description,category,icon,visibility,license,blocks_json,database_json,audience,tags_json,difficulty,setup_minutes,featured,source_name,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id(),templateId,nextVersion,title,description,category,current.icon,visibility,current.license,current.blocks_json,current.database_json,'team','[]','쉬움',5,0,current.source_name,current.source_url,user.id,at).run();
+    return json({ok:true,version:nextVersion});
+  }
+  if(templateMatch&&method==='DELETE'){
+    const templateId=decodeURIComponent(templateMatch[1]),current=await env.DB.prepare('SELECT owner_id FROM templates WHERE id=?').bind(templateId).first<{owner_id:string|null}>();
+    if(!current)return json({error:'템플릿을 찾을 수 없습니다.'},404);if(current.owner_id!==user.id)return json({error:'작성한 템플릿만 삭제할 수 있습니다.'},403);
+    await env.DB.prepare('DELETE FROM templates WHERE id=?').bind(templateId).run();return json({ok:true});
+  }
+  const templateReport=path.match(/^\/templates\/([^/]+)\/reports$/);
+  if(templateReport&&method==='POST'){
+    const templateId=decodeURIComponent(templateReport[1]),template=await env.DB.prepare("SELECT id FROM templates WHERE id=? AND visibility='public' AND review_status='published'").bind(templateId).first();
+    if(!template)return json({error:'공개 템플릿을 찾을 수 없습니다.'},404);
+    const body=await request.json<{reason?:string}>(),reason=clean(body.reason,500);if(!reason)return json({error:'신고 사유를 입력해 주세요.'},400);
+    await env.DB.prepare('INSERT INTO template_reports(id,template_id,reporter_id,reason,created_at) VALUES(?,?,?,?,?)').bind(id(),templateId,user.id,reason,now()).run();return json({ok:true},201);
+  }
+  const starterMatch=path.match(/^\/pages\/([^/]+)\/starter$/);
+  if(method==='POST'&&starterMatch){
+    const pageId=decodeURIComponent(starterMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const body=await request.json<{claim?:boolean}>();
+    if(body.claim&&canWrite(record.access)){
+      const result=await env.DB.prepare('UPDATE pages SET starter_claimed_at=? WHERE id=? AND starter_json IS NOT NULL AND starter_claimed_at IS NULL').bind(now(),pageId).run();
+      if(result.meta.changes){const row=await env.DB.prepare('SELECT starter_json FROM pages WHERE id=?').bind(pageId).first<{starter_json:string}>();return json({starter:row?.starter_json?JSON.parse(row.starter_json):null});}
+      return json({starter:null});
+    }
+    return json({starter:null});
+  }
+  const titleMatch=path.match(/^\/pages\/([^/]+)\/title$/);
+  if (method === 'PATCH' && titleMatch) {
+    const pageId=decodeURIComponent(titleMatch[1]), record=await accessFor(env,user,pageId);
+    if(!record||!canWrite(record.access))return json({error:'수정 권한이 없습니다.'},403);
+    const body=await request.json<{title?:string;icon?:string}>(), title=clean(body.title,200), icon=clean(body.icon,8);
+    if(!title)return json({error:'제목을 입력해 주세요.'},400);
+    await env.DB.prepare('UPDATE pages SET title=?,icon=?,updated_at=? WHERE id=?').bind(title,icon||record.page.icon,now(),pageId).run();
+    await audit(env,user,record.page.workspace_id,'PAGE_RENAMED','page',pageId);
+    return json({ok:true});
+  }
+  const duplicateMatch=path.match(/^\/pages\/([^/]+)\/duplicate$/);
+  if (method === 'POST' && duplicateMatch) {
+    const sourceId=decodeURIComponent(duplicateMatch[1]), source=await accessFor(env,user,sourceId);
+    if(!source||!canRead(source.access)||!['owner','admin','member'].includes(source.access.workspaceRole))return json({error:'복제 권한이 없습니다.'},403);
+    const body=await request.json<{content?:unknown}>();
+    if(!body.content||typeof body.content!=='object'||(body.content as {type?:unknown}).type!=='doc'||!Array.isArray((body.content as {content?:unknown}).content))return json({error:'복제할 문서 내용을 확인할 수 없습니다.'},400);
+    const content=JSON.stringify(body.content);
+    if(content.length>350_000)return json({error:'문서가 너무 커서 복제할 수 없습니다.'},413);
+    const pageId=id(),at=now();
+    await env.DB.prepare('INSERT INTO pages(id,workspace_id,parent_id,title,icon,created_by,created_at,updated_at,starter_json) VALUES(?,?,?,?,?,?,?,?,?)').bind(pageId,source.page.workspace_id,null,`${source.page.title} 사본`,source.page.icon,user.id,at,at,content).run();
+    await audit(env,user,source.page.workspace_id,'PAGE_DUPLICATED','page',pageId);
+    return json({ok:true,id:pageId,sourceId});
+  }
+  const versionsMatch=path.match(/^\/pages\/([^/]+)\/versions$/);
+  if(versionsMatch&&method==='GET'){
+    const pageId=decodeURIComponent(versionsMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const rows=await env.DB.prepare('SELECT v.id,v.label,v.created_at,u.display_name AS actor_name,u.email AS actor_email FROM page_versions v JOIN users u ON u.id=v.actor_id WHERE v.page_id=? ORDER BY v.created_at DESC LIMIT 60').bind(pageId).all();
+    return json({items:rows.results});
+  }
+  if(versionsMatch&&method==='POST'){
+    const pageId=decodeURIComponent(versionsMatch[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canWrite(record.access))return json({error:'변경 이력을 저장할 권한이 없습니다.'},403);
+    const body=await request.json<{content?:unknown;label?:string}>();
+    if(!body.content||typeof body.content!=='object')return json({error:'저장할 문서 내용이 없습니다.'},400);
+    const content=JSON.stringify(body.content);if(content.length>350_000)return json({error:'문서가 너무 커서 이력으로 저장할 수 없습니다.'},413);
+    const versionId=id(),label=clean(body.label,120),at=now();
+    await env.DB.prepare('INSERT INTO page_versions(id,page_id,actor_id,label,content_json,created_at) VALUES(?,?,?,?,?,?)').bind(versionId,pageId,user.id,label,content,at).run();
+    await env.DB.prepare('DELETE FROM page_versions WHERE page_id=? AND id NOT IN (SELECT id FROM page_versions WHERE page_id=? ORDER BY created_at DESC LIMIT 60)').bind(pageId,pageId).run();
+    await audit(env,user,record.page.workspace_id,'PAGE_VERSION_SAVED','page',pageId);
+    return json({ok:true,id:versionId,created_at:at},201);
+  }
+  const versionMatch=path.match(/^\/pages\/([^/]+)\/versions\/([^/]+)$/);
+  if(versionMatch&&method==='GET'){
+    const pageId=decodeURIComponent(versionMatch[1]),versionId=decodeURIComponent(versionMatch[2]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const row=await env.DB.prepare('SELECT id,label,created_at,content_json FROM page_versions WHERE id=? AND page_id=?').bind(versionId,pageId).first<{id:string;label:string;created_at:string;content_json:string}>();
+    if(!row)return json({error:'저장된 버전을 찾을 수 없습니다.'},404);
+    return json({id:row.id,label:row.label,created_at:row.created_at,content:JSON.parse(row.content_json)});
+  }
+  const pageDatabase=path.match(/^\/pages\/([^/]+)\/database$/);
+  if(pageDatabase&&method==='GET'){
+    const pageId=decodeURIComponent(pageDatabase[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canRead(record.access))return json({error:'문서 접근 권한이 없습니다.'},403);
+    const database=await env.DB.prepare('SELECT id,page_id,title,COALESCE(layout_type,CASE WHEN calendar_view=1 THEN \'calendar\' ELSE view_type END) AS view_type,properties_json,created_at,updated_at FROM databases WHERE page_id=?').bind(pageId).first<{id:string;page_id:string;title:string;view_type:string;properties_json:string;created_at:string;updated_at:string}>();
+    if(!database)return json({database:null,rows:[],views:[]});
+    const [rows,views]=await Promise.all([
+      env.DB.prepare('SELECT id,title,status,assignee,due_date,priority,description,custom_values,position,created_at,updated_at FROM database_rows WHERE database_id=? ORDER BY position,created_at').bind(database.id).all(),
+      env.DB.prepare('SELECT id,database_id,name,COALESCE(layout_type,view_type) AS view_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter,row_open_mode,visible_properties_json,created_at,updated_at FROM database_views WHERE database_id=? ORDER BY position,created_at,id').bind(database.id).all(),
+    ]);
+    let properties=[];try{properties=JSON.parse(database.properties_json||'[]');}catch{}return json({database:{...database,properties},rows:rows.results.map((row:any)=>({...row,custom_values:(()=>{try{return JSON.parse(row.custom_values||'{}')}catch{return {}}})()})),views:views.results});
+  }
+  if(pageDatabase&&method==='POST'){
+    const pageId=decodeURIComponent(pageDatabase[1]),record=await accessFor(env,user,pageId);
+    if(!record||!canWrite(record.access))return json({error:'데이터베이스를 만들 권한이 없습니다.'},403);
+    const existing=await env.DB.prepare('SELECT id FROM databases WHERE page_id=?').bind(pageId).first<{id:string}>();
+    if(existing)return json({ok:true,id:existing.id});
+    const body=await request.json<{title?:string}>(),databaseId=id(),at=now();
+    await env.DB.prepare('INSERT INTO databases(id,page_id,workspace_id,title,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(databaseId,pageId,record.page.workspace_id,clean(body.title,120)||'업무 목록',user.id,at,at).run();
+    await audit(env,user,record.page.workspace_id,'DATABASE_CREATED','database',databaseId);
+    return json({ok:true,id:databaseId},201);
+  }
+  const databaseMatch=path.match(/^\/databases\/([^/]+)$/);
+  const databaseProperties=path.match(/^\/databases\/([^/]+)\/properties$/);
+  if(databaseProperties&&method==='PATCH'){
+    const databaseId=decodeURIComponent(databaseProperties[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
+    if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'속성을 수정할 권한이 없습니다.'},403);
+    const body=await request.json<{properties?:Array<{id?:string;name?:string;type?:string;options?:string[]}>}>();
+    if(!Array.isArray(body.properties)||body.properties.length>20)return json({error:'사용자 정의 속성은 최대 20개까지 만들 수 있습니다.'},400);
+    const seen=new Set<string>(),properties=[] as Array<{id:string;name:string;type:'text'|'number'|'checkbox'|'select';options:string[]}>;
+    for(const item of body.properties){const propertyId=clean(item.id,40),name=clean(item.name,50),type=item.type,options=Array.isArray(item.options)?[...new Set(item.options.map(value=>clean(value,40)).filter(Boolean))].slice(0,20):[];if(!/^[a-z0-9-]{8,40}$/i.test(propertyId)||!name||!['text','number','checkbox','select'].includes(type||'')||seen.has(propertyId))return json({error:'속성 이름이나 유형을 확인해 주세요.'},400);if(type==='select'&&!options.length)return json({error:'선택 속성에는 선택지를 하나 이상 입력해 주세요.'},400);seen.add(propertyId);properties.push({id:propertyId,name,type:type as 'text'|'number'|'checkbox'|'select',options:type==='select'?options:[]});}
+    await env.DB.prepare('UPDATE databases SET properties_json=?,updated_at=? WHERE id=?').bind(JSON.stringify(properties),now(),databaseId).run();
+    return json({ok:true,properties});
+  }
+  if(databaseMatch&&method==='PATCH'){
+    const databaseId=decodeURIComponent(databaseMatch[1]),database=await env.DB.prepare('SELECT page_id,workspace_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string;workspace_id:string}>();
+    if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'데이터베이스 수정 권한이 없습니다.'},403);
+    const body=await request.json<{title?:string;view_type?:string}>(),title=clean(body.title,120)||'업무 목록',viewType=['table','board','calendar','list','gallery','timeline','chart'].includes(body.view_type||'')?body.view_type!:'table',calendarView=viewType==='calendar'?1:0,legacyViewType=viewType==='board'?'board':'table',layoutType=['list','gallery','timeline','chart'].includes(viewType)?viewType:null;
+    await env.DB.prepare('UPDATE databases SET title=?,view_type=?,calendar_view=?,layout_type=?,updated_at=? WHERE id=?').bind(title,legacyViewType,calendarView,layoutType,now(),databaseId).run();
+    return json({ok:true});
+  }
+  const databaseViewOrder=path.match(/^\/databases\/([^/]+)\/views\/order$/);
+  if(databaseViewOrder&&method==='PATCH'){
+    const databaseId=decodeURIComponent(databaseViewOrder[1]),database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string}>();
+    if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'보기 순서를 변경할 권한이 없습니다.'},403);
+    const body=await request.json<{orderedIds?:string[]}>(),orderedIds=Array.isArray(body.orderedIds)?body.orderedIds.filter((value):value is string=>typeof value==='string'&&value.length<=80):[];
+    if(orderedIds.length>100||new Set(orderedIds).size!==orderedIds.length)return json({error:'보기 순서 정보가 올바르지 않습니다.'},400);
+    const current=await env.DB.prepare('SELECT id FROM database_views WHERE database_id=? ORDER BY position,created_at,id').bind(databaseId).all<{id:string}>(),currentIds=current.results.map(item=>item.id);
+    if(currentIds.length!==orderedIds.length||currentIds.some(id=>!orderedIds.includes(id)))return json({error:'데이터베이스의 보기 목록이 변경되었습니다. 새로고침 후 다시 시도해 주세요.'},409);
+    const at=now(),updates=orderedIds.map((viewId,index)=>env.DB.prepare('UPDATE database_views SET position=?,updated_at=? WHERE id=? AND database_id=?').bind(index,at,viewId,databaseId));
+    if(updates.length)await env.DB.batch(updates);
+    return json({ok:true,orderedIds});
+  }
+  const databaseViews=path.match(/^\/databases\/([^/]+)\/views$/);
+  if(databaseViews&&method==='POST'){
+    const databaseId=decodeURIComponent(databaseViews[1]),database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(databaseId).first<{page_id:string}>();
+    if(!database)return json({error:'데이터베이스를 찾을 수 없습니다.'},404);
+    const record=await accessFor(env,user,database.page_id);if(!record||!canWrite(record.access))return json({error:'저장 뷰를 만들 권한이 없습니다.'},403);
+    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;sort_by_field?:string;sort_by_2?:string;group_by?:string;group_by_field?:string;due_filter?:string;search_query?:string;priority_filter?:string;row_open_mode?:string;visible_properties?:string[]}>(),name=clean(body.name,60);
+    if(!name)return json({error:'저장 뷰 이름을 입력해 주세요.'},400);
+    const viewType=['table','board','calendar','list','gallery','timeline','chart'].includes(body.view_type||'')?body.view_type!:'table',legacyViewType=viewType==='board'?'board':'table',layoutType=['list','gallery','timeline','chart'].includes(viewType)?viewType:null,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:'전체',sortByField=['manual','due_date','title','status','priority','assignee'].includes(body.sort_by_field||'')?body.sort_by_field!:['manual','due_date','title','status','priority','assignee'].includes(body.sort_by||'')?body.sort_by!:'manual',sortBy=['manual','due_date','title'].includes(sortByField)?sortByField:'manual',sortBy2=['none','due_date','title','status','priority','assignee'].includes(body.sort_by_2||'')?body.sort_by_2!:'none',groupByField=cleanGroupByField(body.group_by_field??body.group_by),groupBy=groupByField==='status'?'status':'none',dueFilter=['all','overdue','next7','no_date'].includes(body.due_filter||'')?body.due_filter!:'all',searchQuery=clean(body.search_query,120),priorityFilter=['all','긴급','높음','보통','낮음'].includes(body.priority_filter||'')?body.priority_filter!:'all',rowOpenMode=['side','center','full'].includes(body.row_open_mode||'')?body.row_open_mode!:'side',visibleProperties=cleanVisibleProperties(body.visible_properties),viewId=id(),at=now();
+    const position=(await env.DB.prepare('SELECT COALESCE(MAX(position),-1)+1 AS next FROM database_views WHERE database_id=?').bind(databaseId).first<{next:number}>())?.next||0;
+    await env.DB.prepare('INSERT INTO database_views(id,database_id,name,view_type,layout_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter,row_open_mode,visible_properties_json,created_by,created_at,updated_at,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(viewId,databaseId,name,legacyViewType,layoutType,statusFilter,sortBy,sortByField,sortBy2,groupBy,groupByField,dueFilter,searchQuery,priorityFilter,rowOpenMode,JSON.stringify(visibleProperties),user.id,at,at,position).run();
+    return json({ok:true,view:{id:viewId,database_id:databaseId,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,sort_by_field:sortByField,sort_by_2:sortBy2,group_by:groupBy,group_by_field:groupByField,due_filter:dueFilter,search_query:searchQuery,priority_filter:priorityFilter,row_open_mode:rowOpenMode,visible_properties_json:JSON.stringify(visibleProperties),created_at:at,updated_at:at}},201);
+  }
+  const databaseView=path.match(/^\/database-views\/([^/]+)$/);
+  if(databaseView&&(method==='PATCH'||method==='DELETE')){
+    const viewId=decodeURIComponent(databaseView[1]),view=await env.DB.prepare('SELECT database_id,name,COALESCE(layout_type,view_type) AS view_type,status_filter,sort_by,sort_by_field,sort_by_2,group_by,group_by_field,due_filter,search_query,priority_filter,row_open_mode,visible_properties_json FROM database_views WHERE id=?').bind(viewId).first<{database_id:string;name:string;view_type:string;status_filter:string;sort_by:string;sort_by_field:string;sort_by_2:string;group_by:string;group_by_field:string;due_filter:string;search_query:string;priority_filter:string;row_open_mode:string;visible_properties_json:string}>();
+    if(!view)return json({error:'저장 뷰를 찾을 수 없습니다.'},404);
+    const database=await env.DB.prepare('SELECT page_id FROM databases WHERE id=?').bind(view.database_id).first<{page_id:string}>(),record=database?await accessFor(env,user,database.page_id):null;
+    if(!record||!canWrite(record.access))return json({error:'저장 뷰를 수정할 권한이 없습니다.'},403);
+    if(method==='DELETE'){await env.DB.prepare('DELETE FROM database_views WHERE id=?').bind(viewId).run();return json({ok:true});}
+    const body=await request.json<{name?:string;view_type?:string;status_filter?:string;sort_by?:string;sort_by_field?:string;sort_by_2?:string;group_by?:string;group_by_field?:string;due_filter?:string;search_query?:string;priority_filter?:string;row_open_mode?:string;visible_properties?:string[]}>(),name=clean(body.name,60)||view.name,viewType=['table','board','calendar','list','gallery','timeline','chart'].includes(body.view_type||'')?body.view_type!:view.view_type,legacyViewType=viewType==='board'?'board':'table',layoutType=['list','gallery','timeline','chart'].includes(viewType)?viewType:null,statusFilter=['전체','할 일','진행 중','완료'].includes(body.status_filter||'')?body.status_filter!:view.status_filter,sortByField=['manual','due_date','title','status','priority','assignee'].includes(body.sort_by_field||'')?body.sort_by_field!:['manual','due_date','title','status','priority','assignee'].includes(body.sort_by||'')?body.sort_by!:view.sort_by_field,sortBy=['manual','due_date','title'].includes(sortByField)?sortByField:'manual',sortBy2=['none','due_date','title','status','priority','assignee'].includes(body.sort_by_2||'')?body.sort_by_2!:view.sort_by_2,groupByField=body.group_by_field===undefined&&body.group_by===undefined?(view.group_by_field||'none'):cleanGroupByField(body.group_by_field??body.group_by),groupBy=groupByField==='status'?'status':'none',dueFilter=['all','overdue','next7','no_date'].includes(body.due_filter||'')?body.due_filter!:view.due_filter,searchQuery=body.search_query===undefined?view.search_query:clean(body.search_query,120),priorityFilter=['all','긴급','높음','보통','낮음'].includes(body.priority_filter||'')?body.priority_filter!:view.priority_filter,rowOpenMode=['side','center','full'].includes(body.row_open_mode||'')?body.row_open_mode!:view.row_open_mode,visibleProperties=body.visible_properties===undefined?cleanVisibleProperties(JSON.parse(view.visible_properties_json||'[]')):cleanVisibleProperties(body.visible_properties),at=now();
     await env.DB.prepare('UPDATE database_views SET name=?,view_type=?,layout_type=?,status_filter=?,sort_by=?,sort_by_field=?,sort_by_2=?,group_by=?,group_by_field=?,due_filter=?,search_query=?,priority_filter=?,row_open_mode=?,visible_properties_json=?,updated_at=? WHERE id=?').bind(name,legacyViewType,layoutType,statusFilter,sortBy,sortByField,sortBy2,groupBy,groupByField,dueFilter,searchQuery,priorityFilter,rowOpenMode,JSON.stringify(visibleProperties),at,viewId).run();
     return json({ok:true,view:{id:viewId,database_id:view.database_id,name,view_type:viewType,status_filter:statusFilter,sort_by:sortBy,sort_by_field:sortByField,sort_by_2:sortBy2,group_by:groupBy,group_by_field:groupByField,due_filter:dueFilter,search_query:searchQuery,priority_filter:priorityFilter,row_open_mode:rowOpenMode,visible_properties_json:JSON.stringify(visibleProperties),updated_at:at}});
   }
