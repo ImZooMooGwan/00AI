@@ -22,6 +22,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/notion/package-lock.json
       - run: npm ci
+      - run: npm run check:hooks
       - run: npm run build
       - run: npm run typecheck
       - run: npx wrangler d1 migrations apply 00ai-notion --remote

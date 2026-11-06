@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "check:hooks": "node scripts/check-hook-order.mjs"
   },
   "dependencies": {
     "@tiptap/extension-collaboration": "^3.32.1",
