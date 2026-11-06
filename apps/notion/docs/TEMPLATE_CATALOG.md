@@ -39,7 +39,7 @@
 
 ## 배포 및 롤백 메모
 
-- Cloudflare D1 migration: `0035_template_catalog_and_packages.sql`
+- Cloudflare D1 migrations: `0035_template_catalog_and_packages.sql`, `0036_template_seed_views.sql`
 - Worker 및 정적 클라이언트: 기존 NOTE 배포 workflow에서 함께 배포
 - 롤백이 필요하면 배포 전 D1 백업을 확보하고, 데이터가 새 열에 기록된 후에는 단순히 이전 Worker만 배포하지 않는다. 구 Worker가 새 열을 무시하므로 템플릿의 새 복제 기능만 비활성화되며 기존 페이지 데이터는 삭제되지 않는다.
 - 신규 템플릿은 고정 ID와 `INSERT OR IGNORE`를 사용해 재실행 시 중복 생성되지 않는다.
