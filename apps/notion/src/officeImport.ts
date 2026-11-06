@@ -31,7 +31,10 @@ async function readEntry(bytes:Uint8Array,entry:ZipEntry):Promise<Uint8Array>{
  if(entry.method!==8)throw new Error('지원하지 않는 Office 문서 압축 방식입니다.');
  if(typeof DecompressionStream==='undefined')throw new Error('이 브라우저는 Office 문서 압축 해제를 지원하지 않습니다. 최신 Edge 또는 Chrome에서 다시 시도해 주세요.');
  const stream=new Blob([compressed as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
- const result=new Uint8Array(await new Response(stream).arrayBuffer());if(result.length!==entry.size)throw new Error('Office 문서 압축을 확인할 수 없습니다.');return result;
+ const reader=stream.getReader(),chunks:Uint8Array[]=[];let total=0;
+ try{while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>entry.size||total>25_000_000){await reader.cancel();throw new Error('Office 문서의 압축 해제 크기가 허용 범위를 초과했습니다.');}chunks.push(value);}}finally{reader.releaseLock();}
+ if(total!==entry.size)throw new Error('Office 문서 압축을 확인할 수 없습니다.');
+ const result=new Uint8Array(total);let position=0;for(const chunk of chunks){result.set(chunk,position);position+=chunk.length;}return result;
 }
 function textInParagraph(el:Element):string{
  let result='';
@@ -40,7 +43,7 @@ function textInParagraph(el:Element):string{
 }
 function paragraph(text:string,level=0):JsonNode{
  const content:JsonNode[]=[];text.split('\n').forEach((line,index)=>{if(index)content.push({type:'hardBreak'});if(line)content.push({type:'text',text:line});});
- return level?{type:'heading',attrs:{level},content:content.length?content:[{type:'text',text:''}]}:{type:'paragraph',content};
+ return level?{type:'heading',attrs:{level},content}:{type:'paragraph',content};
 }
 function listFormats(xml:string):Map<string,string>{
  const result=new Map<string,string>();if(!xml)return result;const doc=new DOMParser().parseFromString(xml,'application/xml');if(doc.querySelector('parsererror'))return result;
