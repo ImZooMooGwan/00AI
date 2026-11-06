@@ -42,6 +42,17 @@ const services: Service[] = [
     action: "업무실 열기",
   },
   {
+    code: "NOTE",
+    title: "00AI NOTE",
+    category: "업무지원",
+    maturity: "실험실",
+    healthKey: "NOTE",
+    description: "메모와 문서, 데이터베이스를 한곳에서 정리하고 동료와 함께 관리하는 협업 지식공간입니다.",
+    tasks: ["메모·문서 작성", "업무 데이터베이스", "공유·협업"],
+    href: "https://note.00ai.kr/",
+    action: "00AI NOTE 열기",
+  },
+  {
     code: "NOTION",
     title: "00AI Workspace",
     category: "업무지원",
