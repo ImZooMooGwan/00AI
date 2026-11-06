@@ -72,6 +72,8 @@ button,input,select,textarea{font-family:inherit}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
 /* Template center: keep its navigation and cards inside the dialog at every viewport. */
+@media(min-width:681px){.sidebar{position:relative;flex-basis:var(--sidebar-width,248px);width:var(--sidebar-width,248px);min-width:200px;max-width:380px}.sidebar-resizer{position:absolute;z-index:6;top:0;right:-5px;bottom:0;width:10px;cursor:col-resize;touch-action:none;outline:none}.sidebar-resizer::before{content:"";position:absolute;top:0;bottom:0;left:4px;width:2px;background:transparent;transition:background-color .12s}.sidebar-resizer:hover::before,.sidebar-resizer:focus-visible::before,.sidebar-resizer:active::before{background:#a9b6a2}}
+@media(max-width:680px){.sidebar-resizer{display:none}}
 .overlay{overflow:auto;overscroll-behavior:contain}
 .dialog{min-width:0;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow:auto;overscroll-behavior:contain}
 .dialog-head>div{min-width:0;overflow-wrap:anywhere}
