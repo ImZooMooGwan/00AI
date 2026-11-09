@@ -11,7 +11,7 @@
 - Korean speech recognition: Cloudflare Workers AI Whisper Large V3 Turbo, `language=ko`, in 6-second WAV chunks
 - Draft report: Cloudflare Workers AI Llama 3.3
 
-The Council Worker and its D1 database are isolated from the existing 00AI portal, ATS, and HASA Workers. Council proxies the existing 00AI NOTE code request and verification endpoints server-to-server, then creates its own 12-hour opaque session. No mail credentials are duplicated in Council.
+The Council Worker and its D1 database are isolated from the existing 00AI portal, ATS, and HASA Workers. Council calls the existing 00AI NOTE Worker through a Cloudflare service binding for code request and verification. Duplicate-code cooldown responses are treated as an already-issued code so the user can proceed to enter the original email code., then creates its own 12-hour opaque session. No mail credentials are duplicated in Council.
 
 ## User flow
 
@@ -45,7 +45,7 @@ The browser requires an explicit user gesture and tab-audio sharing permission. 
 ## Deployment resources
 
 - Worker script: `00ai-council`
-- Worker deployment: deployment `9d8ebcfa862249c4b527c9b8bf1d379d` deployed 2026-11-09
+- Worker deployment: deployment `a56283ecae8046b495f37e74d6523a12` deployed 2026-11-09
 - D1 database ID: `98031fe6-f280-4b33-a239-e76247215d7b`
 - Cloudflare Access application: removed for this hostname; the Council Worker enforces the 00AI OTP session on every app API.
 
