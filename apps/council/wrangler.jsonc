@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "00ai-council",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-09",
+  "workers_dev": false,
+  "observability": { "enabled": false },
+  "ai": { "binding": "AI" },
+  "services": [{ "binding": "ACCOUNT_AUTH", "service": "00ai-notion" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "00ai-council-main",
+      "database_id": "98031fe6-f280-4b33-a239-e76247215d7b"
+    }
+  ]
+}
