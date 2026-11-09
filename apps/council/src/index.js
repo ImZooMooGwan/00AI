@@ -50,9 +50,9 @@ async function boot(){me={email:ACCESS_EMAIL};$('identity').textContent=me.email
 const loginHtml = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142b49"><title>00AI COUNCIL 로그인</title><style>:root{--navy:#142b49;--blue:#0878c9;--ink:#17202b;--sub:#586779;--line:#dce4ea;--wash:#f3f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--wash);font:15px/1.55 system-ui,-apple-system,"Malgun Gothic",sans-serif;color:var(--ink);padding:20px}.card{width:min(100%,460px);padding:36px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 36px #142b4912}.brand{font-weight:800;color:var(--navy);font-size:19px;margin-bottom:32px}.bars{display:inline-flex;gap:3px;align-items:end;height:18px;margin-right:8px}.bars i{width:5px;height:10px;background:#48a7df;border-radius:2px}.bars i:nth-child(2){height:14px;background:#40bb90}.bars i:nth-child(3){height:18px;background:#ffa83c}h1{font-size:25px;line-height:1.3;margin:0 0 8px}p{color:var(--sub);margin:0 0 22px;font-size:14px}.field{display:grid;gap:7px;margin:14px 0}.field label{font-size:13px;font-weight:700}.field input{width:100%;padding:13px;border:1px solid var(--line);border-radius:9px;font:inherit}.field input:focus{outline:2px solid #0878c933;border-color:var(--blue)}button{border:0;background:var(--blue);color:#fff;font:inherit;font-weight:700;border-radius:9px;min-height:48px;padding:10px 16px;cursor:pointer;width:100%;margin-top:8px}button:disabled{opacity:.55;cursor:wait}.hint,.status{font-size:13px;color:var(--sub);margin-top:16px}.status.error{color:#b42318}.hidden{display:none!important}.foot{border-top:1px solid var(--line);padding-top:18px;margin-top:24px;font-size:12px;color:#768394}</style></head><body><main class="card"><div class="brand"><span class="bars"><i></i><i></i><i></i></span>00AI COUNCIL</div><h1>00AI 통합 계정으로 로그인</h1><p>korea.kr 이메일로 인증 코드를 받아 로그인하세요.</p><form id="emailForm"><div class="field"><label for="email">공직자 이메일</label><input id="email" type="email" autocomplete="email" placeholder="name@korea.kr" required></div><button id="send" type="submit">인증 코드 받기</button></form><form id="codeForm" class="hidden"><div class="field"><label for="code">이메일 인증 코드</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6자리 코드" required></div><button id="verify" type="submit">로그인</button><button id="resend" type="button" class="hidden" style="background:#eef4f8;color:#28445e">코드 다시 받기</button></form><div id="status" class="status" aria-live="polite"></div><div class="foot">인증 메일은 00AI 계정 서비스에서 발송합니다. 이 서비스는 대전광역시의회 공식 서비스가 아닙니다.</div></main><script>
 const $=id=>document.getElementById(id);let email='';function msg(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' error':'')}
 async function post(path,body){let r;try{r=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)})}catch(e){throw new Error(e.name==='TimeoutError'?'인증 서버 응답이 늦습니다. 잠시 후 다시 시도해 주세요.':'인증 서버에 연결하지 못했습니다.')}const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'인증 요청을 처리하지 못했습니다.');return data}
-$('emailForm').onsubmit=async e=>{e.preventDefault();email=$('email').value.trim().toLowerCase();if(!email.endsWith('@korea.kr')){msg('korea.kr 공직자 이메일을 입력해 주세요.',true);return}const b=$('send');b.disabled=true;msg('00AI 인증 메일을 요청하고 있습니다.');try{await post('/api/auth/request-code',{email});$('emailForm').classList.add('hidden');$('codeForm').classList.remove('hidden');$('resend').classList.remove('hidden');$('code').focus();msg(email+'로 인증 코드를 보냈습니다. 메일의 6자리 코드를 입력하세요.')}catch(err){msg(err.message,true)}finally{b.disabled=false}};
+$('emailForm').onsubmit=async e=>{e.preventDefault();email=$('email').value.trim().toLowerCase();if(!email.endsWith('@korea.kr')){msg('korea.kr 공직자 이메일을 입력해 주세요.',true);return}const b=$('send');b.disabled=true;msg('00AI 인증 메일을 요청하고 있습니다.');try{const result=await post('/api/auth/request-code',{email});$('emailForm').classList.add('hidden');$('codeForm').classList.remove('hidden');$('resend').classList.remove('hidden');$('code').focus();msg(result.message||email+'로 인증 코드를 보냈습니다. 메일의 6자리 코드를 입력하세요.')}catch(err){msg(err.message,true)}finally{b.disabled=false}};
 $('codeForm').onsubmit=async e=>{e.preventDefault();const b=$('verify');b.disabled=true;msg('00AI 계정을 확인하고 있습니다.');try{await post('/api/auth/verify-code',{email,code:$('code').value.trim()});location.replace('/')}catch(err){msg(err.message,true)}finally{b.disabled=false}};
-$('resend').onclick=async()=>{const b=$('resend');b.disabled=true;try{await post('/api/auth/request-code',{email});msg('새 인증 코드를 보냈습니다.')}catch(err){msg(err.message,true)}finally{setTimeout(()=>b.disabled=false,45000)}};
+$('resend').onclick=async()=>{const b=$('resend');b.disabled=true;try{const result=await post('/api/auth/request-code',{email});msg(result.message||'새 인증 코드를 보냈습니다.')}catch(err){msg(err.message,true)}finally{setTimeout(()=>b.disabled=false,45000)}};
 </script></body></html>`;
 
 const json = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
@@ -85,10 +85,15 @@ async function userFromSession(request, env) {
   const email = String(row?.email||'').trim().toLowerCase();
   return email.endsWith('@korea.kr') ? {email,name:email.split('@')[0]} : null;
 }
-async function accountAuth(action, body) {
-  const response = await fetch('https://note.00ai.kr/api/auth/'+action,{method:'POST',headers:{'content-type':'application/json','origin':'https://note.00ai.kr','referer':'https://note.00ai.kr/'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(20000)});
-  const data = await response.json().catch(()=>({}));
-  if (!response.ok) throw new Error(String(data?.error||'00AI 계정 인증에 실패했습니다.').slice(0,240));
+async function accountAuth(env, action, body) {
+  const request = new Request('https://note.00ai.kr/api/auth/'+action,{method:'POST',headers:{'content-type':'application/json','origin':'https://note.00ai.kr','referer':'https://note.00ai.kr/'},body:JSON.stringify(body)});
+  const response = env.ACCOUNT_AUTH ? await env.ACCOUNT_AUTH.fetch(request) : await fetch(request);
+  const raw = await response.text();
+  let data={}; try { data=JSON.parse(raw||'{}'); } catch {}
+  const authMessage=String(data?.error||data?.message||'');
+  if (!response.ok && action === 'request-code' && /방금 코드를 요청했습니다/.test(authMessage)) return { alreadySent: true, message: '최근 요청한 인증 코드가 아직 유효합니다. 받은 편지함과 스팸함에서 기존 00AI 인증 메일을 확인해 주세요.' };
+  if (!response.ok) throw new Error(String(authMessage||`인증 서버 오류 (HTTP ${response.status})`).slice(0,240));
+  if (!raw || !response.headers.get('content-type')?.includes('application/json')) throw new Error('00AI 인증 서버가 예상한 JSON 응답을 반환하지 않았습니다.');
   return data;
 }
 async function bodyJson(request, limit = 64_000) {
@@ -127,12 +132,12 @@ export default {
           const b = await bodyJson(request,3000), email = String(b.email||'').trim().toLowerCase();
           if (!/^[^\s@]+@korea\.kr$/.test(email)) return json({error:'korea.kr 공직자 이메일만 사용할 수 있습니다.'},400);
           if (url.pathname === '/api/auth/request-code') {
-            await accountAuth('request-code',{email});
-            return json({ok:true,message:'인증 코드를 발송했습니다.'},200);
+            const result=await accountAuth(env,'request-code',{email});
+            return json({ok:true,message:result?.message||'인증 코드를 발송했습니다.',alreadySent:Boolean(result?.alreadySent)},200);
           }
           const code=String(b.code||'').trim();
           if (!/^\d{6}$/.test(code)) return json({error:'이메일로 받은 6자리 인증 코드를 입력하세요.'},400);
-          const verified=await accountAuth('verify-code',{email,code});
+          const verified=await accountAuth(env,'verify-code',{email,code});
           const verifiedEmail=String(verified?.user?.email||verified?.email||email).trim().toLowerCase();
           if (verifiedEmail !== email || !verifiedEmail.endsWith('@korea.kr')) return json({error:'인증된 계정 정보를 확인할 수 없습니다.'},403);
           const token=await createSession(env,email);
