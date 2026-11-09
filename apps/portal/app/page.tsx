@@ -75,6 +75,17 @@ const services: Service[] = [
     action: "문서 검토 시작",
   },
   {
+    code: "COUNCIL",
+    title: "00AI COUNCIL",
+    category: "문서·보고",
+    maturity: "실험실",
+    healthKey: "COUNCIL",
+    description: "대전광역시의회 생방송을 한국어 자막·회의 기록으로 남기고 질의·답변 중심의 보고서 초안을 만듭니다.",
+    tasks: ["생방송 한글 자막·회의록", "공무원 실시간 내부 채팅", "AI 회의 보고서 초안"],
+    href: "https://council.00ai.kr/",
+    action: "의회 방송 모니터링",
+  },
+  {
     code: "GOV AGENT",
     title: "00AI Gov Agent",
     category: "문서·보고",
