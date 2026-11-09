@@ -12,7 +12,7 @@
 | [`apps/root-router`](apps/root-router) | 루트 도메인 라우터 | 루트 도메인 요청을 포털 및 정적 서비스로 전달하는 Cloudflare Worker입니다. |
 | [`apps/subdomain-router`](apps/subdomain-router) | 서브도메인 라우터 | 서비스별 서브도메인 요청을 목적지로 연결하는 Cloudflare Worker입니다. |
 | [`apps/ats`](apps/ats) | 00AI ATS | 지원자 관리, 채용 단계, 면접 일정, 평가, 내부 메모, 이메일 예약 및 역할 기반 접근통제를 제공하는 채용 관리 서비스입니다. Worker API, D1 마이그레이션, 화면, 제품·보안 문서와 진행 기록을 포함합니다. |
-| [`apps/notion`](apps/notion) | 00AI NOTE | 문서·페이지·데이터베이스를 정리하고 협업하는 워크스페이스 앱입니다. Worker, D1 스키마와 단계별 마이그레이션, 편집기 및 서비스 설명이 포함됩니다. |
+| [`apps/council`](apps/council) | 00AI COUNCIL | 대전광역시의회 생방송을 00AI 계정으로 모니터링하고 한국어 자막·회의 기록, 공무원 채팅, AI 회의 보고서 초안을 제공합니다. |\n| [`apps/notion`](apps/notion) | 00AI NOTE | 문서·페이지·데이터베이스를 정리하고 협업하는 워크스페이스 앱입니다. Worker, D1 스키마와 단계별 마이그레이션, 편집기 및 서비스 설명이 포함됩니다. |
 | [`apps/harness-web`](apps/harness-web) | 00AI Harness 웹 | 업무 요청 입력, 실행기 선택, 실행 상태와 결과 확인을 제공하는 브라우저 UI 및 배포 설정입니다. |
 | [`apps/harness-agent`](apps/harness-agent) | Harness 실행기 | 사용자 PC 또는 기관 내부 서버에서 문서를 처리하고 선택적으로 HASA 추론을 호출하는 Python 실행기입니다. 설치 스크립트와 민감정보 마스킹 점검도 포함합니다. |
 | [`apps/youth-policy-mcp`](apps/youth-policy-mcp) | Y-HUB 청년정책 MCP | 온통청년 정책정보를 검색·조회하고 자격 점검, 비교, 변경 이력 및 근거 확인을 지원하는 읽기 전용 MCP Worker입니다. |
