@@ -1,14 +1,61 @@
+# 00AI — 공공업무 AI 서비스 모음
+
+00AI는 공공업무에서 활용할 AI·문서·채용·정책정보 도구를 개발하고 운영하기 위한 통합 저장소입니다. Cloudflare Workers와 Pages를 중심으로 각 서비스를 독립적으로 배포할 수 있게 구성하며, 공통 포털에서 서비스 진입점과 운영 도구를 연결합니다.
+
+이 저장소에는 운영 서비스 코드, 데이터베이스 마이그레이션, 배포 설정, 설계·보안 문서가 함께 들어 있습니다. 서비스별 실행 방법과 환경변수는 각 디렉터리의 README와 `.env.example`을 우선 확인하세요. API 키, 접근 토큰, 실사용자 개인정보는 저장소에 올리지 않습니다.
+
+## 서비스 구성
+
+| 경로 | 서비스 | 설명 |
+|---|---|---|
+| [`apps/portal`](apps/portal) | 00AI 포털 | `00ai.kr` 서비스 허브, 서비스 목록·도메인 연결, 배포 및 프로젝트 관리 기능을 담당하는 Next.js 앱입니다. 공개 서비스 라우팅, 상태 확인, Drop 배포 도구와 관련 API가 포함됩니다. |
+| [`apps/root-router`](apps/root-router) | 루트 도메인 라우터 | 루트 도메인 요청을 포털 및 정적 서비스로 전달하는 Cloudflare Worker입니다. |
+| [`apps/subdomain-router`](apps/subdomain-router) | 서브도메인 라우터 | 서비스별 서브도메인 요청을 목적지로 연결하는 Cloudflare Worker입니다. |
+| [`apps/ats`](apps/ats) | 00AI ATS | 지원자 관리, 채용 단계, 면접 일정, 평가, 내부 메모, 이메일 예약 및 역할 기반 접근통제를 제공하는 채용 관리 서비스입니다. Worker API, D1 마이그레이션, 화면, 제품·보안 문서와 진행 기록을 포함합니다. |
+| [`apps/notion`](apps/notion) | 00AI NOTE | 문서·페이지·데이터베이스를 정리하고 협업하는 워크스페이스 앱입니다. Worker, D1 스키마와 단계별 마이그레이션, 편집기 및 서비스 설명이 포함됩니다. |
+| [`apps/harness-web`](apps/harness-web) | 00AI Harness 웹 | 업무 요청 입력, 실행기 선택, 실행 상태와 결과 확인을 제공하는 브라우저 UI 및 배포 설정입니다. |
+| [`apps/harness-agent`](apps/harness-agent) | Harness 실행기 | 사용자 PC 또는 기관 내부 서버에서 문서를 처리하고 선택적으로 HASA 추론을 호출하는 Python 실행기입니다. 설치 스크립트와 민감정보 마스킹 점검도 포함합니다. |
+| [`apps/youth-policy-mcp`](apps/youth-policy-mcp) | Y-HUB 청년정책 MCP | 온통청년 정책정보를 검색·조회하고 자격 점검, 비교, 변경 이력 및 근거 확인을 지원하는 읽기 전용 MCP Worker입니다. |
+| [`apps/00ai-reply`](apps/00ai-reply) | 00AI REPLY | 행정문서 회신·답변 작성 도구의 정적 서비스 파일입니다. |
+| [`apps/otgeunmu-alarm`](apps/otgeunmu-alarm) | 초과근무 알림 | 초과근무 시간 확인과 알림을 위한 정적 앱입니다. |
+| [`gov-docs`](gov-docs) | 00AI DOCS 개발 자료 | 문서 편집·문서관리카드 UX, 기능 검토, 품질 점검 및 공동편집 실험 자료를 보관합니다. |
+| [`policy`](policy) | 정책정보 서비스 | 정책 관련 화면, Worker 구성, 디자인 문서 및 Cloudflare 배포 설정을 포함합니다. |
+| [`workspace`](workspace) | 워크스페이스 프로토타입 | 문서 엔진과 NOTE 워크스페이스의 이전 버전·실험용 구현 및 버전별 설명을 보관합니다. |
+| [`index.html`](index.html) | Harness 정적 진입 화면 | 저장소 루트에서 제공하는 Harness 웹 진입 페이지입니다. |
+
+> 서비스의 배포 주소나 공개 여부는 코드에 적힌 주소만으로 보장되지 않습니다. 실제 운영 상태와 접근 권한은 해당 서비스의 Cloudflare 설정 및 포털 연결 상태를 확인하세요.
+
+## 기술·운영 구조
+
+- **웹 앱과 Worker 분리:** 화면과 API·백그라운드 처리를 서비스 목적에 따라 분리하고, 각 앱의 Wrangler 설정으로 배포 대상을 지정합니다.
+- **Cloudflare 기반 구성:** Workers, Pages, D1 및 필요 시 R2·Durable Objects를 서비스별로 연결합니다. 실제 바인딩 이름과 마이그레이션 순서는 서비스별 설정을 따릅니다.
+- **HASA 연동:** Harness 등 AI 기능을 사용하는 앱은 OpenAI 호환 API를 선택적으로 호출합니다. 비밀값은 환경변수 또는 Cloudflare 비밀 저장소에 두고 코드·문서 예시에는 실제 키를 기록하지 않습니다.
+- **데이터 변경 관리:** D1 스키마 변경은 서비스 디렉터리의 순서가 지정된 마이그레이션 파일로 관리합니다. 운영 데이터베이스에 적용하기 전에 대상 환경과 백업·검증 절차를 확인해야 합니다.
+- **보안 경계:** 서비스별 인증·역할·조직 격리 정책을 문서와 Worker에서 함께 확인합니다. 로컬 개발용 설정을 운영 보안 설정으로 간주하지 않습니다.
+
+## 서비스별 문서와 실행 방법
+
+- ATS: [`apps/ats/README.md`](apps/ats/README.md), [요구사항](apps/ats/docs/02-product-requirements.md), [보안 설계](apps/ats/docs/11-security.md)
+- NOTE: [`apps/notion/README.md`](apps/notion/README.md)
+- Harness PC·내부 실행기: [`apps/harness-agent/README.md`](apps/harness-agent/README.md)
+- 포털: [`apps/portal/README.md`](apps/portal/README.md)
+- 청년정책 MCP: [`apps/youth-policy-mcp/README.md`](apps/youth-policy-mcp/README.md)
+- 문서 편집 개발 자료: [`gov-docs/README.md`](gov-docs/README.md)
+- 정책정보 서비스: [`policy/README.md`](policy/README.md)
+
+일반적으로는 대상 앱 디렉터리로 이동해 해당 앱의 README에 적힌 의존성 설치, 환경변수 설정, 개발 서버 실행 순서를 따릅니다. 저장소 루트에 단일 실행 명령이 있다고 가정하지 마세요. 비밀값이 필요한 기능은 `.env.example`을 참고해 로컬 또는 배포 환경에 별도로 설정합니다.
+
+---
+
 # 00AI Harness · Local-First Government AI
 
-행정망 안의 파일·문서·데이터·도구를 안전하게 연결하기 위한 00AI Harness입니다.
-
-웹 Harness는 요청, 실행 대상 선택, 진행상태, 결과 확인을 담당합니다. 실제 처리는 업무 경계에 따라 세 가지 실행기 중 하나에서 수행합니다.
+Harness는 행정망 안의 파일·문서·데이터·도구를 안전하게 연결하기 위한 업무 보조 도구입니다. 웹 Harness는 요청, 실행 대상 선택, 진행 상태, 결과 확인을 담당하며 실제 처리는 다음 실행 경계 중 하나에서 수행합니다.
 
 1. **브라우저 로컬** — 설치 없이 텍스트 문서를 읽고 근거와 SHA-256을 생성합니다.
 2. **PC 에이전트** — 사용자 PC의 별도 Python 실행기가 문서를 처리하고 HASA 추론을 선택적으로 사용합니다.
 3. **기관 내부 서버** — 같은 실행기 계약을 기관 서버에 배치해 내부 시스템과 확장 연결합니다.
 
-## 핵심 원칙
+## Harness 핵심 원칙
 
 - API Key와 접근 토큰을 공개 웹사이트나 GitHub에 저장하지 않습니다.
 - 원본 문서의 읽기, 근거 추출, 해시는 PC 또는 내부 서버에서 수행합니다.
@@ -62,4 +109,4 @@ export HARNESS_AGENT_TOKEN="충분히 긴 내부 접근 토큰"
 
 ## Y-HUB 청년정책 MCP
 
-`apps/youth-policy-mcp`에는 온통청년 정책을 영속화하고 검색·상세·자격점검·비교·변경이력·근거 조회를 제공하는 읽기 전용 원격 MCP Worker가 있습니다. 목표 엔드포인트는 `https://mcp.00ai.kr/youth`입니다.
+[`apps/youth-policy-mcp`](apps/youth-policy-mcp)에는 온통청년 정책을 영속화하고 검색·상세·자격점검·비교·변경이력·근거 조회를 제공하는 읽기 전용 원격 MCP Worker가 있습니다. 목표 엔드포인트는 `https://mcp.00ai.kr/youth`입니다.
