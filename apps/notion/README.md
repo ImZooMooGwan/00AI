@@ -1,35 +1,100 @@
-# 00AI Workspace
+# 00AI NOTE
 
-협업 문서와 공공 템플릿을 위한 Cloudflare 기반 워크스페이스. 프론트엔드는 React/Tiptap, 편집 상태는 Yjs, 동시 접속 조정과 영속화는 Durable Objects SQLite, 계정·공간·페이지 메타데이터는 D1을 사용합니다.
+**Think. Write. Organize. — 생각부터 실행까지, 하나의 공간에서.**
 
-## 제품 범위
+00AI NOTE는 문서, 업무 지식, 공공 템플릿과 데이터베이스를 한곳에서 작성·정리하고 동료와 협업하기 위한 웹 워크스페이스입니다. 서비스는 [note.00ai.kr](https://note.00ai.kr/)에서 운영됩니다. 이 디렉터리는 NOTE 프런트엔드, Cloudflare Worker API, 데이터베이스 마이그레이션과 배포 설정을 포함합니다.
 
-- 이메일 일회용 코드 로그인, 사용자별 개인 공간 및 다중 워크스페이스
-- 페이지 생성·복제, 역할별 페이지 공유, 댓글과 해결 상태
-- Tiptap 서식/표 편집, 브라우저 IndexedDB 복구, Yjs 실시간 협업과 온라인 사용자 표시
-- HASA 선택 텍스트 요약·다듬기·번역·할 일 추출
-- 한국어 공공 업무 템플릿 카탈로그와 워크스페이스 내부 복제
+## 제품 개요
 
-## 배포
+00AI NOTE는 문서와 업무 정보를 페이지 단위로 구성하고, 워크스페이스에서 필요한 사람과 공유하는 협업형 지식 공간을 목표로 합니다. 별도 데스크톱 앱 설치 없이 웹 브라우저에서 이용할 수 있으며, 공공기관 업무에서 재사용하기 쉬운 템플릿과 한국어 중심의 편집 경험을 제공합니다.
 
-1. `npm ci`
-2. `wrangler d1 migrations apply 00ai-notion --remote`
-3. Brevo/HASA 키는 계정 Secrets Store에서 Worker 바인딩으로 연결합니다. 세션 서명 키는 첫 로그인 시 D1에 생성·보관합니다.
-4. `npm run deploy`
+주요 사용 대상은 개인 업무 기록을 정리하는 사용자, 팀 문서와 지식을 함께 관리하는 조직, 공공 업무 양식을 바탕으로 문서를 작성하려는 사용자입니다.
 
-`wrangler.jsonc`는 `notion.00ai.kr/*` Worker Route와 기존 계정 D1/Workers 리소스를 참조합니다. DNS에 해당 호스트가 없다면 `00ai.kr` zone의 기존 wildcard DNS/서브도메인 라우터 규칙을 확인한 뒤 `notion` 호스트를 Cloudflare proxied DNS에 연결해야 합니다. `MAIL_FROM` 도메인은 Brevo에서 발신 인증되어야 합니다.
+## 기능
 
-GitHub Actions 배포에는 저장소 Actions secret `CLOUDFLARE_API_TOKEN`이 필요합니다. 배포 토큰 권한에는 Workers Scripts 편집, D1 편집, DNS/Workers Route 편집, Account Secrets Store 편집이 포함되어야 합니다. Brevo/HASA 키는 GitHub로 복사하지 않습니다.
+현재 저장소의 제품 문서와 구현 범위에 기재된 기능입니다. 실제 공개 환경의 제공 여부는 배포된 버전과 운영 설정에 따라 달라질 수 있습니다.
 
-## 운영 설정
+- **페이지와 문서 관리:** 페이지 생성·복제, 페이지별 내용 작성, 워크스페이스 안에서 문서 정리
+- **서식 편집:** React 기반 편집기와 Tiptap을 이용한 제목·문단·목록·표 등 문서 편집
+- **실시간 공동 편집:** Yjs 기반 편집 상태 동기화와 접속 중인 사용자 표시
+- **공유와 협업:** 역할별 페이지 공유, 댓글 작성과 해결 상태 관리
+- **업무 템플릿:** 한국어 공공 업무 템플릿 카탈로그를 둘러보고 워크스페이스로 복제
+- **AI 편집 보조:** 선택한 텍스트의 요약, 문장 다듬기, 번역, 할 일 추출
+- **자동 복구:** 브라우저 IndexedDB를 활용한 편집 내용 복구 지원
+- **이메일 인증:** 이메일 일회용 코드 방식의 로그인 흐름
+- **웹 기반 이용:** 데스크톱 앱 설치 없이 브라우저에서 접속
 
-- 공개 회원 가입은 기본 활성화입니다. 초대제 운영은 Worker var `SIGNUP_ENABLED=false`로 전환합니다.
-- Brevo/HASA 키는 Worker secret에 저장합니다. 코드·브라우저 번들·일반 vars에는 키를 저장하지 않습니다.
-- 이메일 코드와 AI API는 서버에서만 호출합니다. 문서 저장은 DB에 기록 후 ACK하며, 로컬 임시 복사본은 로그인 사용자와 페이지 ID로 분리합니다.
-- 초기 템플릿은 `migrations/0001_workspace.sql`에 포함됩니다.
+AI 보조 기능은 사용자가 선택한 문장을 처리하는 기능으로 설계되어 있습니다. 외부 AI 서비스 연동 여부와 데이터 처리 범위는 배포 환경의 설정 및 해당 기능의 안내를 확인해야 합니다.
 
-## 오픈소스 선택 메모 (2026-10-30)
+## 기술 구성
 
-이 저장소는 오픈소스 제품 전체를 포크하지 않고, React/Tiptap/Yjs를 조합해 00AI의 인증·권한·공공 템플릿 정책을 자체 구현합니다. 기존 00AI DOCS 저장소의 Yjs 협업 실험과 Cloudflare 운영 구조를 이어받으면서, 에디터와 협업 프로토콜을 분리할 수 있기 때문입니다. AppFlowy·AFFiNE·Docmost는 기능/UX 및 데이터 모델 참고 대상으로만 취급하며, 코드나 템플릿은 라이선스와 출처를 확인하지 않고 복사하지 않습니다.
+| 영역 | 구성 | 역할 |
+|---|---|---|
+| 웹 프런트엔드 | React, Vite, Tiptap | 워크스페이스 화면과 문서 편집기 제공 |
+| 문서 동기화 | Yjs, Cloudflare Durable Objects SQLite | 공동 편집 상태 조정 및 동기화 |
+| 계정·공간 데이터 | Cloudflare D1 | 계정, 워크스페이스, 페이지 등 메타데이터 저장 |
+| API 및 배포 | Cloudflare Workers | 인증, 문서 기능, AI 요청 등 서버 기능 제공 |
+| 이메일 | Brevo 연동 설정 | 로그인 일회용 코드 발송 |
+| AI 연동 | HASA 호환 API 설정 | 선택 텍스트 기반 편집 보조 기능 |
 
-조사 기준일에 확인한 최신 릴리스 지점: AppFlowy 0.14.11 (2026-10-26), AFFiNE 2026.10.26 canary, BlockNote 0.55.0 (2026-09-22). 이 릴리스 값은 지속적으로 변하므로 공개 배포 전에 각 공식 릴리스와 패키지 라이선스를 다시 확인합니다. 오픈 템플릿은 저작자·출처·라이선스·개인정보 제거를 확인한 뒤 게시해야 합니다.
+세부 의존성과 명령은 `package.json`, `wrangler.jsonc`, Worker 코드와 마이그레이션 파일을 기준으로 확인하세요.
+
+## 디렉터리 구조
+
+- `src/` — NOTE 브라우저 앱과 편집 화면
+- `worker/` — Cloudflare Worker API 및 서버 측 처리
+- `migrations/` — D1 데이터베이스 스키마 변경 이력
+- `index.html` — 프런트엔드 진입 문서
+- `wrangler.jsonc` — Cloudflare Worker, D1 및 배포 바인딩 설정
+- `vite.config.ts` — 로컬 개발 및 프런트엔드 빌드 설정
+- `package.json` — 개발·빌드·배포 스크립트와 의존성
+
+## 로컬 개발
+
+저장소 루트가 아니라 이 디렉터리에서 명령을 실행합니다.
+
+```bash
+cd apps/notion
+npm ci
+npm run dev
+```
+
+프로덕션 빌드는 다음 명령으로 실행합니다.
+
+```bash
+npm run build
+```
+
+프로젝트의 실제 스크립트 이름과 옵션은 `package.json`에서 확인하세요. Cloudflare 리소스가 연결되지 않은 로컬 환경에서는 인증 이메일 발송, D1 영속 저장, Durable Objects 동시 편집 등 운영 기능이 동일하게 동작하지 않을 수 있습니다.
+
+## Cloudflare 배포
+
+배포 전 `wrangler.jsonc`의 계정·서비스·D1 바인딩을 확인하고, 대상 환경에 필요한 데이터베이스 마이그레이션을 적용합니다. 프로젝트에서 안내하는 기본 절차는 다음과 같습니다.
+
+```bash
+npm ci
+npx wrangler d1 migrations apply 00ai-notion --remote
+npm run deploy
+```
+
+배포 계정과 리소스가 현재 설정과 다르면 명령 실행 전에 Wrangler 설정을 해당 환경에 맞게 조정해야 합니다. 로그인 메일과 AI 서비스의 비밀값은 Cloudflare Worker Secret 또는 계정 비밀 저장소에 설정합니다. 비밀값을 소스 코드, 일반 환경 변수, GitHub/GitLab 저장소에 커밋하지 마세요.
+
+이 저장소의 설정은 `note.00ai.kr` 서비스 도메인과 실제 Cloudflare 계정 리소스에 연결되어야 합니다. 별도 환경에 배포할 때는 운영 도메인, Worker Route, DNS, D1, Durable Objects, 메일 발신 도메인을 함께 점검하세요.
+
+## 데이터와 보안 유의사항
+
+- 로그인 코드, 세션 서명 키, Brevo 및 HASA API 키는 저장소에 기록하지 않습니다.
+- 운영용 비밀값은 배포 플랫폼의 Secret 기능으로 관리합니다.
+- 문서와 댓글에는 개인정보나 기관 내부 정보가 포함될 수 있으므로 조직의 정보보안 기준에 맞게 접근 권한과 보존 정책을 설정해야 합니다.
+- 로컬 브라우저 복구 데이터는 브라우저 저장소를 사용하므로 공용 PC에서는 로그아웃과 브라우저 데이터 정리 정책을 확인하세요.
+- 실시간 동기화와 데이터베이스 접근은 배포된 Worker·Durable Objects·D1 설정의 영향을 받습니다. 소스 코드만으로 운영 보안이나 서비스 가용성이 보장되지는 않습니다.
+
+## GitHub와 GitLab 동기화
+
+이 프로젝트의 코드는 `apps/notion/` 경로에서 관리됩니다. GitHub 저장소를 GitLab에 연결할 때는 기본 브랜치와 동기화 방향을 먼저 정하고, 양쪽 저장소에서 같은 파일을 동시에 수정하지 않도록 운영하세요. 배포 비밀값이나 실제 사용자 데이터를 동기화 대상에 추가하지 마세요.
+
+## 관련 링크
+
+- 서비스: [00AI NOTE](https://note.00ai.kr/)
+- 전체 저장소: [ImZooMooGwan/00AI](https://github.com/ImZooMooGwan/00AI)
+- 상위 프로젝트 안내: [저장소 README](../../README.md)
